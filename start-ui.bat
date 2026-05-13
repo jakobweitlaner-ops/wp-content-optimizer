@@ -1,4 +1,12 @@
 @echo off
+
+:: If not already running as child process, relaunch in a persistent cmd window
+if "%1"=="--run" goto :run
+start "WP Content Optimizer" cmd /k ""%~f0" --run"
+exit /b
+
+:run
+cd /d "%~dp0"
 echo ============================================
 echo  WP Content Optimizer - Starting...
 echo ============================================
