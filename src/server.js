@@ -66,6 +66,8 @@ app.get('/preview/audit-media-ai', (req, res) => {
   auditAltTextWithAI({
     onProgress: (done, total, slug) =>
       send('progress', `Analysiere ${done}/${total}: ${slug}`),
+    onProposal: (p) =>
+      send('out', `⚠ ${p.filename}\n  Aktuell: "${p.currentAltText || '(leer)'}"\n  Vorschlag: "${p.proposedAltText}"\n  Grund: ${p.reason}`),
   })
     .then((proposals) => {
       send('proposals', `${proposals.length} Vorschläge gefunden.`, proposals);

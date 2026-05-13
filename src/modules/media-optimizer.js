@@ -99,7 +99,7 @@ async function promisePool(tasks, concurrency) {
   return results;
 }
 
-export async function auditAltTextWithAI({ onProgress } = {}) {
+export async function auditAltTextWithAI({ onProgress, onProposal } = {}) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
 
@@ -135,14 +135,16 @@ export async function auditAltTextWithAI({ onProgress } = {}) {
       const json = JSON.parse(match[0]);
 
       if (json.quality === 'poor' && json.suggestion) {
-        proposals.push({
+        const proposal = {
           id: item.id,
           filename: item.slug,
           url: item.source_url,
           currentAltText: altText,
           proposedAltText: json.suggestion,
           reason: json.reason || '',
-        });
+        };
+        proposals.push(proposal);
+        if (onProposal) onProposal(proposal);
       }
     } catch {
       // skip failed items
