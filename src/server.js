@@ -32,8 +32,9 @@ app.get('/run/:command', (req, res) => {
     res.write(`data: ${JSON.stringify({ type, text })}\n\n`);
   };
 
+  const { ANTHROPIC_BASE_URL, ...spawnEnv } = process.env;
   const child = spawn('node', args, {
-    env: { ...process.env, FORCE_COLOR: '0' },
+    env: { ...spawnEnv, FORCE_COLOR: '0' },
     cwd: join(__dirname, '..'),
   });
 
