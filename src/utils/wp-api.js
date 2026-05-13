@@ -53,11 +53,15 @@ export async function getSiteContext() {
     ? categories.value.filter((c) => c.count > 0).map((c) => c.name)
     : [];
 
+  const businessType = process.env.SITE_TYPE || '';
   const lines = [];
   if (site.name) lines.push(`Website: ${site.name}`);
-  if (site.description) lines.push(`Beschreibung: ${site.description}`);
+  if (businessType) lines.push(`Art des Unternehmens: ${businessType}`);
+  const cleanDesc = (site.description || '').replace(/wellness/gi, '').replace(/\s{2,}/g, ' ').trim();
+  if (cleanDesc) lines.push(`Beschreibung: ${cleanDesc}`);
   if (site.url) lines.push(`URL: ${site.url}`);
-  if (cats.length) lines.push(`Kategorien: ${cats.join(', ')}`);
+  const filteredCats = cats.filter((c) => !/wellness/i.test(c));
+  if (filteredCats.length) lines.push(`Themen: ${filteredCats.join(', ')}`);
   if (pageNames.length) lines.push(`Seiten: ${pageNames.join(', ')}`);
   if (postNames.length) lines.push(`Aktuelle Beiträge: ${postNames.slice(0, 10).join(', ')}`);
 
