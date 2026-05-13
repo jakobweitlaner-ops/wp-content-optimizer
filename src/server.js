@@ -12,7 +12,7 @@ const PORT = process.env.UI_PORT || 3000;
 app.use(express.static(join(__dirname, 'public')));
 
 app.get('/run/:command', (req, res) => {
-  const allowed = ['test-connection', 'check-links', 'audit-seo', 'audit-media'];
+  const allowed = ['test-connection', 'check-links', 'audit-seo', 'audit-media', 'get-status'];
   const command = req.params.command;
 
   if (!allowed.includes(command)) {

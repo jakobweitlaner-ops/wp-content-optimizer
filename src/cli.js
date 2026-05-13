@@ -6,6 +6,7 @@ import { auditSeo } from './modules/seo-optimizer.js';
 import { auditMedia } from './modules/media-optimizer.js';
 import { testConnection } from './utils/wp-api.js';
 import { log } from './utils/logger.js';
+import { getSiteStatus } from './utils/claude-status.js';
 
 const program = new Command();
 
@@ -67,6 +68,41 @@ program
       await auditMedia({ fix: !!options.fix, output: options.output });
     } catch (err) {
       log.error(`Media audit failed: ${err.message}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('get-status')
+  .description('AI-powered site health report using Claude tool use (requires ANTHROPIC_API_KEY)')
+  .option('-c, --concurrency <number>', 'Concurrency for link checker', '5')
+  .action(async (options) => {
+    try {
+      if (!process.env.ANTHROPIC_API_KEY) {
+        log.error('ANTHROPIC_API_KEY is required for get-status');
+        process.exit(1);
+      }
+
+      const concurrency = parseInt(options.concurrency, 10);
+
+      log.header('Site Status');
+      log.info('Running all audits in parallel...');
+
+      const [seoSettled, linkSettled, mediaSettled] = await Promise.allSettled([
+        auditSeo({ minScore: 80, aiSuggestions: false }),
+        checkLinks({ concurrency }),
+        auditMedia({ fix: false }),
+      ]);
+
+      const seoResults = seoSettled.status === 'fulfilled' ? seoSettled.value : null;
+      const linkResults = linkSettled.status === 'fulfilled' ? linkSettled.value : null;
+      const mediaResults = mediaSettled.status === 'fulfilled' ? mediaSettled.value : null;
+
+      log.info('Analyzing results with Claude...\n');
+      const report = await getSiteStatus({ seoResults, linkResults, mediaResults });
+      console.log(report);
+    } catch (err) {
+      log.error(`Status check failed: ${err.message}`);
       process.exit(1);
     }
   });
