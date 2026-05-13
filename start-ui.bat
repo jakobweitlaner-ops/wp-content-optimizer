@@ -26,6 +26,7 @@ echo Browser opens automatically.
 echo Press Ctrl+C to stop.
 echo.
 node src/server.js
+
 echo.
 if %errorlevel% neq 0 (
     echo ERROR: Server crashed with code %errorlevel%.
