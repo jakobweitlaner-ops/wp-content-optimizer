@@ -22,6 +22,18 @@ const client = axios.create({
   httpsAgent: new https.Agent({ rejectUnauthorized: !INSECURE }),
 });
 
+export async function getSiteInfo() {
+  const { data } = await axios.get(`${BASE_URL}/wp-json/`, {
+    httpsAgent: new https.Agent({ rejectUnauthorized: !INSECURE }),
+    timeout: TIMEOUT,
+  });
+  return {
+    name: data.name || '',
+    description: data.description || '',
+    url: BASE_URL,
+  };
+}
+
 export async function testConnection() {
   if (!BASE_URL || !USERNAME || !APP_PASSWORD) {
     throw new Error('Missing required environment variables: WP_URL, WP_USERNAME, WP_APP_PASSWORD');
