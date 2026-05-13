@@ -96,9 +96,9 @@ app.get('/preview/audit-media', async (req, res) => {
 });
 
 app.post('/apply/audit-media', express.json(), async (req, res) => {
-  const ids = req.body?.ids;
-  if (!Array.isArray(ids) || ids.length === 0) {
-    res.status(400).json({ error: 'ids array required' });
+  const changes = req.body?.changes;
+  if (!Array.isArray(changes) || changes.length === 0) {
+    res.status(400).json({ error: 'changes array required' });
     return;
   }
   res.setHeader('Content-Type', 'text/event-stream');
@@ -108,17 +108,17 @@ app.post('/apply/audit-media', express.json(), async (req, res) => {
   const send = (type, text) => res.write(`data: ${JSON.stringify({ type, text })}\n\n`);
 
   try {
-    send('out', `Applying ${ids.length} fix(es)...`);
-    const results = await applyMediaFixes(ids);
+    send('out', `Wende ${changes.length} Fix(es) an...`);
+    const results = await applyMediaFixes(changes);
     for (const r of results) {
-      if (r.success) send('out', `✔ ${r.filename} → alt: "${r.altText}"`);
-      else send('err', `✖ ${r.filename}: ${r.error}`);
+      if (r.success) send('out', `✔ ID ${r.id} → alt: "${r.altText}"`);
+      else send('err', `✖ ID ${r.id}: ${r.error}`);
     }
     const ok = results.filter((r) => r.success).length;
-    send('out', `Done. ${ok}/${results.length} fixes applied.`);
-    send('done', 'success');
+    send('out', `Fertig. ${ok}/${results.length} Alt-Texte gespeichert.`);
+    send('done', ok > 0 ? 'success' : 'error');
   } catch (err) {
-    send('err', `Failed: ${err.message}`);
+    send('err', `Fehler: ${err.message}`);
     send('done', 'error');
   }
   res.end();
