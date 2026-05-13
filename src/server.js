@@ -68,6 +68,8 @@ app.get('/preview/audit-media-ai', (req, res) => {
       send('progress', `Analysiere ${done}/${total}: ${slug}`),
     onProposal: (p) =>
       send('out', `⚠ ${p.filename}\n  Aktuell: "${p.currentAltText || '(leer)'}"\n  Vorschlag: "${p.proposedAltText}"\n  Grund: ${p.reason}`),
+    onError: (slug, msg) =>
+      send('err', `Fehler bei ${slug}: ${msg}`),
   })
     .then((proposals) => {
       send('proposals', `${proposals.length} Vorschläge gefunden.`, proposals);

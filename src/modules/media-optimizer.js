@@ -1,6 +1,20 @@
+import https from 'https';
 import Anthropic from '@anthropic-ai/sdk';
+import axios from 'axios';
 import { getMedia, updateMedia } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
+
+const insecureAgent = new https.Agent({ rejectUnauthorized: false });
+
+async function fetchImageAsBase64(url) {
+  const response = await axios.get(url, {
+    responseType: 'arraybuffer',
+    httpsAgent: insecureAgent,
+    timeout: 15000,
+  });
+  const mimeType = (response.headers['content-type'] || 'image/jpeg').split(';')[0];
+  return { base64: Buffer.from(response.data).toString('base64'), mimeType };
+}
 
 const MAX_FILE_SIZE_BYTES = 200 * 1024; // 200 KB
 const MAX_WIDTH = 2560;
@@ -99,7 +113,7 @@ async function promisePool(tasks, concurrency) {
   return results;
 }
 
-export async function auditAltTextWithAI({ onProgress, onProposal } = {}) {
+export async function auditAltTextWithAI({ onProgress, onProposal, onError } = {}) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
 
@@ -114,16 +128,18 @@ export async function auditAltTextWithAI({ onProgress, onProposal } = {}) {
     if (onProgress) onProgress(done, media.length, item.slug);
 
     try {
+      const { base64, mimeType } = await fetchImageAsBase64(item.source_url);
+
       const response = await client.messages.create({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 200,
         messages: [{
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'url', url: item.source_url } },
+            { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
             {
               type: 'text',
-              text: `Current alt text: "${altText || '(empty)'}"\n\nEvaluate this alt text for the image. Reply with JSON only:\n{"quality":"good"|"poor","reason":"one sentence","suggestion":"improved alt text or null"}`,
+              text: `Current alt text: "${altText || '(empty)'}"\n\nEvaluate this alt text for the image. Is it accurate and descriptive? Reply with JSON only:\n{"quality":"good"|"poor","reason":"one sentence","suggestion":"improved alt text or null"}`,
             },
           ],
         }],
@@ -146,8 +162,8 @@ export async function auditAltTextWithAI({ onProgress, onProposal } = {}) {
         proposals.push(proposal);
         if (onProposal) onProposal(proposal);
       }
-    } catch {
-      // skip failed items
+    } catch (err) {
+      if (onError) onError(item.slug, err.message);
     }
   });
 
