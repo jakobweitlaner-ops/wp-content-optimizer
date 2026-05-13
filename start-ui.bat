@@ -13,14 +13,14 @@ echo ============================================
 echo.
 
 echo [1/3] Updating from GitHub...
-git pull origin main
+call git pull origin main
 if %errorlevel% neq 0 (
     echo WARNING: git pull failed, continuing with local version...
 )
 echo.
 
 echo [2/3] Installing dependencies...
-npm install
+call npm install
 if %errorlevel% neq 0 (
     echo.
     echo ERROR: npm install failed. See errors above.
