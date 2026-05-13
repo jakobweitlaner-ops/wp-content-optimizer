@@ -34,6 +34,36 @@ export async function getSiteInfo() {
   };
 }
 
+export async function getSiteContext() {
+  const [info, pages, posts, categories] = await Promise.allSettled([
+    getSiteInfo(),
+    fetchAllPages('/pages', { status: 'publish', _fields: 'title' }),
+    fetchAllPages('/posts', { status: 'publish', _fields: 'title', per_page: 20 }),
+    fetchAllPages('/categories', { _fields: 'name,count', per_page: 50 }),
+  ]);
+
+  const site = info.status === 'fulfilled' ? info.value : {};
+  const pageNames = pages.status === 'fulfilled'
+    ? pages.value.map((p) => p.title?.rendered).filter(Boolean)
+    : [];
+  const postNames = posts.status === 'fulfilled'
+    ? posts.value.map((p) => p.title?.rendered).filter(Boolean)
+    : [];
+  const cats = categories.status === 'fulfilled'
+    ? categories.value.filter((c) => c.count > 0).map((c) => c.name)
+    : [];
+
+  const lines = [];
+  if (site.name) lines.push(`Website: ${site.name}`);
+  if (site.description) lines.push(`Beschreibung: ${site.description}`);
+  if (site.url) lines.push(`URL: ${site.url}`);
+  if (cats.length) lines.push(`Kategorien: ${cats.join(', ')}`);
+  if (pageNames.length) lines.push(`Seiten: ${pageNames.join(', ')}`);
+  if (postNames.length) lines.push(`Aktuelle Beiträge: ${postNames.slice(0, 10).join(', ')}`);
+
+  return lines.join('\n');
+}
+
 export async function testConnection() {
   if (!BASE_URL || !USERNAME || !APP_PASSWORD) {
     throw new Error('Missing required environment variables: WP_URL, WP_USERNAME, WP_APP_PASSWORD');

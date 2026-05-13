@@ -1,7 +1,7 @@
 import https from 'https';
 import Anthropic from '@anthropic-ai/sdk';
 import axios from 'axios';
-import { getMedia, updateMedia, getSiteInfo } from '../utils/wp-api.js';
+import { getMedia, updateMedia, getSiteContext } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
 
 const insecureAgent = new https.Agent({ rejectUnauthorized: false });
@@ -118,12 +118,10 @@ export async function auditAltTextWithAI({ onProgress, onProposal, onError } = {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
 
   const client = new Anthropic({ apiKey });
-  const [media, siteInfo] = await Promise.all([
+  const [media, siteContext] = await Promise.all([
     getMedia({ media_type: 'image' }),
-    getSiteInfo().catch(() => ({ name: '', description: '' })),
+    getSiteContext().catch(() => ''),
   ]);
-
-  const siteContext = [siteInfo.name, siteInfo.description].filter(Boolean).join(' – ');
   const proposals = [];
   let done = 0;
 
@@ -144,7 +142,7 @@ export async function auditAltTextWithAI({ onProgress, onProposal, onError } = {
             { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
             {
               type: 'text',
-              text: `Webseite: ${siteContext || 'unbekannt'}\nAktueller Alt-Text: "${altText || '(leer)'}"\n\nBewerte diesen Alt-Text im Kontext der Webseite. Ist er korrekt, beschreibend und zur Webseite passend? Antworte ausschließlich mit JSON auf Deutsch:\n{"quality":"good"|"poor","reason":"ein Satz auf Deutsch","suggestion":"verbesserter Alt-Text auf Deutsch passend zur Webseite oder null"}`,
+              text: `${siteContext ? `Kontext der Webseite:\n${siteContext}\n\n` : ''}Aktueller Alt-Text des Bildes: "${altText || '(leer)'}"\n\nBewerte diesen Alt-Text im Kontext der Webseite. Ist er korrekt, beschreibend und passend? Generiere bei Bedarf einen besseren Alt-Text der den Bildinhalt beschreibt und zur Webseite passt. Antworte ausschließlich mit JSON auf Deutsch:\n{"quality":"good"|"poor","reason":"ein Satz","suggestion":"verbesserter Alt-Text auf Deutsch oder null"}`,
             },
           ],
         }],
