@@ -13,11 +13,17 @@ app.use(express.static(join(__dirname, 'public')));
 
 app.get('/run/:command', (req, res) => {
   const allowed = ['test-connection', 'check-links', 'audit-seo', 'audit-media'];
+  const fixAllowed = ['audit-seo', 'audit-media'];
   const command = req.params.command;
 
   if (!allowed.includes(command)) {
     res.status(400).end('Unknown command');
     return;
+  }
+
+  const args = ['src/cli.js', command];
+  if (req.query.fix === 'true' && fixAllowed.includes(command)) {
+    args.push('--fix');
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -28,7 +34,7 @@ app.get('/run/:command', (req, res) => {
     res.write(`data: ${JSON.stringify({ type, text })}\n\n`);
   };
 
-  const child = spawn('node', ['src/cli.js', command], {
+  const child = spawn('node', args, {
     env: process.env,
     cwd: join(__dirname, '..'),
   });

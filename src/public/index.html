@@ -68,6 +68,44 @@
     .card.success .card-status { color: #22c55e; }
     .card.error   .card-status { color: #ef4444; }
 
+    /* AI Fix toggle */
+    .fix-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.85rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #2d3348;
+    }
+
+    .fix-toggle label {
+      font-size: 0.75rem;
+      color: #64748b;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .fix-toggle label:hover { color: #a78bfa; }
+
+    /* Prevent card click when interacting with toggle */
+    .fix-toggle input[type="checkbox"] {
+      accent-color: #a78bfa;
+      width: 13px;
+      height: 13px;
+      cursor: pointer;
+    }
+
+    .fix-badge {
+      font-size: 0.65rem;
+      background: #2d1f5e;
+      color: #a78bfa;
+      border: 1px solid #4c2f9e;
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
     .output-box {
       background: #0a0d14;
       border: 1px solid #2d3348;
@@ -138,12 +176,26 @@
     <div class="card-title">SEO Audit</div>
     <div class="card-desc">SEO-Score für alle Beiträge analysieren</div>
     <div class="card-status">Bereit</div>
+    <div class="fix-toggle">
+      <label onclick="event.stopPropagation()">
+        <input type="checkbox" id="fix-seo" onclick="event.stopPropagation()">
+        KI-Fix aktivieren
+      </label>
+      <span class="fix-badge">Claude AI</span>
+    </div>
   </div>
   <div class="card" data-cmd="audit-media">
     <div class="card-icon">🖼️</div>
     <div class="card-title">Media Audit</div>
     <div class="card-desc">Alt-Texte, Dateinamen & Größen prüfen</div>
     <div class="card-status">Bereit</div>
+    <div class="fix-toggle">
+      <label onclick="event.stopPropagation()">
+        <input type="checkbox" id="fix-media" onclick="event.stopPropagation()">
+        Alt-Texte generieren
+      </label>
+      <span class="fix-badge">Claude AI</span>
+    </div>
   </div>
 </div>
 
@@ -158,6 +210,11 @@
 
 <script>
   let lineCount = 0;
+
+  const fixMap = {
+    'audit-seo':   () => document.getElementById('fix-seo')?.checked,
+    'audit-media': () => document.getElementById('fix-media')?.checked,
+  };
 
   function clearOutput() {
     document.getElementById('output').innerHTML = '<span class="placeholder">Noch keine Ausgabe. Klicke oben auf einen Befehl.</span>';
@@ -184,12 +241,14 @@
     card.addEventListener('click', () => {
       const cmd = card.dataset.cmd;
       const status = card.querySelector('.card-status');
+      const useFix = fixMap[cmd]?.() ?? false;
 
       card.className = 'card running';
-      status.textContent = 'Läuft...';
-      document.getElementById('toolbar-label').textContent = `Ausgabe: ${cmd}`;
+      status.textContent = useFix ? 'Läuft (KI-Fix)...' : 'Läuft...';
+      document.getElementById('toolbar-label').textContent = `Ausgabe: ${cmd}${useFix ? ' --fix' : ''}`;
 
-      const es = new EventSource(`/run/${cmd}`);
+      const url = `/run/${cmd}${useFix ? '?fix=true' : ''}`;
+      const es = new EventSource(url);
 
       es.onmessage = (e) => {
         const { type, text } = JSON.parse(e.data);
