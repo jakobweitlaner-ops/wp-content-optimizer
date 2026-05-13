@@ -139,7 +139,7 @@ export async function auditAltTextWithAI({ onProgress, onProposal, onError } = {
             { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
             {
               type: 'text',
-              text: `Current alt text: "${altText || '(empty)'}"\n\nEvaluate this alt text for the image. Is it accurate and descriptive? Reply with JSON only:\n{"quality":"good"|"poor","reason":"one sentence","suggestion":"improved alt text or null"}`,
+              text: `Aktueller Alt-Text: "${altText || '(leer)'}"\n\nBewerte diesen Alt-Text für das Bild. Ist er korrekt und beschreibend? Antworte ausschließlich mit JSON auf Deutsch:\n{"quality":"good"|"poor","reason":"ein Satz auf Deutsch","suggestion":"verbesserter Alt-Text auf Deutsch oder null"}`,
             },
           ],
         }],
