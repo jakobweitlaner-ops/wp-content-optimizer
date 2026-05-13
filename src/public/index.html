@@ -68,6 +68,37 @@
     .card.success .card-status { color: #22c55e; }
     .card.error   .card-status { color: #ef4444; }
 
+    .card-options {
+      margin-top: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .card-options label {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      color: #94a3b8;
+      cursor: pointer;
+    }
+
+    .card-options input[type="checkbox"] {
+      accent-color: #4f6ef7;
+      cursor: pointer;
+    }
+
+    .ai-badge {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      letter-spacing: 0.03em;
+    }
+
     .output-box {
       background: #0a0d14;
       border: 1px solid #2d3348;
@@ -130,19 +161,31 @@
   <div class="card" data-cmd="check-links">
     <div class="card-icon">🔗</div>
     <div class="card-title">Check Links</div>
-    <div class="card-desc">Defekte Links in Posts & Seiten finden</div>
+    <div class="card-desc">Defekte Links in Posts &amp; Seiten finden</div>
     <div class="card-status">Bereit</div>
   </div>
   <div class="card" data-cmd="audit-seo">
     <div class="card-icon">📈</div>
     <div class="card-title">SEO Audit</div>
     <div class="card-desc">SEO-Score für alle Beiträge analysieren</div>
+    <div class="card-options">
+      <label onclick="event.stopPropagation()">
+        <input type="checkbox" id="opt-ai"> KI-Fix aktivieren
+      </label>
+      <span class="ai-badge">Claude AI</span>
+    </div>
     <div class="card-status">Bereit</div>
   </div>
   <div class="card" data-cmd="audit-media">
     <div class="card-icon">🖼️</div>
     <div class="card-title">Media Audit</div>
-    <div class="card-desc">Alt-Texte, Dateinamen & Größen prüfen</div>
+    <div class="card-desc">Alt-Texte, Dateinamen &amp; Größen prüfen</div>
+    <div class="card-options">
+      <label onclick="event.stopPropagation()">
+        <input type="checkbox" id="opt-fix"> Alt-Texte generieren
+      </label>
+      <span class="ai-badge">Claude AI</span>
+    </div>
     <div class="card-status">Bereit</div>
   </div>
 </div>
@@ -185,11 +228,17 @@
       const cmd = card.dataset.cmd;
       const status = card.querySelector('.card-status');
 
+      const params = new URLSearchParams();
+      if (cmd === 'audit-seo' && document.getElementById('opt-ai')?.checked) params.set('ai', '1');
+      if (cmd === 'audit-media' && document.getElementById('opt-fix')?.checked) params.set('fix', '1');
+
+      const url = `/run/${cmd}${params.size ? '?' + params : ''}`;
+
       card.className = 'card running';
       status.textContent = 'Läuft...';
       document.getElementById('toolbar-label').textContent = `Ausgabe: ${cmd}`;
 
-      const es = new EventSource(`/run/${cmd}`);
+      const es = new EventSource(url);
 
       es.onmessage = (e) => {
         const { type, text } = JSON.parse(e.data);
