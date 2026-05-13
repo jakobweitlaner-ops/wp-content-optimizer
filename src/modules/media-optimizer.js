@@ -1,5 +1,6 @@
-import { getMedia } from '../utils/wp-api.js';
+import { getMedia, updateMedia } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
+import pLimit from 'p-limit';
 
 const MAX_FILE_SIZE_BYTES = 200 * 1024; // 200 KB
 const MAX_WIDTH = 2560;
@@ -39,7 +40,7 @@ function auditMediaItem(item) {
   return issues;
 }
 
-export async function auditMedia({ output } = {}) {
+export async function auditMedia({ output, fix = false } = {}) {
   log.header('Media Audit');
   log.info('Fetching media library...');
 
@@ -75,6 +76,38 @@ export async function auditMedia({ output } = {}) {
       for (const issue of item.issues) {
         log.row('', `• ${issue}`, 'dim');
       }
+    }
+  }
+
+  if (fix) {
+    const missingAlt = results.filter((r) => r.issues.includes('Missing alt text'));
+
+    if (missingAlt.length === 0) {
+      log.info('No images with missing alt text to fix.');
+    } else {
+      const { generateAltText } = await import('../utils/claude.js');
+      log.info(`\nGenerating alt text for ${missingAlt.length} image(s)...`);
+      const limit = pLimit(3);
+      let fixed = 0;
+
+      await Promise.all(
+        missingAlt.map((item) =>
+          limit(async () => {
+            try {
+              const altText = await generateAltText(item.url);
+              if (!altText) return;
+
+              await updateMedia(item.id, { alt_text: altText });
+              fixed++;
+              log.row(item.filename.substring(0, 35), `Alt: "${altText.substring(0, 50)}…"`, 'green');
+            } catch (err) {
+              log.row(item.filename.substring(0, 35), `Error: ${err.message}`, 'red');
+            }
+          })
+        )
+      );
+
+      log.success(`Fixed alt text for ${fixed}/${missingAlt.length} images.`);
     }
   }
 

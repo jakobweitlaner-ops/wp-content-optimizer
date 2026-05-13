@@ -1,5 +1,6 @@
-import { getPosts } from '../utils/wp-api.js';
+import { getPosts, updatePost } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
+import pLimit from 'p-limit';
 
 function stripHtml(html) {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -65,12 +66,14 @@ function scoreSeo(post) {
   return { score: Math.max(0, score), issues, wordCount, h1Count: h1Matches.length, h2Count: h2Matches.length };
 }
 
-export async function auditSeo({ minScore = 80, output } = {}) {
+export async function auditSeo({ minScore = 80, output, fix = false } = {}) {
   log.header('SEO Audit');
   log.info('Fetching posts...');
 
   const posts = await getPosts();
   log.info(`Analyzing ${posts.length} posts...`);
+
+  const postMap = new Map(posts.map((p) => [p.id, p]));
 
   const results = posts.map((post) => {
     const seo = scoreSeo(post);
@@ -100,6 +103,43 @@ export async function auditSeo({ minScore = 80, output } = {}) {
 
   const avg = Math.round(results.reduce((s, r) => s + r.score, 0) / results.length);
   log.info(`Average SEO score: ${avg}/100`);
+
+  if (fix && belowThreshold.length > 0) {
+    const { generateSeoFixes } = await import('../utils/claude.js');
+    const fixable = belowThreshold.filter((r) => r.issues.some((i) => /title|excerpt/i.test(i)));
+
+    if (fixable.length === 0) {
+      log.info('No AI-fixable issues found (only title/excerpt are auto-fixable).');
+    } else {
+      log.info(`\nGenerating AI fixes for ${fixable.length} post(s)...`);
+      const limit = pLimit(3);
+      let fixed = 0;
+
+      await Promise.all(
+        fixable.map((r) =>
+          limit(async () => {
+            try {
+              const suggestions = await generateSeoFixes(postMap.get(r.id), r.issues);
+              if (!suggestions) return;
+
+              const update = {};
+              if (suggestions.title) update.title = suggestions.title;
+              if (suggestions.excerpt) update.excerpt = suggestions.excerpt;
+              if (Object.keys(update).length === 0) return;
+
+              await updatePost(r.id, update);
+              fixed++;
+              log.row(r.title.substring(0, 35), `Fixed: ${Object.keys(update).join(', ')}`, 'green');
+            } catch (err) {
+              log.row(r.title.substring(0, 35), `Error: ${err.message}`, 'red');
+            }
+          })
+        )
+      );
+
+      log.success(`Fixed ${fixed}/${fixable.length} posts.`);
+    }
+  }
 
   if (output) saveReport(output, { summary: { total: results.length, belowThreshold: belowThreshold.length, averageScore: avg }, results });
 
