@@ -1,6 +1,6 @@
 @echo off
 echo Updating from GitHub...
-git pull origin claude/review-project-status-OfTRm
+git pull origin main
 echo.
 echo Installing dependencies...
 npm install --silent
