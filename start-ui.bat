@@ -1,20 +1,36 @@
 @echo off
-echo Updating from GitHub...
+echo ============================================
+echo  WP Content Optimizer - Starting...
+echo ============================================
+echo.
+
+echo [1/3] Updating from GitHub...
 git pull origin main
+if %errorlevel% neq 0 (
+    echo WARNING: git pull failed, continuing with local version...
+)
 echo.
-echo Installing dependencies...
-npm install --silent
+
+echo [2/3] Installing dependencies...
+npm install
+if %errorlevel% neq 0 (
+    echo ERROR: npm install failed.
+    cmd /k
+    exit /b 1
+)
 echo.
-echo Starting WP Content Optimizer UI...
-echo Browser opens automatically once the server is ready.
-echo Press Ctrl+C to stop the server.
+
+echo [3/3] Starting server...
+echo Browser opens automatically.
+echo Press Ctrl+C to stop.
 echo.
 node src/server.js
+
 echo.
 if %errorlevel% neq 0 (
-  echo ERROR: Server exited with code %errorlevel%.
+    echo ERROR: Server crashed with code %errorlevel%.
 ) else (
-  echo Server stopped.
+    echo Server stopped.
 )
-echo Press any key to close this window...
-pause > nul
+echo.
+cmd /k
