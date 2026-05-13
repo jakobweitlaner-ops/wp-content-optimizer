@@ -20,6 +20,10 @@ app.get('/run/:command', (req, res) => {
     return;
   }
 
+  const args = ['src/cli.js', command];
+  if (command === 'audit-seo' && req.query.ai === '1') args.push('--ai');
+  if (command === 'audit-media' && req.query.fix === '1') args.push('--fix');
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -28,7 +32,7 @@ app.get('/run/:command', (req, res) => {
     res.write(`data: ${JSON.stringify({ type, text })}\n\n`);
   };
 
-  const child = spawn('node', ['src/cli.js', command], {
+  const child = spawn('node', args, {
     env: { ...process.env, FORCE_COLOR: '0' },
     cwd: join(__dirname, '..'),
   });
