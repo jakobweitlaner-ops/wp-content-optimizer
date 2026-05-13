@@ -1,6 +1,6 @@
 @echo off
 echo Updating from GitHub...
-git pull origin main
+git pull origin claude/plan-tool-improvements-U6ZxC
 echo.
 echo Installing dependencies...
 npm install --silent
