@@ -1,9 +1,11 @@
 import axios from 'axios';
+import https from 'https';
 
 const BASE_URL = process.env.WP_URL;
 const USERNAME = process.env.WP_USERNAME;
 const APP_PASSWORD = process.env.WP_APP_PASSWORD;
 const TIMEOUT = parseInt(process.env.TIMEOUT || '10000', 10);
+const INSECURE = process.env.WP_INSECURE === 'true';
 
 function getAuthHeader() {
   const token = Buffer.from(`${USERNAME}:${APP_PASSWORD}`).toString('base64');
@@ -17,6 +19,7 @@ const client = axios.create({
     Authorization: getAuthHeader(),
     'Content-Type': 'application/json',
   },
+  httpsAgent: new https.Agent({ rejectUnauthorized: !INSECURE }),
 });
 
 export async function testConnection() {
