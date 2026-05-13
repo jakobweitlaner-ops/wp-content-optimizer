@@ -1,9 +1,11 @@
 import axios from 'axios';
+import https from 'https';
 import pLimit from 'p-limit';
 import { getPosts, getPages } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
 
 const LINK_TIMEOUT = parseInt(process.env.LINK_TIMEOUT || '20000', 10);
+const INSECURE = process.env.WP_INSECURE === 'true';
 
 function extractLinks(html, sourceUrl, baseUrl) {
   const linkRegex = /href=["']([^"'#][^"']*)["']/gi;
@@ -22,16 +24,19 @@ function extractLinks(html, sourceUrl, baseUrl) {
 
 async function checkUrl(url) {
   try {
+    const httpsAgent = new https.Agent({ rejectUnauthorized: !INSECURE });
     const response = await axios.head(url, {
       timeout: LINK_TIMEOUT,
       maxRedirects: 5,
       validateStatus: () => true,
+      httpsAgent,
     });
     if (response.status === 405) {
       const get = await axios.get(url, {
         timeout: LINK_TIMEOUT,
         maxRedirects: 5,
         validateStatus: () => true,
+        httpsAgent,
       });
       return { url, status: get.status, ok: get.status < 400 };
     }
