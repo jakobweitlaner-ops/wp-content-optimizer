@@ -101,6 +101,7 @@ program
       log.info('Analyzing results with Claude...');
       log.info(`API key present: ${!!process.env.ANTHROPIC_API_KEY}`);
       log.info(`Base URL: ${process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com (default)'}`);
+      log.info(`Node version: ${process.version}`);
       const report = await getSiteStatus({ seoResults, linkResults, mediaResults });
       console.log('\x1b[0m__REPORT_START__');
       console.log(report);
@@ -108,6 +109,7 @@ program
     } catch (err) {
       log.error(`Status check failed: ${err.message}`);
       if (err.cause) log.error(`Cause: ${err.cause.message || String(err.cause)}`);
+      if (err.cause?.cause) log.error(`Cause2: ${err.cause.cause.message || err.cause.cause.code || String(err.cause.cause)}`);
       log.error(`Error type: ${err.constructor?.name}`);
       process.exit(1);
     }
