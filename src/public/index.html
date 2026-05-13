@@ -541,6 +541,7 @@
       const item = document.createElement('div');
       item.className = 'review-item';
       item.dataset.id = p.id;
+      item.dataset.altText = p.proposedAltText;
       item.innerHTML = `
         <input type="checkbox" checked onchange="this.closest('.review-item').classList.toggle('deselected', !this.checked); updateReviewCount()">
         <div class="review-item-body">
@@ -566,8 +567,11 @@
   }
 
   async function applySelectedFixes() {
-    const ids = [...document.querySelectorAll('#review-list .review-item input:checked')]
-      .map(cb => parseInt(cb.closest('.review-item').dataset.id, 10));
+    const changes = [...document.querySelectorAll('#review-list .review-item input:checked')]
+      .map(cb => {
+        const item = cb.closest('.review-item');
+        return { id: parseInt(item.dataset.id, 10), altText: item.dataset.altText };
+      });
 
     const btn = document.getElementById('apply-btn');
     btn.disabled = true;
@@ -582,7 +586,7 @@
     const response = await fetch('/apply/audit-media', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids }),
+      body: JSON.stringify({ changes }),
     });
 
     const reader = response.body.getReader();

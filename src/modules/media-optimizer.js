@@ -82,18 +82,17 @@ export async function previewMediaFixes() {
   return proposals;
 }
 
-export async function applyMediaFixes(ids) {
-  const media = await getMedia({ media_type: 'image' });
+export async function applyMediaFixes(changes) {
+  // changes: [{id, altText}]
   const results = [];
 
-  for (const item of media) {
-    if (!ids.includes(item.id)) continue;
-    const altText = generateAltText(item);
+  for (const { id, altText } of changes) {
     try {
-      await updateMedia(item.id, { alt_text: altText });
-      results.push({ id: item.id, filename: item.slug, altText, success: true });
+      const updated = await updateMedia(id, { alt_text: altText });
+      const saved = updated?.alt_text ?? altText;
+      results.push({ id, altText: saved, success: true });
     } catch (err) {
-      results.push({ id: item.id, filename: item.slug, error: err.message, success: false });
+      results.push({ id, error: err.message, success: false });
     }
   }
 
