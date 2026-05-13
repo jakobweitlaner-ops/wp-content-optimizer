@@ -1,4 +1,7 @@
 import 'dotenv/config';
+// Disable TLS cert verification for environments with self-signed certificate chains
+// (matches WP_INSECURE behaviour for axios and NODE_TLS_REJECT_UNAUTHORIZED for child procs)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 import express from 'express';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
