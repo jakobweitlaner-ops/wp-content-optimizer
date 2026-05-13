@@ -3,6 +3,7 @@ import express from 'express';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { exec } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -49,5 +50,9 @@ app.get('/run/:command', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\nWP Content Optimizer UI running at http://localhost:${PORT}\n`);
+  console.log(`\nWP Content Optimizer UI running at http://localhost:${PORT}`);
+  console.log('Opening browser...\n');
+  const url = `http://localhost:${PORT}`;
+  const cmd = process.platform === 'win32' ? `start ${url}` : `open ${url}`;
+  exec(cmd);
 });

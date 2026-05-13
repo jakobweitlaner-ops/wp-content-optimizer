@@ -6,6 +6,8 @@ echo Installing dependencies...
 npm install --silent
 echo.
 echo Starting WP Content Optimizer UI...
-start http://localhost:3000
+echo Browser opens automatically once the server is ready.
+echo Press Ctrl+C to stop the server.
+echo.
 node src/server.js
 pause
