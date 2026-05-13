@@ -4,6 +4,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { exec } from 'child_process';
+import { previewMediaFixes, applyMediaFixes } from './modules/media-optimizer.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -52,6 +53,44 @@ app.get('/run/:command', (req, res) => {
   });
 
   req.on('close', () => child.kill());
+});
+
+app.get('/preview/audit-media', async (req, res) => {
+  try {
+    const proposals = await previewMediaFixes();
+    res.json(proposals);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/apply/audit-media', express.json(), async (req, res) => {
+  const ids = req.body?.ids;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: 'ids array required' });
+    return;
+  }
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (type, text) => res.write(`data: ${JSON.stringify({ type, text })}\n\n`);
+
+  try {
+    send('out', `Applying ${ids.length} fix(es)...`);
+    const results = await applyMediaFixes(ids);
+    for (const r of results) {
+      if (r.success) send('out', `✔ ${r.filename} → alt: "${r.altText}"`);
+      else send('err', `✖ ${r.filename}: ${r.error}`);
+    }
+    const ok = results.filter((r) => r.success).length;
+    send('out', `Done. ${ok}/${results.length} fixes applied.`);
+    send('done', 'success');
+  } catch (err) {
+    send('err', `Failed: ${err.message}`);
+    send('done', 'error');
+  }
+  res.end();
 });
 
 app.listen(PORT, () => {

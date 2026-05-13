@@ -230,6 +230,118 @@
       transition: border-color 0.2s, color 0.2s;
     }
     .clear-btn:hover { border-color: #4f6ef7; color: #4f6ef7; }
+
+    .review-panel {
+      background: #0a0d14;
+      border: 1px solid #4f6ef7;
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .review-panel h3 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.25rem;
+    }
+
+    .review-panel p {
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-bottom: 1rem;
+    }
+
+    .review-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 1rem;
+    }
+
+    .review-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      background: #1e2130;
+      border: 1px solid #2d3348;
+      border-radius: 8px;
+      padding: 0.6rem 0.75rem;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+
+    .review-item:hover { border-color: #4f6ef7; }
+    .review-item.deselected { opacity: 0.45; }
+
+    .review-item input[type="checkbox"] {
+      accent-color: #4f6ef7;
+      flex-shrink: 0;
+      margin-top: 0.15rem;
+      cursor: pointer;
+    }
+
+    .review-item-body { flex: 1; min-width: 0; }
+
+    .review-item-filename {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #e2e8f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .review-item-change {
+      font-size: 0.72rem;
+      color: #64748b;
+      margin-top: 0.15rem;
+    }
+
+    .review-item-change .from { color: #ef4444; text-decoration: line-through; }
+    .review-item-change .arrow { color: #4f6ef7; margin: 0 0.3rem; }
+    .review-item-change .to { color: #22c55e; }
+
+    .review-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .apply-btn {
+      background: #4f6ef7;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.5rem 1.25rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .apply-btn:hover { background: #6b85f8; }
+    .apply-btn:disabled { background: #2d3348; color: #64748b; cursor: not-allowed; }
+
+    .select-all-btn {
+      background: none;
+      border: 1px solid #2d3348;
+      color: #64748b;
+      border-radius: 6px;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .select-all-btn:hover { border-color: #4f6ef7; color: #4f6ef7; }
+
+    .review-count {
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-left: auto;
+    }
   </style>
 </head>
 <body>
@@ -258,6 +370,17 @@
 </div>
 
 <div class="report-box" id="report-box"></div>
+
+<div class="review-panel" id="review-panel">
+  <h3>Alt-Texte überprüfen</h3>
+  <p id="review-desc">Wähle die Änderungen aus, die du anwenden möchtest.</p>
+  <div class="review-list" id="review-list"></div>
+  <div class="review-actions">
+    <button class="select-all-btn" id="select-all-btn" onclick="toggleSelectAll()">Alle abwählen</button>
+    <button class="apply-btn" id="apply-btn" onclick="applySelectedFixes()">Fixes anwenden</button>
+    <span class="review-count" id="review-count"></span>
+  </div>
+</div>
 
 <div class="grid">
   <div class="card" data-cmd="test-connection">
@@ -382,15 +505,168 @@
     };
   });
 
+  let reviewProposals = [];
+
+  function updateReviewCount() {
+    const total = document.querySelectorAll('#review-list .review-item').length;
+    const selected = document.querySelectorAll('#review-list .review-item input:checked').length;
+    document.getElementById('review-count').textContent = `${selected} von ${total} ausgewählt`;
+    document.getElementById('apply-btn').disabled = selected === 0;
+    document.getElementById('select-all-btn').textContent =
+      selected === total ? 'Alle abwählen' : 'Alle auswählen';
+  }
+
+  function toggleSelectAll() {
+    const items = document.querySelectorAll('#review-list .review-item input');
+    const allChecked = [...items].every(cb => cb.checked);
+    items.forEach(cb => {
+      cb.checked = !allChecked;
+      cb.closest('.review-item').classList.toggle('deselected', allChecked);
+    });
+    updateReviewCount();
+  }
+
+  function showReviewPanel(proposals) {
+    const panel = document.getElementById('review-panel');
+    const list = document.getElementById('review-list');
+    list.innerHTML = '';
+
+    proposals.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'review-item';
+      item.dataset.id = p.id;
+      item.innerHTML = `
+        <input type="checkbox" checked onchange="this.closest('.review-item').classList.toggle('deselected', !this.checked); updateReviewCount()">
+        <div class="review-item-body">
+          <div class="review-item-filename">${escapeHtml(p.filename)}</div>
+          <div class="review-item-change">
+            <span class="from">${p.currentAltText ? escapeHtml(p.currentAltText) : '(leer)'}</span>
+            <span class="arrow">→</span>
+            <span class="to">${escapeHtml(p.proposedAltText)}</span>
+          </div>
+        </div>`;
+      item.addEventListener('click', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+        const cb = item.querySelector('input');
+        cb.checked = !cb.checked;
+        item.classList.toggle('deselected', !cb.checked);
+        updateReviewCount();
+      });
+      list.appendChild(item);
+    });
+
+    panel.style.display = 'block';
+    updateReviewCount();
+  }
+
+  async function applySelectedFixes() {
+    const ids = [...document.querySelectorAll('#review-list .review-item input:checked')]
+      .map(cb => parseInt(cb.closest('.review-item').dataset.id, 10));
+
+    const btn = document.getElementById('apply-btn');
+    btn.disabled = true;
+    btn.textContent = 'Wird angewendet…';
+    document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-media (Apply)';
+
+    const mediaCard = document.querySelector('.card[data-cmd="audit-media"]');
+    const mediaStatus = mediaCard?.querySelector('.card-status');
+    if (mediaCard) mediaCard.className = 'card running';
+    if (mediaStatus) mediaStatus.textContent = 'Läuft...';
+
+    const response = await fetch('/apply/audit-media', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+      for (const part of parts) {
+        const line = part.replace(/^data: /, '').trim();
+        if (!line) continue;
+        const { type, text } = JSON.parse(line);
+        if (type === 'done') {
+          document.getElementById('review-panel').style.display = 'none';
+          if (text === 'success') {
+            if (mediaCard) mediaCard.className = 'card success';
+            if (mediaStatus) mediaStatus.textContent = 'Fertig';
+          } else {
+            if (mediaCard) mediaCard.className = 'card error';
+            if (mediaStatus) mediaStatus.textContent = 'Fehler';
+          }
+          setTimeout(() => {
+            if (mediaCard) mediaCard.className = 'card';
+            if (mediaStatus) mediaStatus.textContent = 'Bereit';
+          }, 4000);
+        } else {
+          appendLine(text, type);
+        }
+      }
+    }
+
+    btn.textContent = 'Fixes anwenden';
+  }
+
   document.querySelectorAll('.card').forEach(card => {
-    card.addEventListener('click', () => {
+    card.addEventListener('click', async () => {
       const cmd = card.dataset.cmd;
       const status = card.querySelector('.card-status');
+      const wantsFix = cmd === 'audit-media' && document.getElementById('opt-fix')?.checked;
+
+      // Media Audit with fix → preview flow
+      if (wantsFix) {
+        card.className = 'card running';
+        status.textContent = 'Analysiert…';
+        document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-media';
+        document.getElementById('review-panel').style.display = 'none';
+
+        // First run the audit (without fix) for terminal output
+        const es = new EventSource('/run/audit-media');
+        es.onmessage = (e) => {
+          const { type, text } = JSON.parse(e.data);
+          if (type === 'done') {
+            es.close();
+            if (text !== 'success') {
+              card.className = 'card error';
+              status.textContent = 'Fehler';
+              return;
+            }
+            // Fetch proposed fixes
+            card.className = 'card';
+            status.textContent = 'Bereit';
+            fetch('/preview/audit-media')
+              .then(r => r.json())
+              .then(proposals => {
+                if (proposals.length === 0) {
+                  appendLine('Keine fehlenden Alt-Texte gefunden.', 'out');
+                  return;
+                }
+                appendLine(`${proposals.length} fehlende Alt-Texte gefunden. Bitte überprüfen:`, 'out');
+                showReviewPanel(proposals);
+              })
+              .catch(err => appendLine(`Vorschau fehlgeschlagen: ${err.message}`, 'err'));
+          } else {
+            appendLine(text, type);
+          }
+        };
+        es.onerror = () => {
+          es.close();
+          card.className = 'card error';
+          status.textContent = 'Fehler';
+        };
+        return;
+      }
 
       const params = new URLSearchParams();
       if (cmd === 'audit-seo' && document.getElementById('opt-ai')?.checked) params.set('ai', '1');
-      if (cmd === 'audit-media' && document.getElementById('opt-fix')?.checked) params.set('fix', '1');
-
       const url = `/run/${cmd}${params.size ? '?' + params : ''}`;
 
       card.className = 'card running';
@@ -398,7 +674,6 @@
       document.getElementById('toolbar-label').textContent = `Ausgabe: ${cmd}`;
 
       const es = new EventSource(url);
-
       es.onmessage = (e) => {
         const { type, text } = JSON.parse(e.data);
         if (type === 'done') {
@@ -418,7 +693,6 @@
           appendLine(text, type);
         }
       };
-
       es.onerror = () => {
         es.close();
         card.className = 'card error';
