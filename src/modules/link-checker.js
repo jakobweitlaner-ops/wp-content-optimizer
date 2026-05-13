@@ -61,7 +61,11 @@ export async function checkLinks({ concurrency = 5, output } = {}) {
   const timeoutLinks = [];
   const checked = new Map();
 
+  let checked_count = 0;
   for (const item of content) {
+    checked_count++;
+    process.stdout.write(`\r  Checking post/page ${checked_count}/${content.length}...`);
+
     const html = item.content?.rendered || '';
     const baseUrl = new URL(item.link).hostname;
     const links = extractLinks(html, item.link, baseUrl);
@@ -96,6 +100,8 @@ export async function checkLinks({ concurrency = 5, output } = {}) {
       });
     }
   }
+
+  process.stdout.write('\r' + ' '.repeat(50) + '\r'); // clear progress line
 
   if (brokenLinks.length === 0 && timeoutLinks.length === 0) {
     log.success('All external links OK.');
