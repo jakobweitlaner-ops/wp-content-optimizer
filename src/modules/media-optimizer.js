@@ -46,6 +46,45 @@ function generateAltText(item) {
   return slug || 'image';
 }
 
+export async function previewMediaFixes() {
+  const media = await getMedia({ media_type: 'image' });
+  const proposals = [];
+
+  for (const item of media) {
+    const issues = auditMediaItem(item);
+    const missingAlt = issues.find((i) => i === 'Missing alt text');
+    if (missingAlt) {
+      proposals.push({
+        id: item.id,
+        filename: item.slug,
+        url: item.source_url,
+        currentAltText: item.alt_text || '',
+        proposedAltText: generateAltText(item),
+      });
+    }
+  }
+
+  return proposals;
+}
+
+export async function applyMediaFixes(ids) {
+  const media = await getMedia({ media_type: 'image' });
+  const results = [];
+
+  for (const item of media) {
+    if (!ids.includes(item.id)) continue;
+    const altText = generateAltText(item);
+    try {
+      await updateMedia(item.id, { alt_text: altText });
+      results.push({ id: item.id, filename: item.slug, altText, success: true });
+    } catch (err) {
+      results.push({ id: item.id, filename: item.slug, error: err.message, success: false });
+    }
+  }
+
+  return results;
+}
+
 export async function auditMedia({ fix = false, output } = {}) {
   log.header('Media Audit');
   log.info('Fetching media library...');
