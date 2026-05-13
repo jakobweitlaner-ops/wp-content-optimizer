@@ -1,3 +1,4 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { getMedia, updateMedia } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
 
@@ -83,6 +84,73 @@ export async function applyMediaFixes(ids) {
   }
 
   return results;
+}
+
+async function promisePool(tasks, concurrency) {
+  const results = [];
+  let index = 0;
+  async function worker() {
+    while (index < tasks.length) {
+      const i = index++;
+      results[i] = await tasks[i]();
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return results;
+}
+
+export async function auditAltTextWithAI({ onProgress } = {}) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
+
+  const client = new Anthropic({ apiKey });
+  const media = await getMedia({ media_type: 'image' });
+  const proposals = [];
+  let done = 0;
+
+  const tasks = media.map((item) => async () => {
+    const altText = item.alt_text?.trim() || '';
+    done++;
+    if (onProgress) onProgress(done, media.length, item.slug);
+
+    try {
+      const response = await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 200,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'url', url: item.source_url } },
+            {
+              type: 'text',
+              text: `Current alt text: "${altText || '(empty)'}"\n\nEvaluate this alt text for the image. Reply with JSON only:\n{"quality":"good"|"poor","reason":"one sentence","suggestion":"improved alt text or null"}`,
+            },
+          ],
+        }],
+      });
+
+      const text = response.content[0]?.text || '';
+      const match = text.match(/\{[\s\S]*?\}/);
+      if (!match) return;
+      const json = JSON.parse(match[0]);
+
+      if (json.quality === 'poor' && json.suggestion) {
+        proposals.push({
+          id: item.id,
+          filename: item.slug,
+          url: item.source_url,
+          currentAltText: altText,
+          proposedAltText: json.suggestion,
+          reason: json.reason || '',
+        });
+      }
+    } catch {
+      // skip failed items
+    }
+  });
+
+  await promisePool(tasks, 3);
+  return proposals;
 }
 
 export async function auditMedia({ fix = false, output } = {}) {
