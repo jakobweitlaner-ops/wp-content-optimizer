@@ -98,9 +98,11 @@ program
       const linkResults = linkSettled.status === 'fulfilled' ? linkSettled.value : null;
       const mediaResults = mediaSettled.status === 'fulfilled' ? mediaSettled.value : null;
 
-      log.info('Analyzing results with Claude...\n');
+      log.info('Analyzing results with Claude...');
       const report = await getSiteStatus({ seoResults, linkResults, mediaResults });
+      console.log('\x1b[0m__REPORT_START__');
       console.log(report);
+      console.log('__REPORT_END__');
     } catch (err) {
       log.error(`Status check failed: ${err.message}`);
       process.exit(1);

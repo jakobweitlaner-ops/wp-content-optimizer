@@ -99,6 +99,94 @@
       letter-spacing: 0.03em;
     }
 
+    .status-card {
+      background: linear-gradient(135deg, #1a1f35 0%, #1e2130 100%);
+      border: 1px solid #4f6ef7;
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.1s, box-shadow 0.2s;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 0 0 0 rgba(79,110,247,0);
+    }
+
+    .status-card:hover {
+      border-color: #818cf8;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 24px rgba(79,110,247,0.15);
+    }
+
+    .status-card:active { transform: translateY(0); }
+    .status-card.running { border-color: #f59e0b; box-shadow: 0 4px 24px rgba(245,158,11,0.15); }
+    .status-card.success { border-color: #22c55e; box-shadow: 0 4px 24px rgba(34,197,94,0.15); }
+    .status-card.error   { border-color: #ef4444; box-shadow: 0 4px 24px rgba(239,68,68,0.15); }
+
+    .status-card-icon { font-size: 2rem; flex-shrink: 0; }
+
+    .status-card-body { flex: 1; }
+
+    .status-card-title {
+      font-weight: 700;
+      font-size: 1rem;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .status-card-desc {
+      color: #94a3b8;
+      font-size: 0.82rem;
+      margin-top: 0.2rem;
+    }
+
+    .status-card-pills {
+      display: flex;
+      gap: 0.4rem;
+      margin-top: 0.6rem;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      background: #0f1117;
+      border: 1px solid #2d3348;
+      color: #64748b;
+      font-size: 0.72rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+    }
+
+    .status-card-status {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #4f6ef7;
+      flex-shrink: 0;
+      text-align: right;
+    }
+
+    .status-card.running .status-card-status { color: #f59e0b; }
+    .status-card.success .status-card-status { color: #22c55e; }
+    .status-card.error   .status-card-status { color: #ef4444; }
+
+    .report-box {
+      background: #0a0d14;
+      border: 1px solid #2d3348;
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 0.88rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: none;
+      margin-bottom: 1rem;
+      color: #e2e8f0;
+    }
+
     .output-box {
       background: #0a0d14;
       border: 1px solid #2d3348;
@@ -150,6 +238,26 @@
   <h1>WP Content Optimizer</h1>
   <p>Klicke auf einen Befehl, um ihn auszuführen</p>
 </header>
+
+<div class="status-card" id="status-card" data-cmd="get-status">
+  <div class="status-card-icon">✨</div>
+  <div class="status-card-body">
+    <div class="status-card-title">
+      Site Status Report
+      <span class="ai-badge">Claude AI</span>
+    </div>
+    <div class="status-card-desc">Führt alle Audits aus und erstellt einen KI-Bericht mit Gesamtstatus und Top-Maßnahmen</div>
+    <div class="status-card-pills">
+      <span class="pill">🔗 Links</span>
+      <span class="pill">📈 SEO</span>
+      <span class="pill">🖼️ Media</span>
+      <span class="pill">Tool Use</span>
+    </div>
+  </div>
+  <div class="status-card-status" id="status-card-status">Bereit</div>
+</div>
+
+<div class="report-box" id="report-box"></div>
 
 <div class="grid">
   <div class="card" data-cmd="test-connection">
@@ -222,6 +330,57 @@
   function escapeHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
+
+  // Status card (get-status)
+  document.getElementById('status-card').addEventListener('click', () => {
+    const card = document.getElementById('status-card');
+    const statusEl = document.getElementById('status-card-status');
+    const reportBox = document.getElementById('report-box');
+
+    card.className = 'status-card running';
+    statusEl.textContent = 'Läuft…';
+    reportBox.style.display = 'none';
+    reportBox.textContent = '';
+    document.getElementById('toolbar-label').textContent = 'Ausgabe: get-status';
+
+    // Show terminal output while running
+    const es = new EventSource('/run/get-status');
+    let reportLines = [];
+    let inReport = false;
+
+    es.onmessage = (e) => {
+      const { type, text } = JSON.parse(e.data);
+      if (type === 'done') {
+        es.close();
+        if (reportLines.length > 0) {
+          reportBox.textContent = reportLines.join('\n');
+          reportBox.style.display = 'block';
+        }
+        if (text === 'success') {
+          card.className = 'status-card success';
+          statusEl.textContent = 'Fertig';
+        } else {
+          card.className = 'status-card error';
+          statusEl.textContent = 'Fehler';
+        }
+        setTimeout(() => {
+          card.className = 'status-card';
+          statusEl.textContent = 'Bereit';
+        }, 8000);
+      } else {
+        if (text.includes('__REPORT_START__')) { inReport = true; return; }
+        if (text.includes('__REPORT_END__'))   { inReport = false; return; }
+        if (inReport) { reportLines.push(text); }
+        appendLine(text, type);
+      }
+    };
+
+    es.onerror = () => {
+      es.close();
+      card.className = 'status-card error';
+      statusEl.textContent = 'Fehler';
+    };
+  });
 
   document.querySelectorAll('.card').forEach(card => {
     card.addEventListener('click', () => {
