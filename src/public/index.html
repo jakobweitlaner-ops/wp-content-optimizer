@@ -417,6 +417,12 @@
       </label>
       <span class="ai-badge">Claude AI</span>
     </div>
+    <div class="card-options">
+      <label onclick="event.stopPropagation()">
+        <input type="checkbox" id="opt-media-ai"> KI-Qualität prüfen
+      </label>
+      <span class="ai-badge">Claude AI</span>
+    </div>
     <div class="card-status">Bereit</div>
   </div>
 </div>
@@ -620,6 +626,51 @@
       const cmd = card.dataset.cmd;
       const status = card.querySelector('.card-status');
       const wantsFix = cmd === 'audit-media' && document.getElementById('opt-fix')?.checked;
+      const wantsAiQuality = cmd === 'audit-media' && document.getElementById('opt-media-ai')?.checked;
+
+      // Media Audit with AI quality check
+      if (wantsAiQuality) {
+        card.className = 'card running';
+        status.textContent = 'KI analysiert…';
+        document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-media (KI)';
+        document.getElementById('review-panel').style.display = 'none';
+
+        const es = new EventSource('/preview/audit-media-ai');
+        es.onmessage = (e) => {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'progress') {
+            appendLine(msg.text, 'out');
+          } else if (msg.type === 'proposals') {
+            es.close();
+            const proposals = msg.data || [];
+            if (proposals.length === 0) {
+              appendLine('Alle Alt-Texte sind qualitativ in Ordnung.', 'out');
+              card.className = 'card success';
+              status.textContent = 'Fertig';
+              setTimeout(() => { card.className = 'card'; status.textContent = 'Bereit'; }, 4000);
+            } else {
+              appendLine(`${proposals.length} verbesserungswürdige Alt-Texte gefunden.`, 'out');
+              document.getElementById('review-desc').textContent =
+                'Claude hat diese Alt-Texte als unzureichend bewertet. Wähle die Verbesserungen aus, die du anwenden möchtest.';
+              showReviewPanel(proposals);
+              card.className = 'card';
+              status.textContent = 'Bereit';
+            }
+          } else if (msg.type === 'done' && msg.text === 'error') {
+            es.close();
+            card.className = 'card error';
+            status.textContent = 'Fehler';
+          } else if (msg.type === 'err') {
+            appendLine(msg.text, 'err');
+          }
+        };
+        es.onerror = () => {
+          es.close();
+          card.className = 'card error';
+          status.textContent = 'Fehler';
+        };
+        return;
+      }
 
       // Media Audit with fix → preview flow
       if (wantsFix) {

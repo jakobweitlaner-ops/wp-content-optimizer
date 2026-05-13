@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { exec } from 'child_process';
-import { previewMediaFixes, applyMediaFixes } from './modules/media-optimizer.js';
+import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI } from './modules/media-optimizer.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -53,6 +53,30 @@ app.get('/run/:command', (req, res) => {
   });
 
   req.on('close', () => child.kill());
+});
+
+app.get('/preview/audit-media-ai', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (type, text, data) =>
+    res.write(`data: ${JSON.stringify({ type, text, ...(data ? { data } : {}) })}\n\n`);
+
+  auditAltTextWithAI({
+    onProgress: (done, total, slug) =>
+      send('progress', `Analysiere ${done}/${total}: ${slug}`),
+  })
+    .then((proposals) => {
+      send('proposals', `${proposals.length} Vorschläge gefunden.`, proposals);
+      send('done', 'success');
+      res.end();
+    })
+    .catch((err) => {
+      send('err', `KI-Analyse fehlgeschlagen: ${err.message}`);
+      send('done', 'error');
+      res.end();
+    });
 });
 
 app.get('/preview/audit-media', async (req, res) => {
