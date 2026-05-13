@@ -14,8 +14,9 @@ echo.
 echo [2/3] Installing dependencies...
 npm install
 if %errorlevel% neq 0 (
-    echo ERROR: npm install failed.
-    cmd /k
+    echo.
+    echo ERROR: npm install failed. See errors above.
+    pause
     exit /b 1
 )
 echo.
@@ -33,4 +34,4 @@ if %errorlevel% neq 0 (
     echo Server stopped.
 )
 echo.
-cmd /k
+pause
