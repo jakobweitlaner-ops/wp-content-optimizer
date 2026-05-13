@@ -22,6 +22,52 @@ const client = axios.create({
   httpsAgent: new https.Agent({ rejectUnauthorized: !INSECURE }),
 });
 
+export async function getSiteInfo() {
+  const { data } = await axios.get(`${BASE_URL}/wp-json/`, {
+    httpsAgent: new https.Agent({ rejectUnauthorized: !INSECURE }),
+    timeout: TIMEOUT,
+  });
+  return {
+    name: data.name || '',
+    description: data.description || '',
+    url: BASE_URL,
+  };
+}
+
+export async function getSiteContext() {
+  const [info, pages, posts, categories] = await Promise.allSettled([
+    getSiteInfo(),
+    fetchAllPages('/pages', { status: 'publish', _fields: 'title' }),
+    fetchAllPages('/posts', { status: 'publish', _fields: 'title', per_page: 20 }),
+    fetchAllPages('/categories', { _fields: 'name,count', per_page: 50 }),
+  ]);
+
+  const site = info.status === 'fulfilled' ? info.value : {};
+  const pageNames = pages.status === 'fulfilled'
+    ? pages.value.map((p) => p.title?.rendered).filter(Boolean)
+    : [];
+  const postNames = posts.status === 'fulfilled'
+    ? posts.value.map((p) => p.title?.rendered).filter(Boolean)
+    : [];
+  const cats = categories.status === 'fulfilled'
+    ? categories.value.filter((c) => c.count > 0).map((c) => c.name)
+    : [];
+
+  const businessType = process.env.SITE_TYPE || '';
+  const lines = [];
+  if (site.name) lines.push(`Website: ${site.name}`);
+  if (businessType) lines.push(`Art des Unternehmens: ${businessType}`);
+  const cleanDesc = (site.description || '').replace(/wellness/gi, '').replace(/\s{2,}/g, ' ').trim();
+  if (cleanDesc) lines.push(`Beschreibung: ${cleanDesc}`);
+  if (site.url) lines.push(`URL: ${site.url}`);
+  const filteredCats = cats.filter((c) => !/wellness/i.test(c));
+  if (filteredCats.length) lines.push(`Themen: ${filteredCats.join(', ')}`);
+  if (pageNames.length) lines.push(`Seiten: ${pageNames.join(', ')}`);
+  if (postNames.length) lines.push(`Aktuelle Beiträge: ${postNames.slice(0, 10).join(', ')}`);
+
+  return lines.join('\n');
+}
+
 export async function testConnection() {
   if (!BASE_URL || !USERNAME || !APP_PASSWORD) {
     throw new Error('Missing required environment variables: WP_URL, WP_USERNAME, WP_APP_PASSWORD');

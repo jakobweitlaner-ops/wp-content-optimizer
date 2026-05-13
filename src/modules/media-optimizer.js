@@ -1,7 +1,7 @@
 import https from 'https';
 import Anthropic from '@anthropic-ai/sdk';
 import axios from 'axios';
-import { getMedia, updateMedia } from '../utils/wp-api.js';
+import { getMedia, updateMedia, getSiteContext } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
 
 const insecureAgent = new https.Agent({ rejectUnauthorized: false });
@@ -118,7 +118,10 @@ export async function auditAltTextWithAI({ onProgress, onProposal, onError } = {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
 
   const client = new Anthropic({ apiKey });
-  const media = await getMedia({ media_type: 'image' });
+  const [media, siteContext] = await Promise.all([
+    getMedia({ media_type: 'image' }),
+    getSiteContext().catch(() => ''),
+  ]);
   const proposals = [];
   let done = 0;
 
@@ -139,7 +142,7 @@ export async function auditAltTextWithAI({ onProgress, onProposal, onError } = {
             { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
             {
               type: 'text',
-              text: `Current alt text: "${altText || '(empty)'}"\n\nEvaluate this alt text for the image. Is it accurate and descriptive? Reply with JSON only:\n{"quality":"good"|"poor","reason":"one sentence","suggestion":"improved alt text or null"}`,
+              text: `${siteContext ? `Kontext der Webseite:\n${siteContext}\n\n` : ''}Aktueller Alt-Text des Bildes: "${altText || '(leer)'}"\n\nBewerte diesen Alt-Text im Kontext der Webseite. Ist er korrekt, beschreibend und passend? Generiere bei Bedarf einen besseren Alt-Text der den Bildinhalt beschreibt und zur Webseite passt. Antworte ausschließlich mit JSON auf Deutsch:\n{"quality":"good"|"poor","reason":"ein Satz","suggestion":"verbesserter Alt-Text auf Deutsch oder null"}`,
             },
           ],
         }],
