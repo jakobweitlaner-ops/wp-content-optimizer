@@ -1,13 +1,10 @@
 @echo off
-echo Updating from GitHub...
-git pull origin claude/plan-tool-improvements-U6ZxC
+echo Starting WP Content Optimizer...
 echo.
-echo Installing dependencies...
-npm install --silent
-echo.
-echo Starting WP Content Optimizer UI...
-echo Browser opens automatically once the server is ready.
 echo Press Ctrl+C to stop the server.
+echo Keep this window open while using the tool.
 echo.
 node src/server.js
+echo.
+echo Server stopped.
 pause
