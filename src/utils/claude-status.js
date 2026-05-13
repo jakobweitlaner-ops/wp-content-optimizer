@@ -1,7 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 const STATUS_TOOLS = [
   {
     name: 'get_seo_status',
@@ -101,6 +99,11 @@ function buildMediaSummary(mediaResults) {
 }
 
 export async function getSiteStatus({ seoResults, linkResults, mediaResults }) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
+
+  const client = new Anthropic({ apiKey });
+
   const messages = [
     {
       role: 'user',
