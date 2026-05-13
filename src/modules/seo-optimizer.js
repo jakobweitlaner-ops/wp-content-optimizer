@@ -1,5 +1,6 @@
-import { getPosts } from '../utils/wp-api.js';
+import { getPosts, getPages } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
+import { getSeoSuggestions } from '../utils/claude-suggestions.js';
 
 function stripHtml(html) {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -7,6 +8,32 @@ function stripHtml(html) {
 
 function countWords(text) {
   return text.split(/\s+/).filter(Boolean).length;
+}
+
+function scoreYoast(post) {
+  const yoast = post.yoast_head_json;
+  const issues = [];
+  let bonus = 0;
+
+  if (!yoast) return { issues, bonus };
+
+  const metaDesc = yoast.og_description || yoast.description || '';
+  if (metaDesc && metaDesc.length >= 50 && metaDesc.length <= 160) {
+    bonus += 10;
+  } else if (!metaDesc) {
+    issues.push('Yoast: Missing meta description');
+  } else {
+    issues.push(`Yoast: Meta description length ${metaDesc.length} chars (50–160 recommended)`);
+  }
+
+  const seoTitle = yoast.og_title || yoast.title || '';
+  if (seoTitle && seoTitle.length >= 20 && seoTitle.length <= 60) {
+    bonus += 5;
+  } else if (seoTitle && seoTitle.length > 60) {
+    issues.push(`Yoast: SEO title too long (${seoTitle.length} chars, max 60)`);
+  }
+
+  return { issues, bonus };
 }
 
 function scoreSeo(post) {
@@ -62,46 +89,82 @@ function scoreSeo(post) {
     score -= 15;
   }
 
-  return { score: Math.max(0, score), issues, wordCount, h1Count: h1Matches.length, h2Count: h2Matches.length };
+  // Yoast/RankMath bonus & issues (up to +15)
+  const { issues: yoastIssues, bonus } = scoreYoast(post);
+  issues.push(...yoastIssues);
+  score = Math.min(100, score + bonus);
+
+  return { score: Math.max(0, score), issues, wordCount, h1Count: h1Matches.length, h2Count: h2Matches.length, _wordCount: wordCount };
 }
 
-export async function auditSeo({ minScore = 80, output } = {}) {
+export async function auditSeo({ minScore = 80, aiSuggestions = false, output } = {}) {
   log.header('SEO Audit');
-  log.info('Fetching posts...');
 
-  const posts = await getPosts();
-  log.info(`Analyzing ${posts.length} posts...`);
+  if (aiSuggestions && !process.env.ANTHROPIC_API_KEY) {
+    log.warn('ANTHROPIC_API_KEY not set — AI suggestions disabled.');
+    aiSuggestions = false;
+  }
 
-  const results = posts.map((post) => {
+  log.info('Fetching posts and pages...');
+  const [posts, pages] = await Promise.all([getPosts(), getPages()]);
+  const content = [
+    ...posts.map((p) => ({ ...p, _type: 'post' })),
+    ...pages.map((p) => ({ ...p, _type: 'page' })),
+  ];
+  log.info(`Analyzing ${content.length} posts/pages (${posts.length} posts, ${pages.length} pages)...`);
+
+  const results = content.map((post, i) => {
+    process.stdout.write(`\r  Analyzing ${i + 1}/${content.length}...`);
     const seo = scoreSeo(post);
     return {
       id: post.id,
+      type: post._type,
       title: post.title?.rendered || '(no title)',
       url: post.link,
       ...seo,
     };
   });
+  process.stdout.write('\r' + ' '.repeat(40) + '\r');
 
   const belowThreshold = results.filter((r) => r.score < minScore);
   results.sort((a, b) => a.score - b.score);
 
   if (belowThreshold.length === 0) {
-    log.success(`All posts score above ${minScore}.`);
+    log.success(`All posts/pages score above ${minScore}.`);
   } else {
-    log.warn(`${belowThreshold.length} post(s) below SEO score ${minScore}:`);
+    log.warn(`${belowThreshold.length} post(s)/page(s) below SEO score ${minScore}:`);
     for (const r of belowThreshold) {
       const color = r.score < 50 ? 'red' : 'yellow';
-      log.row(r.title.substring(0, 40), `Score: ${r.score}/100`, color);
+      log.row(r.title.substring(0, 36), `[${r.type}] Score: ${r.score}/100`, color);
       for (const issue of r.issues) {
         log.row('', `• ${issue}`, 'dim');
+      }
+
+      if (aiSuggestions && r.issues.length > 0) {
+        try {
+          const postObj = content.find((p) => p.id === r.id);
+          const suggestions = await getSeoSuggestions({ ...postObj, _wordCount: r.wordCount }, r.issues);
+          if (suggestions.length > 0) {
+            log.row('', 'AI suggestions:', 'cyan');
+            for (const s of suggestions) {
+              log.row('', `  → ${s}`, 'cyan');
+            }
+          }
+        } catch (err) {
+          log.row('', `AI suggestions failed: ${err.message}`, 'dim');
+        }
       }
     }
   }
 
   const avg = Math.round(results.reduce((s, r) => s + r.score, 0) / results.length);
   log.info(`Average SEO score: ${avg}/100`);
+  if (aiSuggestions) log.info('AI suggestions powered by Claude.');
 
-  if (output) saveReport(output, { summary: { total: results.length, belowThreshold: belowThreshold.length, averageScore: avg }, results });
+  if (output) saveReport(output, {
+    summary: { total: results.length, posts: posts.length, pages: pages.length, belowThreshold: belowThreshold.length, averageScore: avg },
+    results,
+  });
 
   return results;
 }

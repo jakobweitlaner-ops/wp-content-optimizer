@@ -29,7 +29,7 @@ app.get('/run/:command', (req, res) => {
   };
 
   const child = spawn('node', ['src/cli.js', command], {
-    env: process.env,
+    env: { ...process.env, FORCE_COLOR: '0' },
     cwd: join(__dirname, '..'),
   });
 

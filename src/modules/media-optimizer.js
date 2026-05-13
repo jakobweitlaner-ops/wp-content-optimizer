@@ -1,4 +1,4 @@
-import { getMedia } from '../utils/wp-api.js';
+import { getMedia, updateMedia } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
 
 const MAX_FILE_SIZE_BYTES = 200 * 1024; // 200 KB
@@ -39,7 +39,14 @@ function auditMediaItem(item) {
   return issues;
 }
 
-export async function auditMedia({ output } = {}) {
+function generateAltText(item) {
+  const title = item.title?.rendered?.trim();
+  if (title && title.length > 3) return title;
+  const slug = (item.slug || '').replace(/[-_]+/g, ' ').trim();
+  return slug || 'image';
+}
+
+export async function auditMedia({ fix = false, output } = {}) {
   log.header('Media Audit');
   log.info('Fetching media library...');
 
@@ -48,11 +55,31 @@ export async function auditMedia({ output } = {}) {
 
   const results = [];
   let issueCount = 0;
+  let fixedCount = 0;
+  let checked_count = 0;
 
   for (const item of media) {
+    checked_count++;
+    process.stdout.write(`\r  Analyzing ${checked_count}/${media.length}...`);
     const issues = auditMediaItem(item);
     if (issues.length > 0) {
       issueCount += issues.length;
+
+      const fixedIssues = [];
+      if (fix) {
+        const missingAlt = issues.find((i) => i === 'Missing alt text');
+        if (missingAlt) {
+          const altText = generateAltText(item);
+          try {
+            await updateMedia(item.id, { alt_text: altText });
+            fixedIssues.push(`Set alt text: "${altText}"`);
+            fixedCount++;
+          } catch (err) {
+            fixedIssues.push(`Failed to set alt text: ${err.message}`);
+          }
+        }
+      }
+
       results.push({
         id: item.id,
         filename: item.slug,
@@ -62,9 +89,12 @@ export async function auditMedia({ output } = {}) {
         width: item.media_details?.width || null,
         height: item.media_details?.height || null,
         issues,
+        ...(fixedIssues.length > 0 ? { fixed: fixedIssues } : {}),
       });
     }
   }
+
+  process.stdout.write('\r' + ' '.repeat(40) + '\r');
 
   if (results.length === 0) {
     log.success('All media items look good.');
@@ -75,10 +105,22 @@ export async function auditMedia({ output } = {}) {
       for (const issue of item.issues) {
         log.row('', `• ${issue}`, 'dim');
       }
+      if (item.fixed) {
+        for (const f of item.fixed) {
+          log.row('', `✔ ${f}`, 'green');
+        }
+      }
     }
   }
 
-  if (output) saveReport(output, { summary: { total: media.length, withIssues: results.length, totalIssues: issueCount }, results });
+  if (fix && fixedCount > 0) {
+    log.success(`Auto-fixed ${fixedCount} missing alt text(s).`);
+  }
+
+  if (output) saveReport(output, {
+    summary: { total: media.length, withIssues: results.length, totalIssues: issueCount, autoFixed: fixedCount },
+    results,
+  });
 
   return results;
 }

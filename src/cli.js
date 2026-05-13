@@ -43,13 +43,14 @@ program
 
 program
   .command('audit-seo')
-  .description('Audit SEO quality of all posts (score 0-100)')
+  .description('Audit SEO quality of all posts and pages (score 0-100)')
   .option('--min-score <number>', 'Only show posts below this score', '80')
+  .option('--ai', 'Add AI-powered suggestions via Claude API (requires ANTHROPIC_API_KEY)')
   .option('-o, --output <file>', 'Save report to file')
   .action(async (options) => {
     try {
       const minScore = parseInt(options.minScore, 10);
-      await auditSeo({ minScore, output: options.output });
+      await auditSeo({ minScore, aiSuggestions: !!options.ai, output: options.output });
     } catch (err) {
       log.error(`SEO audit failed: ${err.message}`);
       process.exit(1);
@@ -59,10 +60,11 @@ program
 program
   .command('audit-media')
   .description('Audit media files for missing alt texts, large sizes, bad filenames')
+  .option('--fix', 'Auto-fix missing alt texts using image title/filename')
   .option('-o, --output <file>', 'Save report to file')
   .action(async (options) => {
     try {
-      await auditMedia({ output: options.output });
+      await auditMedia({ fix: !!options.fix, output: options.output });
     } catch (err) {
       log.error(`Media audit failed: ${err.message}`);
       process.exit(1);
