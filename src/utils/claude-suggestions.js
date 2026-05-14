@@ -11,25 +11,24 @@ export async function generateSeoFixes(post, issues) {
   const needsTitle = issues.some((i) => /title/i.test(i));
   const needsExcerpt = issues.some((i) => /excerpt|meta description/i.test(i));
 
-  const fixRequests = [];
-  if (needsTitle) fixRequests.push('"title": "<optimized title, 20–60 chars>"');
-  if (needsExcerpt) fixRequests.push('"excerpt": "<meta description, 120–160 chars>"');
+  if (!needsTitle && !needsExcerpt) return {};
 
-  if (fixRequests.length === 0) return {};
+  const fieldsNeeded = [needsTitle && 'title', needsExcerpt && 'excerpt'].filter(Boolean).join(' and ');
 
-  const prompt = `You are an SEO expert. Generate improved field values for this WordPress post.
+  const prompt = `You are an SEO expert. Fix the following WordPress post by generating improved values for: ${fieldsNeeded}.
 
-Title: ${title}
+Post title: ${title}
 Current excerpt: ${excerpt || '(none)'}
 Content preview: ${contentSnippet}
-Issues to fix: ${issues.join(', ')}
+SEO issues: ${issues.join(', ')}
 
-Return ONLY a JSON object with these fields (include only fields that need fixing):
-{ ${fixRequests.join(', ')} }
+Respond with ONLY a valid JSON object. Do not include any explanation or markdown.${needsTitle ? `
+"title" must be 20–60 characters, descriptive, include the main topic.` : ''}${needsExcerpt ? `
+"excerpt" must be 120–160 characters, a compelling meta description.` : ''}
 
-Requirements:
-- title: 20–60 characters, descriptive, includes main topic, no keyword stuffing
-- excerpt: 120–160 characters, compelling meta description summarizing the content`;
+Example response format: {"title": "Your improved title here", "excerpt": "Your improved excerpt here"}
+
+Only include keys for the fields listed above (${fieldsNeeded}).`;
 
   const message = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',

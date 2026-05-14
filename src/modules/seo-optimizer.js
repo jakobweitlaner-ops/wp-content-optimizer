@@ -171,7 +171,7 @@ export async function auditSeo({ minScore = 80, aiSuggestions = false, output } 
 
 const FIXABLE_ISSUE = /title too short|title too long|missing title|missing or empty excerpt/i;
 
-export async function previewSeoFixes({ minScore = 80, onProgress } = {}) {
+export async function previewSeoFixes({ minScore = 80, onProgress, onError } = {}) {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY not set');
   }
@@ -222,8 +222,12 @@ export async function previewSeoFixes({ minScore = 80, onProgress } = {}) {
           proposedValue: fixes.excerpt,
         });
       }
-    } catch {
-      // Skip posts where AI generation fails
+
+      if (!fixes.title && !fixes.excerpt) {
+        onError?.(post.title?.rendered || '(no title)', `Kein Fix generiert (Issues: ${fixableIssues.join(', ')})`);
+      }
+    } catch (err) {
+      onError?.(post.title?.rendered || '(no title)', err.message);
     }
   }
 

@@ -98,6 +98,8 @@ app.get('/preview/audit-seo', (req, res) => {
   previewSeoFixes({
     onProgress: (done, total, title) =>
       send('progress', `Generiere Fixes ${done}/${total}: ${title}`),
+    onError: (title, msg) =>
+      send('err', `⚠ Kein Fix für "${title}": ${msg}`),
   })
     .then((proposals) => {
       send('proposals', `${proposals.length} Fix(es) gefunden.`, proposals);
