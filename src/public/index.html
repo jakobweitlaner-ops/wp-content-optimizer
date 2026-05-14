@@ -417,6 +417,28 @@
     .review-item-change .arrow { color: #4f6ef7; margin: 0 0.3rem; }
     .review-item-change .to { color: #22c55e; }
 
+    .review-item-edit {
+      margin-top: 0.35rem;
+    }
+
+    .edit-input {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #2a3450;
+      border-radius: 5px;
+      color: #22c55e;
+      font-size: 0.75rem;
+      font-family: inherit;
+      padding: 0.3rem 0.5rem;
+      outline: none;
+      resize: none;
+      line-height: 1.5;
+      transition: border-color 0.15s;
+    }
+
+    .edit-input:focus { border-color: #4f6ef7; color: #e2e8f0; }
+    .edit-input::placeholder { color: #3d4a63; }
+
     .review-actions {
       display: flex;
       align-items: center;
@@ -761,9 +783,9 @@
     proposals.forEach(p => {
       const item = document.createElement('div');
       item.className = 'review-item';
-      item.dataset.id = p.id; item.dataset.type = p.type;
-      item.dataset.field = p.field; item.dataset.value = p.proposedValue;
+      item.dataset.id = p.id; item.dataset.type = p.type; item.dataset.field = p.field;
       const fieldLabel = p.field === 'title' ? 'Titel' : 'Auszug';
+      const isExcerpt = p.field === 'excerpt';
       item.innerHTML = `
         <input type="checkbox" checked onchange="this.closest('.review-item').classList.toggle('deselected', !this.checked); updateSeoReviewCount()">
         <div class="review-item-body">
@@ -771,12 +793,19 @@
           <div class="review-item-change">
             <span class="from">${p.currentValue ? escapeHtml(truncate(p.currentValue, 60)) : '(leer)'}</span>
             <span class="arrow">→</span>
-            <span class="to">${escapeHtml(truncate(p.proposedValue, 80))}</span>
+            <span class="to">${escapeHtml(truncate(p.proposedValue, 60))}</span>
+          </div>
+          <div class="review-item-edit">
+            ${isExcerpt
+              ? `<textarea class="edit-input" rows="2" placeholder="Vorschlag bearbeiten…">${escapeHtml(p.proposedValue)}</textarea>`
+              : `<input type="text" class="edit-input" value="${escapeHtml(p.proposedValue)}" placeholder="Vorschlag bearbeiten…">`
+            }
           </div>
         </div>`;
+      item.querySelector('.edit-input').addEventListener('click', e => e.stopPropagation());
       item.addEventListener('click', (e) => {
-        if (e.target.tagName === 'INPUT') return;
-        const cb = item.querySelector('input');
+        if (e.target.matches('input[type="checkbox"], .edit-input, textarea')) return;
+        const cb = item.querySelector('input[type="checkbox"]');
         cb.checked = !cb.checked;
         item.classList.toggle('deselected', !cb.checked);
         updateSeoReviewCount();
@@ -788,11 +817,14 @@
   }
 
   async function applySelectedSeoFixes() {
-    const changes = [...document.querySelectorAll('#seo-review-list .review-item input:checked')]
+    const changes = [...document.querySelectorAll('#seo-review-list .review-item input[type="checkbox"]:checked')]
       .map(cb => {
         const item = cb.closest('.review-item');
-        return { id: parseInt(item.dataset.id, 10), type: item.dataset.type, field: item.dataset.field, value: item.dataset.value };
-      });
+        const editInput = item.querySelector('.edit-input');
+        const value = editInput ? editInput.value.trim() : item.dataset.value;
+        return { id: parseInt(item.dataset.id, 10), type: item.dataset.type, field: item.dataset.field, value };
+      })
+      .filter(c => c.value);
     const btn = document.getElementById('seo-apply-btn');
     btn.disabled = true; btn.textContent = 'Wird angewendet…';
     document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-seo (Apply)';
@@ -848,23 +880,28 @@
   function showReviewPanel(proposals) {
     const list = document.getElementById('review-list');
     list.innerHTML = '';
+    const truncate = (s, n) => s && s.length > n ? s.substring(0, n) + '…' : (s || '');
     proposals.forEach(p => {
       const item = document.createElement('div');
       item.className = 'review-item';
-      item.dataset.id = p.id; item.dataset.altText = p.proposedAltText;
+      item.dataset.id = p.id;
       item.innerHTML = `
         <input type="checkbox" checked onchange="this.closest('.review-item').classList.toggle('deselected', !this.checked); updateReviewCount()">
         <div class="review-item-body">
           <div class="review-item-filename">${escapeHtml(p.filename)}</div>
           <div class="review-item-change">
-            <span class="from">${p.currentAltText ? escapeHtml(p.currentAltText) : '(leer)'}</span>
+            <span class="from">${p.currentAltText ? escapeHtml(truncate(p.currentAltText, 60)) : '(leer)'}</span>
             <span class="arrow">→</span>
-            <span class="to">${escapeHtml(p.proposedAltText)}</span>
+            <span class="to">${escapeHtml(truncate(p.proposedAltText, 60))}</span>
+          </div>
+          <div class="review-item-edit">
+            <input type="text" class="edit-input" value="${escapeHtml(p.proposedAltText)}" placeholder="Alt-Text bearbeiten…">
           </div>
         </div>`;
+      item.querySelector('.edit-input').addEventListener('click', e => e.stopPropagation());
       item.addEventListener('click', (e) => {
-        if (e.target.tagName === 'INPUT') return;
-        const cb = item.querySelector('input');
+        if (e.target.matches('input[type="checkbox"], .edit-input')) return;
+        const cb = item.querySelector('input[type="checkbox"]');
         cb.checked = !cb.checked;
         item.classList.toggle('deselected', !cb.checked);
         updateReviewCount();
@@ -876,11 +913,14 @@
   }
 
   async function applySelectedFixes() {
-    const changes = [...document.querySelectorAll('#review-list .review-item input:checked')]
+    const changes = [...document.querySelectorAll('#review-list .review-item input[type="checkbox"]:checked')]
       .map(cb => {
         const item = cb.closest('.review-item');
-        return { id: parseInt(item.dataset.id, 10), altText: item.dataset.altText };
-      });
+        const editInput = item.querySelector('.edit-input');
+        const altText = editInput ? editInput.value.trim() : item.dataset.altText;
+        return { id: parseInt(item.dataset.id, 10), altText };
+      })
+      .filter(c => c.altText);
     const btn = document.getElementById('apply-btn');
     btn.disabled = true; btn.textContent = 'Wird angewendet…';
     document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-media (Apply)';
