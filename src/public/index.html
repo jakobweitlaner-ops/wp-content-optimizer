@@ -11,319 +11,383 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #0f1117;
       color: #e2e8f0;
-      min-height: 100vh;
-      padding: 2rem;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
-    header {
-      margin-bottom: 2rem;
+    /* ── App shell ───────────────────────────────────────────── */
+
+    .app {
+      flex: 1;
+      display: flex;
+      min-height: 0;
     }
 
-    header h1 {
-      font-size: 1.5rem;
+    /* ── Sidebar ─────────────────────────────────────────────── */
+
+    .sidebar {
+      width: 248px;
+      flex-shrink: 0;
+      background: #13161f;
+      border-right: 1px solid #1e2435;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-header {
+      padding: 1.1rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      border-bottom: 1px solid #1e2435;
+    }
+
+    .sidebar-logo {
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+
+    .sidebar-title {
+      font-size: 0.85rem;
       font-weight: 700;
-      color: #fff;
+      color: #e2e8f0;
+      letter-spacing: 0.01em;
     }
 
-    header p {
+    .sidebar-subtitle {
+      font-size: 0.68rem;
+      color: #3d4a63;
+      margin-top: 0.1rem;
+    }
+
+    /* ── Nav ─────────────────────────────────────────────────── */
+
+    .nav {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.6rem 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .nav-divider {
+      height: 1px;
+      background: #1e2435;
+      margin: 0.4rem 0.25rem;
+    }
+
+    .nav-item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.55rem 0.65rem;
+      border-radius: 7px;
+      border: none;
+      background: none;
       color: #64748b;
-      margin-top: 0.25rem;
-      font-size: 0.9rem;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-      margin-bottom: 2rem;
-    }
-
-    .card {
-      background: #1e2130;
-      border: 1px solid #2d3348;
-      border-radius: 12px;
-      padding: 1.25rem;
       cursor: pointer;
-      transition: border-color 0.2s, transform 0.1s;
+      text-align: left;
+      transition: background 0.12s, color 0.12s;
+      position: relative;
+    }
+
+    .nav-item:hover {
+      background: #1a1f2e;
+      color: #c4cedd;
+    }
+
+    .nav-item[data-state="running"] {
+      background: rgba(245, 158, 11, 0.07);
+      color: #e2e8f0;
+      cursor: default;
+    }
+
+    .nav-item[data-state="success"] {
+      background: rgba(34, 197, 94, 0.06);
+      color: #e2e8f0;
+    }
+
+    .nav-item[data-state="error"] {
+      background: rgba(239, 68, 68, 0.07);
+      color: #e2e8f0;
+    }
+
+    .nav-item-icon {
+      font-size: 1rem;
+      flex-shrink: 0;
+      width: 1.2rem;
+      text-align: center;
+    }
+
+    .nav-item[data-state="running"] .nav-item-icon {
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+
+    .nav-item-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .nav-item-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: inherit;
+      display: block;
+    }
+
+    .nav-item-note {
+      font-size: 0.68rem;
+      color: #3d4a63;
+      display: block;
+      margin-top: 0.05rem;
+    }
+
+    .nav-item[data-state="running"] .nav-item-note,
+    .nav-item[data-state="success"] .nav-item-note,
+    .nav-item[data-state="error"] .nav-item-note {
+      display: none;
+    }
+
+    .nav-state {
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: #3d4a63;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .nav-item[data-state="running"] .nav-state { color: #f59e0b; }
+    .nav-item[data-state="success"] .nav-state { color: #22c55e; }
+    .nav-item[data-state="error"]   .nav-state { color: #ef4444; }
+
+    /* Status item (special) */
+    .nav-status {
+      background: linear-gradient(135deg, rgba(79,110,247,0.08), rgba(139,92,246,0.05));
+      border: 1px solid rgba(79,110,247,0.2);
+      color: #94a3b8;
+      margin-bottom: 0.1rem;
+    }
+
+    .nav-status:hover {
+      background: linear-gradient(135deg, rgba(79,110,247,0.14), rgba(139,92,246,0.09));
+      border-color: rgba(79,110,247,0.4);
+      color: #e2e8f0;
+    }
+
+    .nav-status[data-state="running"] {
+      background: rgba(245,158,11,0.07);
+      border-color: rgba(245,158,11,0.25);
+    }
+
+    .nav-status[data-state="success"] {
+      background: rgba(34,197,94,0.07);
+      border-color: rgba(34,197,94,0.25);
+    }
+
+    .nav-status[data-state="error"] {
+      background: rgba(239,68,68,0.07);
+      border-color: rgba(239,68,68,0.25);
+    }
+
+    /* Options (checkboxes under tools) */
+    .nav-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      padding: 0.1rem 0.65rem 0.35rem 2.4rem;
+    }
+
+    .nav-option {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      color: #475569;
+      cursor: pointer;
+      padding: 0.2rem 0;
       user-select: none;
     }
 
-    .card:hover { border-color: #4f6ef7; transform: translateY(-2px); }
-    .card:active { transform: translateY(0); }
-    .card.running { border-color: #f59e0b; cursor: default; }
-    .card.running:hover { transform: none; }
-    .card.success { border-color: #22c55e; }
-    .card.error   { border-color: #ef4444; }
+    .nav-option:hover { color: #94a3b8; }
 
-    .card-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
-    .card-title { font-weight: 600; font-size: 0.95rem; }
-    .card-desc { color: #64748b; font-size: 0.8rem; margin-top: 0.25rem; }
-
-    .card-status {
-      margin-top: 0.75rem;
-      font-size: 0.75rem;
-      font-weight: 500;
-      color: #64748b;
-    }
-    .card.running .card-status { color: #f59e0b; }
-    .card.success .card-status { color: #22c55e; }
-    .card.error   .card-status { color: #ef4444; }
-
-    .card-options {
-      margin-top: 0.75rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .card-options label {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-size: 0.78rem;
-      color: #94a3b8;
-      cursor: pointer;
-    }
-
-    .card-options input[type="checkbox"] {
+    .nav-option input[type="checkbox"] {
       accent-color: #4f6ef7;
       cursor: pointer;
+      flex-shrink: 0;
     }
 
-    .card-note {
-      margin-top: 0.6rem;
-      font-size: 0.72rem;
-      color: #475569;
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
+    /* Sidebar footer */
+    .sidebar-footer {
+      padding: 0.75rem 0.5rem;
+      border-top: 1px solid #1e2435;
     }
+
+    .abort-btn {
+      width: 100%;
+      background: none;
+      border: 1px solid #ef4444;
+      color: #ef4444;
+      border-radius: 7px;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      display: none;
+    }
+
+    .abort-btn:hover { background: #ef4444; color: #fff; }
+
+    /* ── AI badge ────────────────────────────────────────────── */
 
     .ai-badge {
       background: linear-gradient(135deg, #6366f1, #8b5cf6);
       color: #fff;
-      font-size: 0.65rem;
+      font-size: 0.6rem;
       font-weight: 700;
-      padding: 0.1rem 0.4rem;
-      border-radius: 4px;
-      letter-spacing: 0.03em;
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
     }
 
-    .status-card {
-      background: linear-gradient(135deg, #1a1f35 0%, #1e2130 100%);
-      border: 1px solid #4f6ef7;
-      border-radius: 12px;
-      padding: 1.25rem 1.5rem;
-      cursor: pointer;
-      transition: border-color 0.2s, transform 0.1s, box-shadow 0.2s;
-      user-select: none;
+    /* ── Main area ───────────────────────────────────────────── */
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .main-toolbar {
       display: flex;
       align-items: center;
-      gap: 1.25rem;
-      margin-bottom: 1rem;
-      box-shadow: 0 0 0 0 rgba(79,110,247,0);
+      justify-content: space-between;
+      padding: 0.65rem 1.25rem;
+      border-bottom: 1px solid #1e2435;
+      flex-shrink: 0;
     }
 
-    .status-card:hover {
-      border-color: #818cf8;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 24px rgba(79,110,247,0.15);
+    .main-label {
+      font-size: 0.78rem;
+      color: #3d4a63;
+      font-weight: 500;
     }
 
-    .status-card:active { transform: translateY(0); }
-    .status-card.running { border-color: #f59e0b; box-shadow: 0 4px 24px rgba(245,158,11,0.15); cursor: default; }
-    .status-card.running:hover { transform: none; }
-    .status-card.success { border-color: #22c55e; box-shadow: 0 4px 24px rgba(34,197,94,0.15); }
-    .status-card.error   { border-color: #ef4444; box-shadow: 0 4px 24px rgba(239,68,68,0.15); }
-
-    .status-card-icon { font-size: 2rem; flex-shrink: 0; }
-
-    .status-card-body { flex: 1; }
-
-    .status-card-title {
-      font-weight: 700;
-      font-size: 1rem;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .status-card-desc {
-      color: #94a3b8;
-      font-size: 0.82rem;
-      margin-top: 0.2rem;
-    }
-
-    .status-card-pills {
+    .main-actions {
       display: flex;
       gap: 0.4rem;
-      margin-top: 0.6rem;
-      flex-wrap: wrap;
     }
 
-    .pill {
-      background: #0f1117;
-      border: 1px solid #2d3348;
-      color: #64748b;
-      font-size: 0.72rem;
-      padding: 0.15rem 0.5rem;
-      border-radius: 999px;
-    }
-
-    .status-card-status {
+    .tool-btn {
+      background: none;
+      border: 1px solid #1e2435;
+      color: #475569;
+      border-radius: 5px;
+      padding: 0.25rem 0.65rem;
       font-size: 0.75rem;
-      font-weight: 500;
-      color: #4f6ef7;
-      flex-shrink: 0;
-      text-align: right;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
     }
 
-    .status-card.running .status-card-status { color: #f59e0b; }
-    .status-card.success .status-card-status { color: #22c55e; }
-    .status-card.error   .status-card-status { color: #ef4444; }
+    .tool-btn:hover { border-color: #4f6ef7; color: #818cf8; }
+
+    /* ── Report box (Site Status AI report) ──────────────────── */
 
     .report-box {
+      margin: 0.75rem 1.25rem 0;
       background: #0a0d14;
-      border: 1px solid #2d3348;
-      border-radius: 12px;
-      padding: 1.25rem 1.5rem;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 0.88rem;
-      line-height: 1.7;
+      border: 1px solid #1e2435;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      font-size: 0.85rem;
+      line-height: 1.75;
       white-space: pre-wrap;
       word-break: break-word;
       display: none;
-      margin-bottom: 1rem;
-      color: #e2e8f0;
-    }
-
-    .output-box {
-      background: #0a0d14;
-      border: 1px solid #2d3348;
-      border-radius: 12px;
-      padding: 1.25rem;
-      min-height: 300px;
-      max-height: 500px;
+      color: #c4cedd;
+      flex-shrink: 0;
+      max-height: 220px;
       overflow-y: auto;
-      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-      font-size: 0.82rem;
-      line-height: 1.6;
     }
 
-    .output-box .placeholder {
-      color: #334155;
-      font-style: italic;
-    }
-
-    .line { display: flex; gap: 0.5rem; }
-    .line.err { color: #f87171; }
-    .line.out { color: #e2e8f0; }
-    .line .prefix { color: #334155; flex-shrink: 0; }
-
-    .toolbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.75rem;
-    }
-
-    .toolbar span { font-size: 0.8rem; color: #64748b; }
-
-    .toolbar-actions {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-    }
-
-    .clear-btn {
-      background: none;
-      border: 1px solid #2d3348;
-      color: #64748b;
-      border-radius: 6px;
-      padding: 0.3rem 0.75rem;
-      font-size: 0.78rem;
-      cursor: pointer;
-      transition: border-color 0.2s, color 0.2s;
-    }
-    .clear-btn:hover { border-color: #4f6ef7; color: #4f6ef7; }
-
-    .abort-btn {
-      background: none;
-      border: 1px solid #ef4444;
-      color: #ef4444;
-      border-radius: 6px;
-      padding: 0.3rem 0.75rem;
-      font-size: 0.78rem;
-      cursor: pointer;
-      transition: background 0.2s, color 0.2s;
-      display: none;
-    }
-    .abort-btn:hover { background: #ef4444; color: #fff; }
+    /* ── Review panels ───────────────────────────────────────── */
 
     .review-panel {
+      margin: 0.75rem 1.25rem 0;
       background: #0a0d14;
-      border: 1px solid #4f6ef7;
-      border-radius: 12px;
-      padding: 1.25rem 1.5rem;
-      margin-bottom: 1rem;
+      border: 1px solid rgba(79,110,247,0.35);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
       display: none;
+      flex-shrink: 0;
     }
 
     .review-panel-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.2rem;
     }
 
     .review-panel-header h3 {
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 700;
-      color: #fff;
+      color: #e2e8f0;
     }
 
     .close-btn {
       background: none;
       border: none;
-      color: #475569;
-      font-size: 1.1rem;
+      color: #3d4a63;
+      font-size: 1rem;
       line-height: 1;
       cursor: pointer;
       padding: 0.1rem 0.25rem;
-      transition: color 0.15s;
+      transition: color 0.12s;
     }
-    .close-btn:hover { color: #e2e8f0; }
+
+    .close-btn:hover { color: #94a3b8; }
 
     .review-panel p {
-      font-size: 0.78rem;
-      color: #64748b;
-      margin-bottom: 1rem;
+      font-size: 0.75rem;
+      color: #475569;
+      margin-bottom: 0.75rem;
     }
 
     .review-list {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
-      max-height: 300px;
+      gap: 0.4rem;
+      max-height: 220px;
       overflow-y: auto;
-      margin-bottom: 1rem;
+      margin-bottom: 0.75rem;
     }
 
     .review-item {
       display: flex;
       align-items: flex-start;
-      gap: 0.75rem;
-      background: #1e2130;
-      border: 1px solid #2d3348;
-      border-radius: 8px;
-      padding: 0.6rem 0.75rem;
+      gap: 0.65rem;
+      background: #13161f;
+      border: 1px solid #1e2435;
+      border-radius: 7px;
+      padding: 0.5rem 0.65rem;
       cursor: pointer;
-      transition: border-color 0.15s;
+      transition: border-color 0.12s;
     }
 
-    .review-item:hover { border-color: #4f6ef7; }
-    .review-item.deselected { opacity: 0.45; }
+    .review-item:hover { border-color: rgba(79,110,247,0.5); }
+    .review-item.deselected { opacity: 0.4; }
 
     .review-item input[type="checkbox"] {
       accent-color: #4f6ef7;
@@ -337,16 +401,16 @@
     .review-item-filename {
       font-size: 0.78rem;
       font-weight: 600;
-      color: #e2e8f0;
+      color: #c4cedd;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .review-item-change {
-      font-size: 0.72rem;
-      color: #64748b;
-      margin-top: 0.15rem;
+      font-size: 0.7rem;
+      color: #475569;
+      margin-top: 0.12rem;
     }
 
     .review-item-change .from { color: #ef4444; text-decoration: line-through; }
@@ -356,161 +420,228 @@
     .review-actions {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.6rem;
     }
 
     .apply-btn {
       background: #4f6ef7;
       color: #fff;
       border: none;
-      border-radius: 8px;
-      padding: 0.5rem 1.25rem;
-      font-size: 0.82rem;
+      border-radius: 7px;
+      padding: 0.45rem 1.1rem;
+      font-size: 0.78rem;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: background 0.15s;
     }
+
     .apply-btn:hover { background: #6b85f8; }
-    .apply-btn:disabled { background: #2d3348; color: #64748b; cursor: not-allowed; }
+    .apply-btn:disabled { background: #1e2435; color: #3d4a63; cursor: not-allowed; }
 
     .select-all-btn {
       background: none;
-      border: 1px solid #2d3348;
-      color: #64748b;
-      border-radius: 6px;
-      padding: 0.4rem 0.75rem;
-      font-size: 0.78rem;
+      border: 1px solid #1e2435;
+      color: #475569;
+      border-radius: 5px;
+      padding: 0.35rem 0.65rem;
+      font-size: 0.75rem;
       cursor: pointer;
-      transition: border-color 0.2s, color 0.2s;
+      transition: border-color 0.15s, color 0.15s;
     }
-    .select-all-btn:hover { border-color: #4f6ef7; color: #4f6ef7; }
+
+    .select-all-btn:hover { border-color: #4f6ef7; color: #818cf8; }
 
     .review-count {
-      font-size: 0.78rem;
-      color: #64748b;
+      font-size: 0.72rem;
+      color: #3d4a63;
       margin-left: auto;
     }
+
+    /* ── Output box ──────────────────────────────────────────── */
+
+    .output-wrap {
+      flex: 1;
+      min-height: 0;
+      padding: 0.75rem 1.25rem 1.25rem;
+    }
+
+    .output-box {
+      height: 100%;
+      background: #0a0d14;
+      border: 1px solid #1e2435;
+      border-radius: 10px;
+      padding: 1rem;
+      overflow-y: auto;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.8rem;
+      line-height: 1.65;
+    }
+
+    .output-box .placeholder {
+      color: #2a3145;
+      font-style: italic;
+    }
+
+    .line { display: flex; gap: 0.5rem; }
+    .line.err { color: #f87171; }
+    .line.out { color: #94a3b8; }
+    .line .prefix { color: #252b3d; flex-shrink: 0; }
   </style>
 </head>
 <body>
 
-<header>
-  <h1>WP Content Optimizer</h1>
-  <p>Klicke auf einen Befehl, um ihn auszuführen</p>
-</header>
+<div class="app">
 
-<div class="status-card" id="status-card" data-cmd="get-status">
-  <div class="status-card-icon">✨</div>
-  <div class="status-card-body">
-    <div class="status-card-title">
-      Site Status Report
-      <span class="ai-badge">Claude AI</span>
+  <!-- ── Sidebar ───────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-logo">⚡</span>
+      <div>
+        <div class="sidebar-title">WP Optimizer</div>
+        <div class="sidebar-subtitle">localhost WordPress</div>
+      </div>
     </div>
-    <div class="status-card-desc">Führt alle Audits aus und erstellt einen KI-Bericht mit Gesamtstatus und Top-Maßnahmen</div>
-    <div class="status-card-pills">
-      <span class="pill">🔗 Links</span>
-      <span class="pill">📈 SEO</span>
-      <span class="pill">🖼️ Media</span>
-      <span class="pill">Tool Use</span>
+
+    <nav class="nav">
+
+      <button class="nav-item nav-status" data-cmd="get-status">
+        <span class="nav-item-icon">✨</span>
+        <div class="nav-item-body">
+          <span class="nav-item-label">Site Status</span>
+          <span class="nav-item-note">KI-Gesamtbericht · Links · SEO · Media</span>
+        </div>
+        <span class="nav-state" id="state-get-status">Bereit</span>
+      </button>
+
+      <div class="nav-divider"></div>
+
+      <button class="nav-item" data-cmd="test-connection">
+        <span class="nav-item-icon">🔌</span>
+        <div class="nav-item-body">
+          <span class="nav-item-label">Test Connection</span>
+        </div>
+        <span class="nav-state" id="state-test-connection">Bereit</span>
+      </button>
+
+      <button class="nav-item" data-cmd="check-links">
+        <span class="nav-item-icon">🔗</span>
+        <div class="nav-item-body">
+          <span class="nav-item-label">Check Links</span>
+          <span class="nav-item-note">Nur Analyse — kein Auto-Fix</span>
+        </div>
+        <span class="nav-state" id="state-check-links">Bereit</span>
+      </button>
+
+      <button class="nav-item" data-cmd="audit-seo">
+        <span class="nav-item-icon">📈</span>
+        <div class="nav-item-body">
+          <span class="nav-item-label">SEO Audit</span>
+        </div>
+        <span class="nav-state" id="state-audit-seo">Bereit</span>
+      </button>
+      <div class="nav-options">
+        <label class="nav-option" onclick="event.stopPropagation()">
+          <input type="checkbox" id="opt-ai" autocomplete="off">
+          <span>KI-Fixes anwenden</span>
+          <span class="ai-badge">AI</span>
+        </label>
+      </div>
+
+      <button class="nav-item" data-cmd="audit-media">
+        <span class="nav-item-icon">🖼️</span>
+        <div class="nav-item-body">
+          <span class="nav-item-label">Media Audit</span>
+        </div>
+        <span class="nav-state" id="state-audit-media">Bereit</span>
+      </button>
+      <div class="nav-options">
+        <label class="nav-option" onclick="event.stopPropagation()">
+          <input type="checkbox" id="opt-fix" autocomplete="off">
+          <span>Alt-Texte generieren</span>
+          <span class="ai-badge">AI</span>
+        </label>
+        <label class="nav-option" onclick="event.stopPropagation()">
+          <input type="checkbox" id="opt-media-ai" autocomplete="off">
+          <span>KI-Qualität prüfen</span>
+          <span class="ai-badge">AI</span>
+        </label>
+      </div>
+
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="abort-btn" id="abort-btn" onclick="abortCurrent()">■ Abbrechen</button>
     </div>
-  </div>
-  <div class="status-card-status" id="status-card-status">Bereit</div>
-</div>
+  </aside>
 
-<div class="report-box" id="report-box"></div>
+  <!-- ── Main ─────────────────────────────────────────────── -->
+  <main class="main">
 
-<div class="review-panel" id="review-panel">
-  <div class="review-panel-header">
-    <h3>Alt-Texte überprüfen</h3>
-    <button class="close-btn" onclick="document.getElementById('review-panel').style.display='none'" title="Schließen">✕</button>
-  </div>
-  <p id="review-desc">Wähle die Änderungen aus, die du anwenden möchtest.</p>
-  <div class="review-list" id="review-list"></div>
-  <div class="review-actions">
-    <button class="select-all-btn" id="select-all-btn" onclick="toggleSelectAll()">Alle abwählen</button>
-    <button class="apply-btn" id="apply-btn" onclick="applySelectedFixes()">Fixes anwenden</button>
-    <span class="review-count" id="review-count"></span>
-  </div>
-</div>
-
-<div class="review-panel" id="seo-review-panel">
-  <div class="review-panel-header">
-    <h3>SEO-Fixes überprüfen</h3>
-    <button class="close-btn" onclick="document.getElementById('seo-review-panel').style.display='none'" title="Schließen">✕</button>
-  </div>
-  <p>Claude hat Verbesserungsvorschläge für Titel und Auszüge generiert. Wähle die Änderungen aus, die du anwenden möchtest.</p>
-  <div class="review-list" id="seo-review-list"></div>
-  <div class="review-actions">
-    <button class="select-all-btn" id="seo-select-all-btn" onclick="toggleSeoSelectAll()">Alle abwählen</button>
-    <button class="apply-btn" id="seo-apply-btn" onclick="applySelectedSeoFixes()">Fixes anwenden</button>
-    <span class="review-count" id="seo-review-count"></span>
-  </div>
-</div>
-
-<div class="grid">
-  <div class="card" data-cmd="test-connection">
-    <div class="card-icon">🔌</div>
-    <div class="card-title">Test Connection</div>
-    <div class="card-desc">Verbindung zur WordPress API prüfen</div>
-    <div class="card-status">Bereit</div>
-  </div>
-  <div class="card" data-cmd="check-links">
-    <div class="card-icon">🔗</div>
-    <div class="card-title">Check Links</div>
-    <div class="card-desc">Defekte Links in Posts &amp; Seiten finden</div>
-    <div class="card-note">ℹ️ Nur Analyse — kein Auto-Fix verfügbar</div>
-    <div class="card-status">Bereit</div>
-  </div>
-  <div class="card" data-cmd="audit-seo">
-    <div class="card-icon">📈</div>
-    <div class="card-title">SEO Audit</div>
-    <div class="card-desc">SEO-Score für alle Beiträge analysieren</div>
-    <div class="card-options">
-      <label onclick="event.stopPropagation()">
-        <input type="checkbox" id="opt-ai" autocomplete="off"> KI-Fixes anwenden
-      </label>
-      <span class="ai-badge">Claude AI</span>
+    <div class="main-toolbar">
+      <span class="main-label" id="toolbar-label">Bereit — wähle ein Tool</span>
+      <div class="main-actions">
+        <button class="tool-btn" id="copy-btn" onclick="copyOutput()">Kopieren</button>
+        <button class="tool-btn" onclick="clearOutput()">Leeren</button>
+      </div>
     </div>
-    <div class="card-status">Bereit</div>
-  </div>
-  <div class="card" data-cmd="audit-media">
-    <div class="card-icon">🖼️</div>
-    <div class="card-title">Media Audit</div>
-    <div class="card-desc">Alt-Texte, Dateinamen &amp; Größen prüfen</div>
-    <div class="card-options">
-      <label onclick="event.stopPropagation()">
-        <input type="checkbox" id="opt-fix" autocomplete="off"> Alt-Texte generieren
-      </label>
-      <span class="ai-badge">Claude AI</span>
-    </div>
-    <div class="card-options">
-      <label onclick="event.stopPropagation()">
-        <input type="checkbox" id="opt-media-ai" autocomplete="off"> KI-Qualität prüfen
-      </label>
-      <span class="ai-badge">Claude AI</span>
-    </div>
-    <div class="card-status">Bereit</div>
-  </div>
-</div>
 
-<div class="toolbar">
-  <span id="toolbar-label">Ausgabe</span>
-  <div class="toolbar-actions">
-    <button class="abort-btn" id="abort-btn" onclick="abortCurrent()">■ Abbrechen</button>
-    <button class="clear-btn" id="copy-btn" onclick="copyOutput()">Kopieren</button>
-    <button class="clear-btn" onclick="clearOutput()">Leeren</button>
-  </div>
-</div>
+    <div class="report-box" id="report-box"></div>
 
-<div class="output-box" id="output">
-  <span class="placeholder">Noch keine Ausgabe. Klicke oben auf einen Befehl.</span>
+    <div class="review-panel" id="review-panel">
+      <div class="review-panel-header">
+        <h3>Alt-Texte überprüfen</h3>
+        <button class="close-btn" onclick="document.getElementById('review-panel').style.display='none'" title="Schließen">✕</button>
+      </div>
+      <p id="review-desc">Wähle die Änderungen aus, die du anwenden möchtest.</p>
+      <div class="review-list" id="review-list"></div>
+      <div class="review-actions">
+        <button class="select-all-btn" id="select-all-btn" onclick="toggleSelectAll()">Alle abwählen</button>
+        <button class="apply-btn" id="apply-btn" onclick="applySelectedFixes()">Fixes anwenden</button>
+        <span class="review-count" id="review-count"></span>
+      </div>
+    </div>
+
+    <div class="review-panel" id="seo-review-panel">
+      <div class="review-panel-header">
+        <h3>SEO-Fixes überprüfen</h3>
+        <button class="close-btn" onclick="document.getElementById('seo-review-panel').style.display='none'" title="Schließen">✕</button>
+      </div>
+      <p>Claude hat Verbesserungsvorschläge für Titel und Auszüge generiert. Wähle die Änderungen aus, die du anwenden möchtest.</p>
+      <div class="review-list" id="seo-review-list"></div>
+      <div class="review-actions">
+        <button class="select-all-btn" id="seo-select-all-btn" onclick="toggleSeoSelectAll()">Alle abwählen</button>
+        <button class="apply-btn" id="seo-apply-btn" onclick="applySelectedSeoFixes()">Fixes anwenden</button>
+        <span class="review-count" id="seo-review-count"></span>
+      </div>
+    </div>
+
+    <div class="output-wrap">
+      <div class="output-box" id="output">
+        <span class="placeholder">Wähle links ein Tool um es auszuführen.</span>
+      </div>
+    </div>
+
+  </main>
 </div>
 
 <script>
   let lineCount = 0;
   let activeEs = null;
 
-  // ── Abort ────────────────────────────────────────────────────────────────
+  // ── State helpers ────────────────────────────────────────────
+
+  function setNavState(cmd, state, text) {
+    const item = document.querySelector(`.nav-item[data-cmd="${cmd}"]`);
+    const stateEl = document.getElementById(`state-${cmd}`);
+    if (item) item.dataset.state = state;
+    if (stateEl) stateEl.textContent = text;
+  }
+
+  function resetNavState(cmd) {
+    setTimeout(() => setNavState(cmd, '', 'Bereit'), 4000);
+  }
+
+  // ── Abort ─────────────────────────────────────────────────────
 
   function setActiveEs(es) {
     activeEs = es;
@@ -523,27 +654,20 @@
   }
 
   function abortCurrent() {
-    if (activeEs) {
-      activeEs.close();
-      activeEs = null;
-    }
+    if (activeEs) { activeEs.close(); activeEs = null; }
     clearActiveEs();
-    document.querySelectorAll('.card.running').forEach(c => {
-      c.className = 'card';
-      c.querySelector('.card-status').textContent = 'Bereit';
+    document.querySelectorAll('.nav-item[data-state="running"]').forEach(item => {
+      item.dataset.state = '';
+      const stateEl = item.querySelector('.nav-state') || document.getElementById(`state-${item.dataset.cmd}`);
+      if (stateEl) stateEl.textContent = 'Bereit';
     });
-    const statusCard = document.getElementById('status-card');
-    if (statusCard.classList.contains('running')) {
-      statusCard.className = 'status-card';
-      document.getElementById('status-card-status').textContent = 'Bereit';
-    }
     appendLine('Abgebrochen.', 'err');
   }
 
-  // ── Output helpers ───────────────────────────────────────────────────────
+  // ── Output ───────────────────────────────────────────────────
 
   function clearOutput() {
-    document.getElementById('output').innerHTML = '<span class="placeholder">Noch keine Ausgabe. Klicke oben auf einen Befehl.</span>';
+    document.getElementById('output').innerHTML = '<span class="placeholder">Wähle links ein Tool um es auszuführen.</span>';
     lineCount = 0;
   }
 
@@ -562,7 +686,6 @@
     const box = document.getElementById('output');
     const placeholder = box.querySelector('.placeholder');
     if (placeholder) placeholder.remove();
-
     const div = document.createElement('div');
     div.className = `line ${type}`;
     div.innerHTML = `<span class="prefix">${String(++lineCount).padStart(3, '0')}</span><span>${escapeHtml(text)}</span>`;
@@ -574,63 +697,43 @@
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  // ── Status card (get-status) ─────────────────────────────────────────────
+  // ── Status card (get-status) ─────────────────────────────────
 
-  document.getElementById('status-card').addEventListener('click', () => {
-    const card = document.getElementById('status-card');
-    if (card.classList.contains('running')) return;
+  document.querySelector('.nav-status').addEventListener('click', () => {
+    const cmd = 'get-status';
+    if (document.querySelector('.nav-status').dataset.state === 'running') return;
 
-    const statusEl = document.getElementById('status-card-status');
+    setNavState(cmd, 'running', 'Läuft…');
+    document.getElementById('toolbar-label').textContent = 'Ausgabe: Site Status';
     const reportBox = document.getElementById('report-box');
-
-    card.className = 'status-card running';
-    statusEl.textContent = 'Läuft…';
     reportBox.style.display = 'none';
     reportBox.textContent = '';
-    document.getElementById('toolbar-label').textContent = 'Ausgabe: get-status';
 
     const es = new EventSource('/run/get-status');
     setActiveEs(es);
-    let reportLines = [];
-    let inReport = false;
+    let reportLines = [], inReport = false;
 
     es.onmessage = (e) => {
       const { type, text } = JSON.parse(e.data);
       if (type === 'done') {
-        es.close();
-        clearActiveEs();
+        es.close(); clearActiveEs();
         if (reportLines.length > 0) {
           reportBox.textContent = reportLines.join('\n');
           reportBox.style.display = 'block';
         }
-        if (text === 'success') {
-          card.className = 'status-card success';
-          statusEl.textContent = 'Fertig';
-        } else {
-          card.className = 'status-card error';
-          statusEl.textContent = 'Fehler';
-        }
-        setTimeout(() => {
-          card.className = 'status-card';
-          statusEl.textContent = 'Bereit';
-        }, 8000);
+        setNavState(cmd, text === 'success' ? 'success' : 'error', text === 'success' ? 'Fertig' : 'Fehler');
+        resetNavState(cmd);
       } else {
         if (text.includes('__REPORT_START__')) { inReport = true; return; }
         if (text.includes('__REPORT_END__'))   { inReport = false; return; }
-        if (inReport) { reportLines.push(text); }
+        if (inReport) reportLines.push(text);
         appendLine(text, type);
       }
     };
-
-    es.onerror = () => {
-      es.close();
-      clearActiveEs();
-      card.className = 'status-card error';
-      statusEl.textContent = 'Fehler';
-    };
+    es.onerror = () => { es.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler'); };
   });
 
-  // ── SEO Review Panel ─────────────────────────────────────────────────────
+  // ── SEO Review Panel ─────────────────────────────────────────
 
   function updateSeoReviewCount() {
     const total = document.querySelectorAll('#seo-review-list .review-item').length;
@@ -652,24 +755,19 @@
   }
 
   function showSeoReviewPanel(proposals) {
-    const panel = document.getElementById('seo-review-panel');
     const list = document.getElementById('seo-review-list');
     list.innerHTML = '';
-
     const truncate = (s, n) => s && s.length > n ? s.substring(0, n) + '…' : (s || '');
-
     proposals.forEach(p => {
       const item = document.createElement('div');
       item.className = 'review-item';
-      item.dataset.id = p.id;
-      item.dataset.type = p.type;
-      item.dataset.field = p.field;
-      item.dataset.value = p.proposedValue;
+      item.dataset.id = p.id; item.dataset.type = p.type;
+      item.dataset.field = p.field; item.dataset.value = p.proposedValue;
       const fieldLabel = p.field === 'title' ? 'Titel' : 'Auszug';
       item.innerHTML = `
         <input type="checkbox" checked onchange="this.closest('.review-item').classList.toggle('deselected', !this.checked); updateSeoReviewCount()">
         <div class="review-item-body">
-          <div class="review-item-filename">[${escapeHtml(p.type)}] ${escapeHtml(p.title)} &mdash; <em style="color:#64748b;font-weight:400">${fieldLabel}</em></div>
+          <div class="review-item-filename">[${escapeHtml(p.type)}] ${escapeHtml(p.title)} &mdash; <em style="color:#3d4a63;font-weight:400">${fieldLabel}</em></div>
           <div class="review-item-change">
             <span class="from">${p.currentValue ? escapeHtml(truncate(p.currentValue, 60)) : '(leer)'}</span>
             <span class="arrow">→</span>
@@ -685,8 +783,7 @@
       });
       list.appendChild(item);
     });
-
-    panel.style.display = 'block';
+    document.getElementById('seo-review-panel').style.display = 'block';
     updateSeoReviewCount();
   }
 
@@ -694,67 +791,40 @@
     const changes = [...document.querySelectorAll('#seo-review-list .review-item input:checked')]
       .map(cb => {
         const item = cb.closest('.review-item');
-        return {
-          id: parseInt(item.dataset.id, 10),
-          type: item.dataset.type,
-          field: item.dataset.field,
-          value: item.dataset.value,
-        };
+        return { id: parseInt(item.dataset.id, 10), type: item.dataset.type, field: item.dataset.field, value: item.dataset.value };
       });
-
     const btn = document.getElementById('seo-apply-btn');
-    btn.disabled = true;
-    btn.textContent = 'Wird angewendet…';
+    btn.disabled = true; btn.textContent = 'Wird angewendet…';
     document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-seo (Apply)';
-
-    const seoCard = document.querySelector('.card[data-cmd="audit-seo"]');
-    const seoStatus = seoCard?.querySelector('.card-status');
-    if (seoCard) seoCard.className = 'card running';
-    if (seoStatus) seoStatus.textContent = 'Läuft...';
+    setNavState('audit-seo', 'running', 'Läuft...');
 
     const response = await fetch('/apply/audit-seo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ changes }),
     });
-
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split('\n\n');
-      buffer = parts.pop();
+      const parts = buffer.split('\n\n'); buffer = parts.pop();
       for (const part of parts) {
         const line = part.replace(/^data: /, '').trim();
         if (!line) continue;
         const { type, text } = JSON.parse(line);
         if (type === 'done') {
           document.getElementById('seo-review-panel').style.display = 'none';
-          if (text === 'success') {
-            if (seoCard) seoCard.className = 'card success';
-            if (seoStatus) seoStatus.textContent = 'Fertig';
-          } else {
-            if (seoCard) seoCard.className = 'card error';
-            if (seoStatus) seoStatus.textContent = 'Fehler';
-          }
-          setTimeout(() => {
-            if (seoCard) seoCard.className = 'card';
-            if (seoStatus) seoStatus.textContent = 'Bereit';
-          }, 4000);
-        } else {
-          appendLine(text, type);
-        }
+          setNavState('audit-seo', text === 'success' ? 'success' : 'error', text === 'success' ? 'Fertig' : 'Fehler');
+          resetNavState('audit-seo');
+        } else { appendLine(text, type); }
       }
     }
-
     btn.textContent = 'Fixes anwenden';
   }
 
-  // ── Media Review Panel ───────────────────────────────────────────────────
+  // ── Media Review Panel ───────────────────────────────────────
 
   function updateReviewCount() {
     const total = document.querySelectorAll('#review-list .review-item').length;
@@ -776,15 +846,12 @@
   }
 
   function showReviewPanel(proposals) {
-    const panel = document.getElementById('review-panel');
     const list = document.getElementById('review-list');
     list.innerHTML = '';
-
     proposals.forEach(p => {
       const item = document.createElement('div');
       item.className = 'review-item';
-      item.dataset.id = p.id;
-      item.dataset.altText = p.proposedAltText;
+      item.dataset.id = p.id; item.dataset.altText = p.proposedAltText;
       item.innerHTML = `
         <input type="checkbox" checked onchange="this.closest('.review-item').classList.toggle('deselected', !this.checked); updateReviewCount()">
         <div class="review-item-body">
@@ -804,8 +871,7 @@
       });
       list.appendChild(item);
     });
-
-    panel.style.display = 'block';
+    document.getElementById('review-panel').style.display = 'block';
     updateReviewCount();
   }
 
@@ -815,78 +881,56 @@
         const item = cb.closest('.review-item');
         return { id: parseInt(item.dataset.id, 10), altText: item.dataset.altText };
       });
-
     const btn = document.getElementById('apply-btn');
-    btn.disabled = true;
-    btn.textContent = 'Wird angewendet…';
+    btn.disabled = true; btn.textContent = 'Wird angewendet…';
     document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-media (Apply)';
-
-    const mediaCard = document.querySelector('.card[data-cmd="audit-media"]');
-    const mediaStatus = mediaCard?.querySelector('.card-status');
-    if (mediaCard) mediaCard.className = 'card running';
-    if (mediaStatus) mediaStatus.textContent = 'Läuft...';
+    setNavState('audit-media', 'running', 'Läuft...');
 
     const response = await fetch('/apply/audit-media', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ changes }),
     });
-
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split('\n\n');
-      buffer = parts.pop();
+      const parts = buffer.split('\n\n'); buffer = parts.pop();
       for (const part of parts) {
         const line = part.replace(/^data: /, '').trim();
         if (!line) continue;
         const { type, text } = JSON.parse(line);
         if (type === 'done') {
           document.getElementById('review-panel').style.display = 'none';
-          if (text === 'success') {
-            if (mediaCard) mediaCard.className = 'card success';
-            if (mediaStatus) mediaStatus.textContent = 'Fertig';
-          } else {
-            if (mediaCard) mediaCard.className = 'card error';
-            if (mediaStatus) mediaStatus.textContent = 'Fehler';
-          }
-          setTimeout(() => {
-            if (mediaCard) mediaCard.className = 'card';
-            if (mediaStatus) mediaStatus.textContent = 'Bereit';
-          }, 4000);
-        } else {
-          appendLine(text, type);
-        }
+          setNavState('audit-media', text === 'success' ? 'success' : 'error', text === 'success' ? 'Fertig' : 'Fehler');
+          resetNavState('audit-media');
+        } else { appendLine(text, type); }
       }
     }
-
     btn.textContent = 'Fixes anwenden';
   }
 
-  // ── Card click handlers ──────────────────────────────────────────────────
+  // ── Nav item click handler ───────────────────────────────────
 
-  document.querySelectorAll('.card').forEach(card => {
-    card.addEventListener('click', async () => {
-      // Double-click protection: ignore clicks while already running
-      if (card.classList.contains('running')) return;
+  document.querySelectorAll('.nav-item[data-cmd]:not(.nav-status)').forEach(navItem => {
+    navItem.addEventListener('click', async () => {
+      if (navItem.dataset.state === 'running') return;
 
-      const cmd = card.dataset.cmd;
-      const status = card.querySelector('.card-status');
-      const wantsFix = cmd === 'audit-media' && document.getElementById('opt-fix')?.checked;
+      const cmd = navItem.dataset.cmd;
+      const wantsFix      = cmd === 'audit-media' && document.getElementById('opt-fix')?.checked;
       const wantsAiQuality = cmd === 'audit-media' && document.getElementById('opt-media-ai')?.checked;
+      const wantsSeoFix   = cmd === 'audit-seo'   && document.getElementById('opt-ai')?.checked;
 
-      // Media Audit with AI quality check
+      setNavState(cmd, 'running', 'Läuft...');
+      document.getElementById('toolbar-label').textContent = `Ausgabe: ${cmd}`;
+
+      // ── Media: AI quality check ────────────────────────────
+
       if (wantsAiQuality) {
-        card.className = 'card running';
-        status.textContent = 'KI analysiert…';
-        document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-media (KI)';
+        setNavState(cmd, 'running', 'KI analysiert…');
         document.getElementById('review-panel').style.display = 'none';
-
         const es = new EventSource('/preview/audit-media-ai');
         setActiveEs(es);
         es.onmessage = (e) => {
@@ -894,116 +938,72 @@
           if (msg.type === 'progress') {
             appendLine(msg.text, 'out');
           } else if (msg.type === 'proposals') {
-            es.close();
-            clearActiveEs();
+            es.close(); clearActiveEs();
             const proposals = msg.data || [];
             if (proposals.length === 0) {
               appendLine('Alle Alt-Texte sind qualitativ in Ordnung.', 'out');
-              card.className = 'card success';
-              status.textContent = 'Fertig';
-              setTimeout(() => { card.className = 'card'; status.textContent = 'Bereit'; }, 4000);
+              setNavState(cmd, 'success', 'Fertig'); resetNavState(cmd);
             } else {
               appendLine(`${proposals.length} verbesserungswürdige Alt-Texte gefunden.`, 'out');
               document.getElementById('review-desc').textContent =
-                'Claude hat diese Alt-Texte als unzureichend bewertet. Wähle die Verbesserungen aus, die du anwenden möchtest.';
+                'Claude hat diese Alt-Texte als unzureichend bewertet.';
               showReviewPanel(proposals);
-              card.className = 'card';
-              status.textContent = 'Bereit';
+              setNavState(cmd, '', 'Bereit');
             }
           } else if (msg.type === 'done' && msg.text === 'error') {
-            es.close();
-            clearActiveEs();
-            card.className = 'card error';
-            status.textContent = 'Fehler';
-          } else if (msg.type === 'err') {
-            appendLine(msg.text, 'err');
-          }
+            es.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler');
+          } else if (msg.type === 'err') { appendLine(msg.text, 'err'); }
         };
-        es.onerror = () => {
-          es.close();
-          clearActiveEs();
-          card.className = 'card error';
-          status.textContent = 'Fehler';
-        };
+        es.onerror = () => { es.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler'); };
         return;
       }
 
-      // Media Audit with fix → preview flow
-      if (wantsFix) {
-        card.className = 'card running';
-        status.textContent = 'Analysiert…';
-        document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-media';
-        document.getElementById('review-panel').style.display = 'none';
+      // ── Media: Alt-Text generation ─────────────────────────
 
+      if (wantsFix) {
+        document.getElementById('review-panel').style.display = 'none';
         const es = new EventSource('/run/audit-media');
         setActiveEs(es);
         es.onmessage = (e) => {
           const { type, text } = JSON.parse(e.data);
           if (type === 'done') {
-            es.close();
-            clearActiveEs();
-            if (text !== 'success') {
-              card.className = 'card error';
-              status.textContent = 'Fehler';
-              return;
-            }
-            card.className = 'card';
-            status.textContent = 'Bereit';
+            es.close(); clearActiveEs();
+            if (text !== 'success') { setNavState(cmd, 'error', 'Fehler'); return; }
+            setNavState(cmd, '', 'Bereit');
             fetch('/preview/audit-media')
               .then(r => r.json())
               .then(proposals => {
-                if (proposals.length === 0) {
-                  appendLine('Keine fehlenden Alt-Texte gefunden.', 'out');
-                  return;
-                }
+                if (proposals.length === 0) { appendLine('Keine fehlenden Alt-Texte gefunden.', 'out'); return; }
                 appendLine(`${proposals.length} fehlende Alt-Texte gefunden. Bitte überprüfen:`, 'out');
                 showReviewPanel(proposals);
               })
               .catch(err => appendLine(`Vorschau fehlgeschlagen: ${err.message}`, 'err'));
-          } else {
-            appendLine(text, type);
-          }
+          } else { appendLine(text, type); }
         };
-        es.onerror = () => {
-          es.close();
-          clearActiveEs();
-          card.className = 'card error';
-          status.textContent = 'Fehler';
-        };
+        es.onerror = () => { es.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler'); };
         return;
       }
 
-      // SEO Audit with AI fixes → preview/review/apply flow
-      if (cmd === 'audit-seo' && document.getElementById('opt-ai')?.checked) {
-        card.className = 'card running';
-        status.textContent = 'Analysiert…';
-        document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-seo';
-        document.getElementById('seo-review-panel').style.display = 'none';
+      // ── SEO: AI fix generation ─────────────────────────────
 
+      if (wantsSeoFix) {
+        document.getElementById('seo-review-panel').style.display = 'none';
         const es = new EventSource('/run/audit-seo');
         setActiveEs(es);
         es.onmessage = (e) => {
           const { type, text } = JSON.parse(e.data);
           if (type === 'done') {
             es.close();
-            if (text !== 'success') {
-              clearActiveEs();
-              card.className = 'card error';
-              status.textContent = 'Fehler';
-              return;
-            }
-            status.textContent = 'KI generiert Fixes…';
+            if (text !== 'success') { clearActiveEs(); setNavState(cmd, 'error', 'Fehler'); return; }
+            setNavState(cmd, 'running', 'KI generiert…');
             const es2 = new EventSource('/preview/audit-seo');
             setActiveEs(es2);
             es2.onmessage = (e2) => {
               const msg = JSON.parse(e2.data);
-              if (msg.type === 'progress') {
-                appendLine(msg.text, 'out');
-              } else if (msg.type === 'proposals') {
-                es2.close();
-                clearActiveEs();
-                card.className = 'card';
-                status.textContent = 'Bereit';
+              if (msg.type === 'progress') { appendLine(msg.text, 'out'); }
+              else if (msg.type === 'proposals') {
+                es2.close(); clearActiveEs();
+                setNavState(cmd, '', 'Bereit');
                 const proposals = msg.data || [];
                 if (proposals.length === 0) {
                   appendLine('Keine automatisch behebbaren SEO-Probleme gefunden.', 'out');
@@ -1012,68 +1012,29 @@
                   showSeoReviewPanel(proposals);
                 }
               } else if (msg.type === 'done' && msg.text === 'error') {
-                es2.close();
-                clearActiveEs();
-                card.className = 'card error';
-                status.textContent = 'Fehler';
-              } else if (msg.type === 'err') {
-                appendLine(msg.text, 'err');
-              }
+                es2.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler');
+              } else if (msg.type === 'err') { appendLine(msg.text, 'err'); }
             };
-            es2.onerror = () => {
-              es2.close();
-              clearActiveEs();
-              card.className = 'card error';
-              status.textContent = 'Fehler';
-            };
-          } else {
-            appendLine(text, type);
-          }
+            es2.onerror = () => { es2.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler'); };
+          } else { appendLine(text, type); }
         };
-        es.onerror = () => {
-          es.close();
-          clearActiveEs();
-          card.className = 'card error';
-          status.textContent = 'Fehler';
-        };
+        es.onerror = () => { es.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler'); };
         return;
       }
 
-      // Generic handler
-      const url = `/run/${cmd}`;
+      // ── Generic handler ────────────────────────────────────
 
-      card.className = 'card running';
-      status.textContent = 'Läuft...';
-      document.getElementById('toolbar-label').textContent = `Ausgabe: ${cmd}`;
-
-      const es = new EventSource(url);
+      const es = new EventSource(`/run/${cmd}`);
       setActiveEs(es);
       es.onmessage = (e) => {
         const { type, text } = JSON.parse(e.data);
         if (type === 'done') {
-          es.close();
-          clearActiveEs();
-          if (text === 'success') {
-            card.className = 'card success';
-            status.textContent = 'Fertig';
-          } else {
-            card.className = 'card error';
-            status.textContent = 'Fehler';
-          }
-          setTimeout(() => {
-            card.className = 'card';
-            status.textContent = 'Bereit';
-          }, 4000);
-        } else {
-          appendLine(text, type);
-        }
+          es.close(); clearActiveEs();
+          setNavState(cmd, text === 'success' ? 'success' : 'error', text === 'success' ? 'Fertig' : 'Fehler');
+          resetNavState(cmd);
+        } else { appendLine(text, type); }
       };
-      es.onerror = () => {
-        es.close();
-        clearActiveEs();
-        card.className = 'card error';
-        status.textContent = 'Fehler';
-      };
+      es.onerror = () => { es.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler'); };
     });
   });
 </script>
