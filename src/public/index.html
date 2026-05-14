@@ -382,6 +382,17 @@
   </div>
 </div>
 
+<div class="review-panel" id="seo-review-panel">
+  <h3>SEO-Fixes überprüfen</h3>
+  <p>Claude hat Verbesserungsvorschläge für Titel und Auszüge generiert. Wähle die Änderungen aus, die du anwenden möchtest.</p>
+  <div class="review-list" id="seo-review-list"></div>
+  <div class="review-actions">
+    <button class="select-all-btn" id="seo-select-all-btn" onclick="toggleSeoSelectAll()">Alle abwählen</button>
+    <button class="apply-btn" id="seo-apply-btn" onclick="applySelectedSeoFixes()">Fixes anwenden</button>
+    <span class="review-count" id="seo-review-count"></span>
+  </div>
+</div>
+
 <div class="grid">
   <div class="card" data-cmd="test-connection">
     <div class="card-icon">🔌</div>
@@ -401,7 +412,7 @@
     <div class="card-desc">SEO-Score für alle Beiträge analysieren</div>
     <div class="card-options">
       <label onclick="event.stopPropagation()">
-        <input type="checkbox" id="opt-ai"> KI-Fix aktivieren
+        <input type="checkbox" id="opt-ai"> KI-Fixes anwenden
       </label>
       <span class="ai-badge">Claude AI</span>
     </div>
@@ -512,6 +523,132 @@
   });
 
   let reviewProposals = [];
+
+  // ── SEO Review Panel ─────────────────────────────────────────────────────
+
+  function updateSeoReviewCount() {
+    const total = document.querySelectorAll('#seo-review-list .review-item').length;
+    const selected = document.querySelectorAll('#seo-review-list .review-item input:checked').length;
+    document.getElementById('seo-review-count').textContent = `${selected} von ${total} ausgewählt`;
+    document.getElementById('seo-apply-btn').disabled = selected === 0;
+    document.getElementById('seo-select-all-btn').textContent =
+      selected === total ? 'Alle abwählen' : 'Alle auswählen';
+  }
+
+  function toggleSeoSelectAll() {
+    const items = document.querySelectorAll('#seo-review-list .review-item input');
+    const allChecked = [...items].every(cb => cb.checked);
+    items.forEach(cb => {
+      cb.checked = !allChecked;
+      cb.closest('.review-item').classList.toggle('deselected', allChecked);
+    });
+    updateSeoReviewCount();
+  }
+
+  function showSeoReviewPanel(proposals) {
+    const panel = document.getElementById('seo-review-panel');
+    const list = document.getElementById('seo-review-list');
+    list.innerHTML = '';
+
+    const truncate = (s, n) => s && s.length > n ? s.substring(0, n) + '…' : (s || '');
+
+    proposals.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'review-item';
+      item.dataset.id = p.id;
+      item.dataset.type = p.type;
+      item.dataset.field = p.field;
+      item.dataset.value = p.proposedValue;
+      const fieldLabel = p.field === 'title' ? 'Titel' : 'Auszug';
+      item.innerHTML = `
+        <input type="checkbox" checked onchange="this.closest('.review-item').classList.toggle('deselected', !this.checked); updateSeoReviewCount()">
+        <div class="review-item-body">
+          <div class="review-item-filename">[${escapeHtml(p.type)}] ${escapeHtml(p.title)} &mdash; <em style="color:#64748b;font-weight:400">${fieldLabel}</em></div>
+          <div class="review-item-change">
+            <span class="from">${p.currentValue ? escapeHtml(truncate(p.currentValue, 60)) : '(leer)'}</span>
+            <span class="arrow">→</span>
+            <span class="to">${escapeHtml(truncate(p.proposedValue, 80))}</span>
+          </div>
+        </div>`;
+      item.addEventListener('click', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+        const cb = item.querySelector('input');
+        cb.checked = !cb.checked;
+        item.classList.toggle('deselected', !cb.checked);
+        updateSeoReviewCount();
+      });
+      list.appendChild(item);
+    });
+
+    panel.style.display = 'block';
+    updateSeoReviewCount();
+  }
+
+  async function applySelectedSeoFixes() {
+    const changes = [...document.querySelectorAll('#seo-review-list .review-item input:checked')]
+      .map(cb => {
+        const item = cb.closest('.review-item');
+        return {
+          id: parseInt(item.dataset.id, 10),
+          type: item.dataset.type,
+          field: item.dataset.field,
+          value: item.dataset.value,
+        };
+      });
+
+    const btn = document.getElementById('seo-apply-btn');
+    btn.disabled = true;
+    btn.textContent = 'Wird angewendet…';
+    document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-seo (Apply)';
+
+    const seoCard = document.querySelector('.card[data-cmd="audit-seo"]');
+    const seoStatus = seoCard?.querySelector('.card-status');
+    if (seoCard) seoCard.className = 'card running';
+    if (seoStatus) seoStatus.textContent = 'Läuft...';
+
+    const response = await fetch('/apply/audit-seo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ changes }),
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+      for (const part of parts) {
+        const line = part.replace(/^data: /, '').trim();
+        if (!line) continue;
+        const { type, text } = JSON.parse(line);
+        if (type === 'done') {
+          document.getElementById('seo-review-panel').style.display = 'none';
+          if (text === 'success') {
+            if (seoCard) seoCard.className = 'card success';
+            if (seoStatus) seoStatus.textContent = 'Fertig';
+          } else {
+            if (seoCard) seoCard.className = 'card error';
+            if (seoStatus) seoStatus.textContent = 'Fehler';
+          }
+          setTimeout(() => {
+            if (seoCard) seoCard.className = 'card';
+            if (seoStatus) seoStatus.textContent = 'Bereit';
+          }, 4000);
+        } else {
+          appendLine(text, type);
+        }
+      }
+    }
+
+    btn.textContent = 'Fixes anwenden';
+  }
+
+  // ── Media Review Panel ───────────────────────────────────────────────────
 
   function updateReviewCount() {
     const total = document.querySelectorAll('#review-list .review-item').length;
@@ -720,8 +857,67 @@
         return;
       }
 
+      // SEO Audit with AI fixes → preview/review/apply flow
+      if (cmd === 'audit-seo' && document.getElementById('opt-ai')?.checked) {
+        card.className = 'card running';
+        status.textContent = 'Analysiert…';
+        document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-seo';
+        document.getElementById('seo-review-panel').style.display = 'none';
+
+        const es = new EventSource('/run/audit-seo');
+        es.onmessage = (e) => {
+          const { type, text } = JSON.parse(e.data);
+          if (type === 'done') {
+            es.close();
+            if (text !== 'success') {
+              card.className = 'card error';
+              status.textContent = 'Fehler';
+              return;
+            }
+            status.textContent = 'KI generiert Fixes…';
+            // Stream AI fix generation with progress
+            const es2 = new EventSource('/preview/audit-seo');
+            es2.onmessage = (e2) => {
+              const msg = JSON.parse(e2.data);
+              if (msg.type === 'progress') {
+                appendLine(msg.text, 'out');
+              } else if (msg.type === 'proposals') {
+                es2.close();
+                card.className = 'card';
+                status.textContent = 'Bereit';
+                const proposals = msg.data || [];
+                if (proposals.length === 0) {
+                  appendLine('Keine automatisch behebbaren SEO-Probleme gefunden.', 'out');
+                } else {
+                  appendLine(`${proposals.length} SEO-Fix(es) bereit zur Überprüfung.`, 'out');
+                  showSeoReviewPanel(proposals);
+                }
+              } else if (msg.type === 'done' && msg.text === 'error') {
+                es2.close();
+                card.className = 'card error';
+                status.textContent = 'Fehler';
+              } else if (msg.type === 'err') {
+                appendLine(msg.text, 'err');
+              }
+            };
+            es2.onerror = () => {
+              es2.close();
+              card.className = 'card error';
+              status.textContent = 'Fehler';
+            };
+          } else {
+            appendLine(text, type);
+          }
+        };
+        es.onerror = () => {
+          es.close();
+          card.className = 'card error';
+          status.textContent = 'Fehler';
+        };
+        return;
+      }
+
       const params = new URLSearchParams();
-      if (cmd === 'audit-seo' && document.getElementById('opt-ai')?.checked) params.set('ai', '1');
       const url = `/run/${cmd}${params.size ? '?' + params : ''}`;
 
       card.className = 'card running';

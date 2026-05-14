@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { exec } from 'child_process';
 import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI } from './modules/media-optimizer.js';
+import { previewSeoFixes, applySeoFixes } from './modules/seo-optimizer.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -84,6 +85,63 @@ app.get('/preview/audit-media-ai', (req, res) => {
       send('done', 'error');
       res.end();
     });
+});
+
+app.get('/preview/audit-seo', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (type, text, data) =>
+    res.write(`data: ${JSON.stringify({ type, text, ...(data ? { data } : {}) })}\n\n`);
+
+  previewSeoFixes({
+    onProgress: (done, total, title) =>
+      send('progress', `Generiere Fixes ${done}/${total}: ${title}`),
+  })
+    .then((proposals) => {
+      send('proposals', `${proposals.length} Fix(es) gefunden.`, proposals);
+      send('done', 'success');
+      res.end();
+    })
+    .catch((err) => {
+      send('err', `SEO-Vorschau fehlgeschlagen: ${err.message}`);
+      send('done', 'error');
+      res.end();
+    });
+});
+
+app.post('/apply/audit-seo', express.json(), async (req, res) => {
+  const changes = req.body?.changes;
+  if (!Array.isArray(changes) || changes.length === 0) {
+    res.status(400).json({ error: 'changes array required' });
+    return;
+  }
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (type, text) => res.write(`data: ${JSON.stringify({ type, text })}\n\n`);
+
+  try {
+    send('out', `Wende ${changes.length} SEO-Fix(es) an...`);
+    const results = await applySeoFixes(changes);
+    for (const r of results) {
+      if (r.success) {
+        const preview = r.value?.substring(0, 50);
+        send('out', `✔ ID ${r.id} (${r.type}) → ${r.field}: "${preview}${r.value?.length > 50 ? '…' : ''}"`);
+      } else {
+        send('err', `✖ ID ${r.id}: ${r.error}`);
+      }
+    }
+    const ok = results.filter((r) => r.success).length;
+    send('out', `Fertig. ${ok}/${results.length} SEO-Fixes gespeichert.`);
+    send('done', ok > 0 ? 'success' : 'error');
+  } catch (err) {
+    send('err', `Fehler: ${err.message}`);
+    send('done', 'error');
+  }
+  res.end();
 });
 
 app.get('/preview/audit-media', async (req, res) => {
