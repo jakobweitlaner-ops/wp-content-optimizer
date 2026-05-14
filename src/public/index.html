@@ -50,7 +50,8 @@
 
     .card:hover { border-color: #4f6ef7; transform: translateY(-2px); }
     .card:active { transform: translateY(0); }
-    .card.running { border-color: #f59e0b; }
+    .card.running { border-color: #f59e0b; cursor: default; }
+    .card.running:hover { transform: none; }
     .card.success { border-color: #22c55e; }
     .card.error   { border-color: #ef4444; }
 
@@ -89,6 +90,15 @@
       cursor: pointer;
     }
 
+    .card-note {
+      margin-top: 0.6rem;
+      font-size: 0.72rem;
+      color: #475569;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
     .ai-badge {
       background: linear-gradient(135deg, #6366f1, #8b5cf6);
       color: #fff;
@@ -121,7 +131,8 @@
     }
 
     .status-card:active { transform: translateY(0); }
-    .status-card.running { border-color: #f59e0b; box-shadow: 0 4px 24px rgba(245,158,11,0.15); }
+    .status-card.running { border-color: #f59e0b; box-shadow: 0 4px 24px rgba(245,158,11,0.15); cursor: default; }
+    .status-card.running:hover { transform: none; }
     .status-card.success { border-color: #22c55e; box-shadow: 0 4px 24px rgba(34,197,94,0.15); }
     .status-card.error   { border-color: #ef4444; box-shadow: 0 4px 24px rgba(239,68,68,0.15); }
 
@@ -219,6 +230,12 @@
 
     .toolbar span { font-size: 0.8rem; color: #64748b; }
 
+    .toolbar-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
     .clear-btn {
       background: none;
       border: 1px solid #2d3348;
@@ -231,6 +248,19 @@
     }
     .clear-btn:hover { border-color: #4f6ef7; color: #4f6ef7; }
 
+    .abort-btn {
+      background: none;
+      border: 1px solid #ef4444;
+      color: #ef4444;
+      border-radius: 6px;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      display: none;
+    }
+    .abort-btn:hover { background: #ef4444; color: #fff; }
+
     .review-panel {
       background: #0a0d14;
       border: 1px solid #4f6ef7;
@@ -240,12 +270,30 @@
       display: none;
     }
 
-    .review-panel h3 {
+    .review-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.25rem;
+    }
+
+    .review-panel-header h3 {
       font-size: 0.9rem;
       font-weight: 700;
       color: #fff;
-      margin-bottom: 0.25rem;
     }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: #475569;
+      font-size: 1.1rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0.1rem 0.25rem;
+      transition: color 0.15s;
+    }
+    .close-btn:hover { color: #e2e8f0; }
 
     .review-panel p {
       font-size: 0.78rem;
@@ -372,7 +420,10 @@
 <div class="report-box" id="report-box"></div>
 
 <div class="review-panel" id="review-panel">
-  <h3>Alt-Texte überprüfen</h3>
+  <div class="review-panel-header">
+    <h3>Alt-Texte überprüfen</h3>
+    <button class="close-btn" onclick="document.getElementById('review-panel').style.display='none'" title="Schließen">✕</button>
+  </div>
   <p id="review-desc">Wähle die Änderungen aus, die du anwenden möchtest.</p>
   <div class="review-list" id="review-list"></div>
   <div class="review-actions">
@@ -383,7 +434,10 @@
 </div>
 
 <div class="review-panel" id="seo-review-panel">
-  <h3>SEO-Fixes überprüfen</h3>
+  <div class="review-panel-header">
+    <h3>SEO-Fixes überprüfen</h3>
+    <button class="close-btn" onclick="document.getElementById('seo-review-panel').style.display='none'" title="Schließen">✕</button>
+  </div>
   <p>Claude hat Verbesserungsvorschläge für Titel und Auszüge generiert. Wähle die Änderungen aus, die du anwenden möchtest.</p>
   <div class="review-list" id="seo-review-list"></div>
   <div class="review-actions">
@@ -404,6 +458,7 @@
     <div class="card-icon">🔗</div>
     <div class="card-title">Check Links</div>
     <div class="card-desc">Defekte Links in Posts &amp; Seiten finden</div>
+    <div class="card-note">ℹ️ Nur Analyse — kein Auto-Fix verfügbar</div>
     <div class="card-status">Bereit</div>
   </div>
   <div class="card" data-cmd="audit-seo">
@@ -440,7 +495,11 @@
 
 <div class="toolbar">
   <span id="toolbar-label">Ausgabe</span>
-  <button class="clear-btn" onclick="clearOutput()">Leeren</button>
+  <div class="toolbar-actions">
+    <button class="abort-btn" id="abort-btn" onclick="abortCurrent()">■ Abbrechen</button>
+    <button class="clear-btn" id="copy-btn" onclick="copyOutput()">Kopieren</button>
+    <button class="clear-btn" onclick="clearOutput()">Leeren</button>
+  </div>
 </div>
 
 <div class="output-box" id="output">
@@ -449,10 +508,54 @@
 
 <script>
   let lineCount = 0;
+  let activeEs = null;
+
+  // ── Abort ────────────────────────────────────────────────────────────────
+
+  function setActiveEs(es) {
+    activeEs = es;
+    document.getElementById('abort-btn').style.display = '';
+  }
+
+  function clearActiveEs() {
+    activeEs = null;
+    document.getElementById('abort-btn').style.display = 'none';
+  }
+
+  function abortCurrent() {
+    if (activeEs) {
+      activeEs.close();
+      activeEs = null;
+    }
+    clearActiveEs();
+    document.querySelectorAll('.card.running').forEach(c => {
+      c.className = 'card';
+      c.querySelector('.card-status').textContent = 'Bereit';
+    });
+    const statusCard = document.getElementById('status-card');
+    if (statusCard.classList.contains('running')) {
+      statusCard.className = 'status-card';
+      document.getElementById('status-card-status').textContent = 'Bereit';
+    }
+    appendLine('Abgebrochen.', 'err');
+  }
+
+  // ── Output helpers ───────────────────────────────────────────────────────
 
   function clearOutput() {
     document.getElementById('output').innerHTML = '<span class="placeholder">Noch keine Ausgabe. Klicke oben auf einen Befehl.</span>';
     lineCount = 0;
+  }
+
+  async function copyOutput() {
+    const lines = [...document.querySelectorAll('#output .line span:last-child')];
+    const text = lines.map(l => l.textContent).join('\n');
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
+    const btn = document.getElementById('copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = 'Kopiert ✓';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
   }
 
   function appendLine(text, type) {
@@ -471,9 +574,12 @@
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  // Status card (get-status)
+  // ── Status card (get-status) ─────────────────────────────────────────────
+
   document.getElementById('status-card').addEventListener('click', () => {
     const card = document.getElementById('status-card');
+    if (card.classList.contains('running')) return;
+
     const statusEl = document.getElementById('status-card-status');
     const reportBox = document.getElementById('report-box');
 
@@ -483,8 +589,8 @@
     reportBox.textContent = '';
     document.getElementById('toolbar-label').textContent = 'Ausgabe: get-status';
 
-    // Show terminal output while running
     const es = new EventSource('/run/get-status');
+    setActiveEs(es);
     let reportLines = [];
     let inReport = false;
 
@@ -492,6 +598,7 @@
       const { type, text } = JSON.parse(e.data);
       if (type === 'done') {
         es.close();
+        clearActiveEs();
         if (reportLines.length > 0) {
           reportBox.textContent = reportLines.join('\n');
           reportBox.style.display = 'block';
@@ -517,12 +624,11 @@
 
     es.onerror = () => {
       es.close();
+      clearActiveEs();
       card.className = 'status-card error';
       statusEl.textContent = 'Fehler';
     };
   });
-
-  let reviewProposals = [];
 
   // ── SEO Review Panel ─────────────────────────────────────────────────────
 
@@ -762,8 +868,13 @@
     btn.textContent = 'Fixes anwenden';
   }
 
+  // ── Card click handlers ──────────────────────────────────────────────────
+
   document.querySelectorAll('.card').forEach(card => {
     card.addEventListener('click', async () => {
+      // Double-click protection: ignore clicks while already running
+      if (card.classList.contains('running')) return;
+
       const cmd = card.dataset.cmd;
       const status = card.querySelector('.card-status');
       const wantsFix = cmd === 'audit-media' && document.getElementById('opt-fix')?.checked;
@@ -777,12 +888,14 @@
         document.getElementById('review-panel').style.display = 'none';
 
         const es = new EventSource('/preview/audit-media-ai');
+        setActiveEs(es);
         es.onmessage = (e) => {
           const msg = JSON.parse(e.data);
           if (msg.type === 'progress') {
             appendLine(msg.text, 'out');
           } else if (msg.type === 'proposals') {
             es.close();
+            clearActiveEs();
             const proposals = msg.data || [];
             if (proposals.length === 0) {
               appendLine('Alle Alt-Texte sind qualitativ in Ordnung.', 'out');
@@ -799,6 +912,7 @@
             }
           } else if (msg.type === 'done' && msg.text === 'error') {
             es.close();
+            clearActiveEs();
             card.className = 'card error';
             status.textContent = 'Fehler';
           } else if (msg.type === 'err') {
@@ -807,6 +921,7 @@
         };
         es.onerror = () => {
           es.close();
+          clearActiveEs();
           card.className = 'card error';
           status.textContent = 'Fehler';
         };
@@ -820,18 +935,18 @@
         document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-media';
         document.getElementById('review-panel').style.display = 'none';
 
-        // First run the audit (without fix) for terminal output
         const es = new EventSource('/run/audit-media');
+        setActiveEs(es);
         es.onmessage = (e) => {
           const { type, text } = JSON.parse(e.data);
           if (type === 'done') {
             es.close();
+            clearActiveEs();
             if (text !== 'success') {
               card.className = 'card error';
               status.textContent = 'Fehler';
               return;
             }
-            // Fetch proposed fixes
             card.className = 'card';
             status.textContent = 'Bereit';
             fetch('/preview/audit-media')
@@ -851,6 +966,7 @@
         };
         es.onerror = () => {
           es.close();
+          clearActiveEs();
           card.className = 'card error';
           status.textContent = 'Fehler';
         };
@@ -865,24 +981,27 @@
         document.getElementById('seo-review-panel').style.display = 'none';
 
         const es = new EventSource('/run/audit-seo');
+        setActiveEs(es);
         es.onmessage = (e) => {
           const { type, text } = JSON.parse(e.data);
           if (type === 'done') {
             es.close();
             if (text !== 'success') {
+              clearActiveEs();
               card.className = 'card error';
               status.textContent = 'Fehler';
               return;
             }
             status.textContent = 'KI generiert Fixes…';
-            // Stream AI fix generation with progress
             const es2 = new EventSource('/preview/audit-seo');
+            setActiveEs(es2);
             es2.onmessage = (e2) => {
               const msg = JSON.parse(e2.data);
               if (msg.type === 'progress') {
                 appendLine(msg.text, 'out');
               } else if (msg.type === 'proposals') {
                 es2.close();
+                clearActiveEs();
                 card.className = 'card';
                 status.textContent = 'Bereit';
                 const proposals = msg.data || [];
@@ -894,6 +1013,7 @@
                 }
               } else if (msg.type === 'done' && msg.text === 'error') {
                 es2.close();
+                clearActiveEs();
                 card.className = 'card error';
                 status.textContent = 'Fehler';
               } else if (msg.type === 'err') {
@@ -902,6 +1022,7 @@
             };
             es2.onerror = () => {
               es2.close();
+              clearActiveEs();
               card.className = 'card error';
               status.textContent = 'Fehler';
             };
@@ -911,24 +1032,27 @@
         };
         es.onerror = () => {
           es.close();
+          clearActiveEs();
           card.className = 'card error';
           status.textContent = 'Fehler';
         };
         return;
       }
 
-      const params = new URLSearchParams();
-      const url = `/run/${cmd}${params.size ? '?' + params : ''}`;
+      // Generic handler
+      const url = `/run/${cmd}`;
 
       card.className = 'card running';
       status.textContent = 'Läuft...';
       document.getElementById('toolbar-label').textContent = `Ausgabe: ${cmd}`;
 
       const es = new EventSource(url);
+      setActiveEs(es);
       es.onmessage = (e) => {
         const { type, text } = JSON.parse(e.data);
         if (type === 'done') {
           es.close();
+          clearActiveEs();
           if (text === 'success') {
             card.className = 'card success';
             status.textContent = 'Fertig';
@@ -946,6 +1070,7 @@
       };
       es.onerror = () => {
         es.close();
+        clearActiveEs();
         card.className = 'card error';
         status.textContent = 'Fehler';
       };
