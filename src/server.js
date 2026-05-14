@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { exec } from 'child_process';
 import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI } from './modules/media-optimizer.js';
-import { previewSeoFixes, applySeoFixes } from './modules/seo-optimizer.js';
+import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem } from './modules/seo-optimizer.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -85,6 +85,27 @@ app.get('/preview/audit-media-ai', (req, res) => {
       send('done', 'error');
       res.end();
     });
+});
+
+app.get('/api/seo-audit', async (req, res) => {
+  try {
+    const items = await auditSeoItems();
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/seo-fix', async (req, res) => {
+  const { id, type, field } = req.query;
+  if (!id || !type || !field) return res.status(400).json({ error: 'id, type, field required' });
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'ANTHROPIC_API_KEY not set' });
+  try {
+    const value = await generateSeoFixForItem(parseInt(id, 10), type, field);
+    res.json({ value: value || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/preview/audit-seo', (req, res) => {
