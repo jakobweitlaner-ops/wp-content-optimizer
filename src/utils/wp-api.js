@@ -4,7 +4,7 @@ import https from 'https';
 const BASE_URL = process.env.WP_URL;
 const USERNAME = process.env.WP_USERNAME;
 const APP_PASSWORD = process.env.WP_APP_PASSWORD;
-const TIMEOUT = parseInt(process.env.TIMEOUT || '30000', 10);
+const TIMEOUT = parseInt(process.env.TIMEOUT || '60000', 10);
 const INSECURE = process.env.WP_INSECURE === 'true';
 
 function getAuthHeader() {
