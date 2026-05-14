@@ -784,7 +784,7 @@
       const item = document.createElement('div');
       item.className = 'review-item';
       item.dataset.id = p.id; item.dataset.type = p.type; item.dataset.field = p.field;
-      const fieldLabel = p.field === 'title' ? 'Titel' : 'Auszug';
+      const fieldLabel = p.field === 'title' ? 'Yoast SEO Titel' : 'Yoast Meta Description';
       const isExcerpt = p.field === 'excerpt';
       item.innerHTML = `
         <input type="checkbox" checked onchange="this.closest('.review-item').classList.toggle('deselected', !this.checked); updateSeoReviewCount()">

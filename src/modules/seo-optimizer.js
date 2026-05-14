@@ -234,11 +234,17 @@ export async function previewSeoFixes({ minScore = 80, onProgress, onError } = {
   return proposals;
 }
 
+const YOAST_FIELD_MAP = {
+  title: '_yoast_wpseo_title',
+  excerpt: '_yoast_wpseo_metadesc',
+};
+
 export async function applySeoFixes(changes) {
   const results = [];
   for (const { id, type, field, value } of changes) {
     try {
-      const data = { [field]: value };
+      const yoastKey = YOAST_FIELD_MAP[field];
+      const data = yoastKey ? { meta: { [yoastKey]: value } } : { [field]: value };
       if (type === 'page') {
         await updatePage(id, data);
       } else {
