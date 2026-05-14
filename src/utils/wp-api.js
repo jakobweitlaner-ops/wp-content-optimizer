@@ -113,6 +113,11 @@ export async function updatePost(id, data) {
   return response.data;
 }
 
+export async function updatePage(id, data) {
+  const response = await client.put(`/pages/${id}`, data);
+  return response.data;
+}
+
 export async function updateMedia(id, data) {
   const response = await client.put(`/media/${id}`, data);
   return response.data;

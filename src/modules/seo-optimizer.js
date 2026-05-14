@@ -1,6 +1,6 @@
-import { getPosts, getPages } from '../utils/wp-api.js';
+import { getPosts, getPages, updatePost, updatePage } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
-import { getSeoSuggestions } from '../utils/claude-suggestions.js';
+import { getSeoSuggestions, generateSeoFixes } from '../utils/claude-suggestions.js';
 
 function stripHtml(html) {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -166,5 +166,84 @@ export async function auditSeo({ minScore = 80, aiSuggestions = false, output } 
     results,
   });
 
+  return results;
+}
+
+const FIXABLE_ISSUE = /title too short|title too long|missing title|missing or empty excerpt/i;
+
+export async function previewSeoFixes({ minScore = 80, onProgress } = {}) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY not set');
+  }
+
+  const [posts, pages] = await Promise.all([getPosts(), getPages()]);
+  const content = [
+    ...posts.map((p) => ({ ...p, _type: 'post' })),
+    ...pages.map((p) => ({ ...p, _type: 'page' })),
+  ];
+
+  const candidates = content
+    .map((post) => ({ post, seo: scoreSeo(post) }))
+    .filter(({ seo }) => seo.score < minScore)
+    .filter(({ seo }) => seo.issues.some((i) => FIXABLE_ISSUE.test(i)));
+
+  const proposals = [];
+  let done = 0;
+
+  for (const { post, seo } of candidates) {
+    const fixableIssues = seo.issues.filter((i) => FIXABLE_ISSUE.test(i));
+    onProgress?.(++done, candidates.length, post.title?.rendered || '(no title)');
+
+    try {
+      const fixes = await generateSeoFixes(post, fixableIssues);
+
+      if (fixes.title) {
+        proposals.push({
+          id: post.id,
+          type: post._type,
+          title: post.title?.rendered || '(no title)',
+          url: post.link,
+          field: 'title',
+          issue: fixableIssues.find((i) => /title/i.test(i)) || '',
+          currentValue: post.title?.rendered || '',
+          proposedValue: fixes.title,
+        });
+      }
+
+      if (fixes.excerpt) {
+        proposals.push({
+          id: post.id,
+          type: post._type,
+          title: post.title?.rendered || '(no title)',
+          url: post.link,
+          field: 'excerpt',
+          issue: fixableIssues.find((i) => /excerpt|meta description/i.test(i)) || '',
+          currentValue: post.excerpt?.rendered ? stripHtml(post.excerpt.rendered) : '',
+          proposedValue: fixes.excerpt,
+        });
+      }
+    } catch {
+      // Skip posts where AI generation fails
+    }
+  }
+
+  return proposals;
+}
+
+export async function applySeoFixes(changes) {
+  const results = [];
+  for (const { id, type, field, value } of changes) {
+    try {
+      const data = { [field]: value };
+      if (type === 'page') {
+        await updatePage(id, data);
+      } else {
+        await updatePost(id, data);
+      }
+      results.push({ id, type, field, value, success: true });
+    } catch (err) {
+      results.push({ id, type, field, error: err.message, success: false });
+    }
+  }
   return results;
 }
