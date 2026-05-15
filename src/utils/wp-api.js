@@ -108,13 +108,13 @@ export async function getMedia(params = {}) {
   return fetchAllPages('/media', params);
 }
 
-export async function getPost(id) {
-  const { data } = await client.get(`/posts/${id}`);
+export async function getPost(id, params = {}) {
+  const { data } = await client.get(`/posts/${id}`, { params });
   return data;
 }
 
-export async function getPage(id) {
-  const { data } = await client.get(`/pages/${id}`);
+export async function getPage(id, params = {}) {
+  const { data } = await client.get(`/pages/${id}`, { params });
   return data;
 }
 

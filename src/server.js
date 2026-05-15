@@ -91,8 +91,21 @@ app.get('/preview/audit-media-ai', (req, res) => {
 app.get('/api/debug-meta/:type/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const item = req.params.type === 'page' ? await getPage(id) : await getPost(id);
-    res.json({ id, type: req.params.type, meta: item.meta || {}, yoast_head_json: item.yoast_head_json || {} });
+    const item = req.params.type === 'page'
+      ? await getPage(id, { context: 'edit' })
+      : await getPost(id, { context: 'edit' });
+    const allMeta = item.meta || {};
+    const seoRelatedMeta = Object.fromEntries(
+      Object.entries(allMeta).filter(([k]) =>
+        /surerank|rank_math|seo|yoast|wpseo|title|description|noindex|robots|meta/i.test(k)
+      )
+    );
+    res.json({
+      id,
+      type: req.params.type,
+      seo_meta_keys: seoRelatedMeta,
+      all_meta_keys: Object.keys(allMeta),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
