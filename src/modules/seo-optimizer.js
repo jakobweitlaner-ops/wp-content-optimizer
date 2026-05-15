@@ -18,12 +18,12 @@ function scoreYoast(post) {
   if (!yoast) return { issues, bonus };
 
   const metaDesc = yoast.og_description || yoast.description || '';
-  if (metaDesc && metaDesc.length >= 50 && metaDesc.length <= 140) {
+  if (metaDesc && metaDesc.length >= 50 && metaDesc.length <= 120) {
     bonus += 10;
   } else if (!metaDesc) {
     issues.push('Yoast: Missing meta description');
   } else {
-    issues.push(`Yoast: Meta description length ${metaDesc.length} chars (50–140 recommended)`);
+    issues.push(`Yoast: Meta description length ${metaDesc.length} chars (50–120 recommended)`);
   }
 
   const seoTitle = yoast.og_title || yoast.title || '';
