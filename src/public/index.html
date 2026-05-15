@@ -921,6 +921,7 @@
           <button class="seo-back-btn" onclick="showSeoList()">← Übersicht</button>
           <span class="seo-view-heading" id="seo-detail-heading"></span>
           <span class="seo-detail-score" id="seo-detail-score"></span>
+          <a id="seo-debug-link" href="#" target="_blank" style="font-size:0.68rem;color:#3d4a63;text-decoration:none;flex-shrink:0" title="Meta-Felder im Browser öffnen">🔍 Meta-Felder</a>
         </div>
         <div class="seo-scroll" id="seo-issues-list"></div>
         <div class="seo-detail-footer">
@@ -1126,6 +1127,8 @@
 
   function renderSeoDetail(item) {
     document.getElementById('seo-detail-heading').textContent = item.title;
+    const debugLink = document.getElementById('seo-debug-link');
+    if (debugLink) debugLink.href = `/api/debug-meta/${item.type}/${item.id}`;
     const scoreEl = document.getElementById('seo-detail-score');
     scoreEl.className = `seo-detail-score score-pill ${scoreClass(item.score)}`;
     scoreEl.textContent = `${item.score}/100`;
