@@ -116,11 +116,11 @@ app.post('/api/seo-noindex', express.json(), async (req, res) => {
   if (!id || !type) return res.status(400).json({ error: 'id and type required' });
   try {
     const data = { meta: { '_yoast_wpseo_meta-robots-noindex': noindex ? 1 : 0 } };
-    if (type === 'page') await updatePage(id, data);
-    else await updatePost(id, data);
-    res.json({ success: true });
+    const result = type === 'page' ? await updatePage(id, data) : await updatePost(id, data);
+    const savedValue = result?.meta?.['_yoast_wpseo_meta-robots-noindex'];
+    res.json({ success: true, sent: noindex ? 1 : 0, savedValue });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message, stack: err.stack });
   }
 });
 
