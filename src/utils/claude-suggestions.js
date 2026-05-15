@@ -34,7 +34,7 @@ export async function generateSeoFixes(post, issues, keyphrase = '') {
   const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
   const contentSnippet = content.substring(0, 400);
   const lang = langName(detectLanguage(title + ' ' + content));
-  const keyphraseHint = keyphrase ? `\nFocus keyphrase: "${keyphrase}" — must appear naturally in the generated text.` : '';
+  const keyphraseHint = keyphrase ? `\nFocus keyphrase: "${keyphrase}" — weave it naturally into the text; do NOT place it at the very beginning.` : '';
 
   const needsTitle = issues.some((i) => /title/i.test(i));
   const needsExcerpt = issues.some((i) => /excerpt|meta description/i.test(i));
@@ -51,7 +51,7 @@ Content: ${contentSnippet}
 Issues: ${issues.join('; ')}${keyphraseHint}
 
 Rules:
-- title: 20-60 characters, descriptive
+- title: 20-60 characters, descriptive, keep the natural structure of the current title (e.g. "Page | Brand")
 - excerpt: 100-120 characters, compelling summary
 
 Respond with ONLY this JSON (no explanation, no markdown):
@@ -67,6 +67,7 @@ Issue: ${issues.join('; ')}${keyphraseHint}
 Rules:
 - Must be 20-60 characters
 - Descriptive and specific to the page content
+- Keep the natural structure of the current title (e.g. "Page | Brand"); do NOT start with the keyphrase
 
 Respond with ONLY this JSON (no explanation, no markdown):
 {"title": "your improved title"}`;
