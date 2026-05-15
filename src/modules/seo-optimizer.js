@@ -1,6 +1,6 @@
-import { getPosts, getPages, getPost, getPage, updatePost, updatePage } from '../utils/wp-api.js';
+import { getPosts, getPages, getPost, getPage, updatePost, updatePage, updateMedia, getMediaItem } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
-import { getSeoSuggestions, generateSeoFixes, generateH1Fix, generateContentExtension, generateKeyphrase } from '../utils/claude-suggestions.js';
+import { getSeoSuggestions, generateSeoFixes, generateH1Fix, generateContentExtension, generateKeyphrase, generateImageAltWithKeyphrase } from '../utils/claude-suggestions.js';
 
 function stripHtml(html) {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -18,12 +18,12 @@ function scoreYoast(post) {
   if (!yoast) return { issues, bonus };
 
   const metaDesc = yoast.og_description || yoast.description || '';
-  if (metaDesc && metaDesc.length >= 50 && metaDesc.length <= 150) {
+  if (metaDesc && metaDesc.length >= 50 && metaDesc.length <= 140) {
     bonus += 10;
   } else if (!metaDesc) {
     issues.push('Yoast: Missing meta description');
   } else {
-    issues.push(`Yoast: Meta description length ${metaDesc.length} chars (50–150 recommended)`);
+    issues.push(`Yoast: Meta description length ${metaDesc.length} chars (50–140 recommended)`);
   }
 
   const seoTitle = yoast.og_title || yoast.title || '';
@@ -225,6 +225,40 @@ export async function auditSeo({ minScore = 80, aiSuggestions = false, output } 
   return results;
 }
 
+export async function getSeoImageProposals(id, type, keyphrase) {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not set');
+  const post = type === 'page' ? await getPage(id) : await getPost(id);
+  const title = post.title?.rendered || '';
+  const content = post.content?.rendered || '';
+
+  const idMatches = [...content.matchAll(/wp-image-(\d+)/g)];
+  const imageIds = [...new Set(idMatches.map(m => parseInt(m[1], 10)))];
+  if (imageIds.length === 0) return [];
+
+  const mediaItems = (await Promise.all(
+    imageIds.map(async imgId => {
+      try {
+        const media = await getMediaItem(imgId);
+        return { id: imgId, currentAlt: media.alt_text || '', filename: media.source_url?.split('/').pop() || '' };
+      } catch { return null; }
+    })
+  )).filter(Boolean);
+
+  if (mediaItems.length === 0) return [];
+
+  const suggestions = await generateImageAltWithKeyphrase(mediaItems, title, keyphrase);
+
+  return mediaItems.map(item => {
+    const suggestion = suggestions.find(s => s.id === item.id);
+    return {
+      imageId: item.id,
+      filename: item.filename,
+      currentAlt: item.currentAlt,
+      proposedAlt: suggestion?.alt || '',
+    };
+  }).filter(p => p.proposedAlt);
+}
+
 const FIXABLE_ISSUE = /title too short|title too long|missing title|missing or empty excerpt/i;
 
 export async function previewSeoFixes({ minScore = 80, onProgress, onError } = {}) {
@@ -300,6 +334,11 @@ export async function applySeoFixes(changes) {
   const results = [];
   for (const { id, type, field, value } of changes) {
     try {
+      if (type === 'media') {
+        await updateMedia(parseInt(id, 10), { alt_text: value });
+        results.push({ id, type, field, value, success: true });
+        continue;
+      }
       let data;
       if (field === 'h1' || field === 'content') {
         const post = type === 'page'

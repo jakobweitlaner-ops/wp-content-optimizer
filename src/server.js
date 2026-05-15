@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { exec } from 'child_process';
 import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI } from './modules/media-optimizer.js';
-import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem } from './modules/seo-optimizer.js';
+import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals } from './modules/seo-optimizer.js';
 import { updatePost, updatePage } from './utils/wp-api.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -121,6 +121,18 @@ app.post('/api/seo-noindex', express.json(), async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message, stack: err.stack });
+  }
+});
+
+app.get('/api/seo-images', async (req, res) => {
+  const { id, type, keyphrase } = req.query;
+  if (!id || !type || !keyphrase) return res.status(400).json({ error: 'id, type, keyphrase required' });
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'ANTHROPIC_API_KEY not set' });
+  try {
+    const proposals = await getSeoImageProposals(parseInt(id, 10), type, keyphrase);
+    res.json(proposals);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

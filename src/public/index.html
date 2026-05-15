@@ -1192,6 +1192,42 @@
       issuesEl.appendChild(div);
     }
 
+    // Permalink suggestion
+    const permalinkDiv = document.createElement('div');
+    permalinkDiv.className = 'seo-issue-item';
+    const keyphrase = item.currentKeyphrase || '';
+    const suggestedSlug = keyphrase ? keyphraseToSlug(keyphrase) : '';
+    permalinkDiv.innerHTML = `
+      <div class="seo-issue-header">
+        <span class="seo-issue-icon" style="color:#4f6ef7">🔗</span>
+        <span class="seo-issue-label">Permalink-Vorschlag</span>
+      </div>
+      <div class="seo-current-val">Aktuell: ${escapeHtml(item.url?.replace(/^https?:\/\/[^/]+/, '') || '')}</div>
+      ${suggestedSlug
+        ? `<div class="seo-fix-row" style="display:flex;margin-top:0.35rem">
+            <input type="text" class="edit-input" value="${escapeHtml(suggestedSlug)}" id="seo-slug-${item.id}" readonly style="color:#818cf8;cursor:text">
+            <button class="seo-confirm-btn" style="background:#1e2435;color:#818cf8;border:1px solid #2a3450"
+              onclick="navigator.clipboard.writeText(document.getElementById('seo-slug-${item.id}').value);this.textContent='✓ Kopiert';setTimeout(()=>this.textContent='Kopieren',1500)">Kopieren</button>
+           </div>
+           <div class="seo-manual-note" style="margin-top:0.3rem">Permalink manuell im WP-Editor ändern · Redirect für die alte URL einrichten</div>`
+        : `<div class="seo-manual-note">Keyphrase generieren um einen Vorschlag zu erhalten</div>`
+      }`;
+    issuesEl.appendChild(permalinkDiv);
+
+    // Image alt texts
+    const imgDiv = document.createElement('div');
+    imgDiv.className = 'seo-issue-item';
+    imgDiv.innerHTML = `
+      <div class="seo-issue-header">
+        <span class="seo-issue-icon" style="color:#4f6ef7">🖼</span>
+        <span class="seo-issue-label">Bild-Alt-Texte (Keyphrase)</span>
+        <button class="seo-fix-btn" id="seo-img-btn-${item.id}"
+          onclick="loadSeoImages(currentSeoItem)">Keyphrase-Abdeckung prüfen</button>
+      </div>
+      <div class="seo-issue-sub">Bilder deren Alt-Text keine Keyphrase-Wörter enthält, werden optimiert.</div>
+      <div style="margin-top:0.4rem" id="seo-img-list-${item.id}"></div>`;
+    issuesEl.appendChild(imgDiv);
+
     // Noindex toggle
     const robotsDiv = document.createElement('div');
     robotsDiv.className = `seo-robots-item${item.isNoindex ? ' is-noindex' : ''}`;
@@ -1341,6 +1377,87 @@
       checkboxEl.checked = !noindex; // revert
     } finally {
       checkboxEl.disabled = false;
+    }
+  }
+
+  function keyphraseToSlug(phrase) {
+    const map = { ä:'ae', ö:'oe', ü:'ue', ß:'ss', à:'a', á:'a', â:'a', è:'e', é:'e', ê:'e', ì:'i', í:'i', ò:'o', ó:'o', ù:'u', ú:'u' };
+    return phrase.toLowerCase()
+      .replace(/[äöüßàáâèéêìíòóùú]/g, c => map[c] || c)
+      .replace(/[^a-z0-9\s]/g, '')
+      .trim()
+      .replace(/\s+/g, '-');
+  }
+
+  async function loadSeoImages(item) {
+    const keyphrase = document.getElementById(`seo-inp-${item.id}-keyphrase`)?.value?.trim() || item.currentKeyphrase;
+    const btn = document.getElementById(`seo-img-btn-${item.id}`);
+    const listEl = document.getElementById(`seo-img-list-${item.id}`);
+    if (!keyphrase) {
+      listEl.innerHTML = '<span style="color:#f59e0b;font-size:0.72rem">Bitte zuerst eine Keyphrase generieren oder eingeben.</span>';
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Prüft…';
+    listEl.innerHTML = '';
+    try {
+      const resp = await fetch(`/api/seo-images?id=${item.id}&type=${item.type}&keyphrase=${encodeURIComponent(keyphrase)}`);
+      const proposals = await resp.json();
+      if (!proposals.length) {
+        listEl.innerHTML = '<span style="color:#22c55e;font-size:0.72rem">✓ Alle Bilder enthalten bereits Keyphrase-Wörter.</span>';
+      } else {
+        proposals.forEach(p => {
+          const div = document.createElement('div');
+          div.style.cssText = 'background:#0f1117;border:1px solid #1e2435;border-radius:6px;padding:0.5rem 0.65rem;margin-bottom:0.3rem;';
+          div.innerHTML = `
+            <div style="font-size:0.72rem;color:#475569;margin-bottom:0.2rem">${escapeHtml(p.filename)}</div>
+            <div style="font-size:0.7rem;color:#3d4a63;margin-bottom:0.25rem">
+              <span style="color:#ef4444;text-decoration:line-through">${escapeHtml(p.currentAlt || '(leer)')}</span>
+              <span style="color:#4f6ef7;margin:0 0.3rem">→</span>
+              <span style="color:#22c55e">${escapeHtml(p.proposedAlt)}</span>
+            </div>
+            <button class="seo-confirm-btn" style="font-size:0.68rem;padding:0.2rem 0.5rem"
+              onclick="applySeoImageFix(${p.imageId},'${escapeHtml(p.proposedAlt).replace(/'/g,"\\'")}',this)">✓ Übernehmen</button>`;
+          listEl.appendChild(div);
+        });
+      }
+      btn.textContent = 'Neu prüfen';
+    } catch (err) {
+      listEl.innerHTML = `<span style="color:#ef4444;font-size:0.72rem">Fehler: ${escapeHtml(err.message)}</span>`;
+      btn.textContent = 'Keyphrase-Abdeckung prüfen';
+    }
+    btn.disabled = false;
+  }
+
+  async function applySeoImageFix(imageId, proposedAlt, btnEl) {
+    btnEl.disabled = true;
+    btnEl.textContent = 'Speichert…';
+    try {
+      const resp = await fetch('/apply/audit-seo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ changes: [{ id: imageId, type: 'media', field: 'alt_text', value: proposedAlt }] }),
+      });
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '', success = false;
+      while (true) {
+        const { value: chunk, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(chunk, { stream: true });
+        const parts = buf.split('\n\n'); buf = parts.pop();
+        for (const part of parts) {
+          const line = part.replace(/^data: /, '').trim();
+          if (!line) continue;
+          const msg = JSON.parse(line);
+          if (msg.type === 'done') success = msg.text === 'success';
+        }
+      }
+      btnEl.textContent = success ? '✓ Gespeichert' : 'Fehler';
+      if (success) btnEl.style.background = '#15803d';
+    } catch {
+      btnEl.textContent = 'Fehler';
+      btnEl.disabled = false;
     }
   }
 
