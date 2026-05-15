@@ -538,8 +538,64 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .seo-type-tag { font-size: 0.64rem; color: #3d4a63; flex-shrink: 0; }
-    .seo-chevron  { color: #3d4a63; font-size: 0.78rem; flex-shrink: 0; }
+    .seo-type-tag   { font-size: 0.64rem; color: #3d4a63; flex-shrink: 0; }
+    .seo-chevron    { color: #3d4a63; font-size: 0.78rem; flex-shrink: 0; }
+    .seo-noindex-tag {
+      font-size: 0.62rem;
+      font-weight: 700;
+      color: #f59e0b;
+      background: rgba(245,158,11,0.12);
+      border: 1px solid rgba(245,158,11,0.3);
+      border-radius: 4px;
+      padding: 0.1rem 0.35rem;
+      flex-shrink: 0;
+    }
+
+    /* noindex toggle */
+    .seo-robots-item {
+      background: #0a0d14;
+      border: 1px solid #1e2435;
+      border-radius: 8px;
+      padding: 0.7rem 0.9rem;
+      margin-bottom: 0.35rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .seo-robots-item.is-noindex { border-color: rgba(245,158,11,0.3); }
+
+    .seo-toggle {
+      position: relative;
+      width: 2.4rem;
+      height: 1.3rem;
+      flex-shrink: 0;
+    }
+    .seo-toggle input { opacity: 0; width: 0; height: 0; }
+    .seo-toggle-track {
+      position: absolute;
+      inset: 0;
+      background: #1e2435;
+      border-radius: 1.3rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .seo-toggle input:checked + .seo-toggle-track { background: #f59e0b; }
+    .seo-toggle-track::after {
+      content: '';
+      position: absolute;
+      left: 0.15rem;
+      top: 0.15rem;
+      width: 1rem;
+      height: 1rem;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .seo-toggle input:checked + .seo-toggle-track::after { transform: translateX(1.1rem); }
+
+    .seo-robots-label { flex: 1; }
+    .seo-robots-label strong { font-size: 0.8rem; color: #c4cedd; font-weight: 600; display: block; }
+    .seo-robots-label span  { font-size: 0.69rem; color: #3d4a63; }
 
     /* detail view */
     .seo-detail-score {
@@ -1044,6 +1100,7 @@
       items.forEach(item => {
         const div = document.createElement('div');
         div.className = 'seo-list-item';
+        div.dataset.id = item.id;
         const issueText = item.issues.length
           ? item.issues.slice(0, 2).join(' · ') + (item.issues.length > 2 ? ` +${item.issues.length - 2}` : '')
           : 'Keine kritischen Probleme';
@@ -1053,6 +1110,7 @@
             <div class="seo-list-title">${escapeHtml(item.title)}</div>
             <div class="seo-list-issues">${escapeHtml(issueText)}</div>
           </div>
+          ${item.isNoindex ? '<span class="seo-noindex-tag">noindex</span>' : ''}
           <span class="seo-type-tag">${item.type}</span>
           <span class="seo-chevron">›</span>`;
         div.addEventListener('click', () => showSeoDetail(item));
@@ -1099,6 +1157,23 @@
         </div>`;
       issuesEl.appendChild(div);
     });
+
+    // Noindex toggle
+    const robotsDiv = document.createElement('div');
+    robotsDiv.className = `seo-robots-item${item.isNoindex ? ' is-noindex' : ''}`;
+    robotsDiv.id = `seo-robots-${item.id}`;
+    const toggleId = `noindex-toggle-${item.id}`;
+    robotsDiv.innerHTML = `
+      <label class="seo-toggle">
+        <input type="checkbox" id="${toggleId}" ${item.isNoindex ? 'checked' : ''}
+          onchange="toggleNoindex(${item.id},'${item.type}',this)">
+        <span class="seo-toggle-track"></span>
+      </label>
+      <div class="seo-robots-label">
+        <strong>Aus Suchindex ausschließen (noindex)</strong>
+        <span id="seo-robots-hint-${item.id}">${item.isNoindex ? 'Seite wird nicht indexiert' : 'Seite wird normal indexiert'}</span>
+      </div>`;
+    issuesEl.appendChild(robotsDiv);
 
     // Manual issues
     item.issues
@@ -1186,6 +1261,41 @@
     } catch {
       btnEl.textContent = 'Fehler';
       setTimeout(() => { btnEl.textContent = '✓ Übernehmen'; btnEl.disabled = false; }, 2000);
+    }
+  }
+
+  async function toggleNoindex(id, type, checkboxEl) {
+    const noindex = checkboxEl.checked;
+    const hintEl = document.getElementById(`seo-robots-hint-${id}`);
+    const containerEl = document.getElementById(`seo-robots-${id}`);
+    checkboxEl.disabled = true;
+    try {
+      const resp = await fetch('/api/seo-noindex', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, type, noindex }),
+      });
+      const { success, error } = await resp.json();
+      if (!success) throw new Error(error);
+      containerEl.classList.toggle('is-noindex', noindex);
+      if (hintEl) hintEl.textContent = noindex ? 'Seite wird nicht indexiert' : 'Seite wird normal indexiert';
+      // update badge in list
+      const listItem = document.querySelector(`.seo-list-item[data-id="${id}"]`);
+      if (listItem) {
+        let badge = listItem.querySelector('.seo-noindex-tag');
+        if (noindex && !badge) {
+          badge = document.createElement('span');
+          badge.className = 'seo-noindex-tag';
+          badge.textContent = 'noindex';
+          listItem.querySelector('.seo-type-tag').before(badge);
+        } else if (!noindex && badge) {
+          badge.remove();
+        }
+      }
+    } catch {
+      checkboxEl.checked = !noindex; // revert
+    } finally {
+      checkboxEl.disabled = false;
     }
   }
 

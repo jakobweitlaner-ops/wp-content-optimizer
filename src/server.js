@@ -9,6 +9,7 @@ import { dirname, join } from 'path';
 import { exec } from 'child_process';
 import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI } from './modules/media-optimizer.js';
 import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem } from './modules/seo-optimizer.js';
+import { updatePost, updatePage } from './utils/wp-api.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -103,6 +104,19 @@ app.get('/api/seo-fix', async (req, res) => {
   try {
     const value = await generateSeoFixForItem(parseInt(id, 10), type, field);
     res.json({ value: value || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/seo-noindex', express.json(), async (req, res) => {
+  const { id, type, noindex } = req.body;
+  if (!id || !type) return res.status(400).json({ error: 'id and type required' });
+  try {
+    const data = { meta: { '_yoast_wpseo_meta-robots-noindex': noindex ? '1' : '0' } };
+    if (type === 'page') await updatePage(id, data);
+    else await updatePost(id, data);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
