@@ -231,12 +231,15 @@ export async function getSeoImageProposals(id, type, keyphrase) {
   const title = post.title?.rendered || '';
   const content = post.content?.rendered || '';
 
+  // Collect image IDs from content + featured image
   const idMatches = [...content.matchAll(/wp-image-(\d+)/g)];
-  const imageIds = [...new Set(idMatches.map(m => parseInt(m[1], 10)))];
-  if (imageIds.length === 0) return [];
+  const contentIds = [...new Set(idMatches.map(m => parseInt(m[1], 10)))];
+  const featuredId = post.featured_media ? parseInt(post.featured_media, 10) : null;
+  const allIds = featuredId ? [...new Set([featuredId, ...contentIds])] : contentIds;
+  if (allIds.length === 0) return [];
 
   const mediaItems = (await Promise.all(
-    imageIds.map(async imgId => {
+    allIds.map(async imgId => {
       try {
         const media = await getMediaItem(imgId);
         return { id: imgId, currentAlt: media.alt_text || '', filename: media.source_url?.split('/').pop() || '' };
@@ -244,11 +247,20 @@ export async function getSeoImageProposals(id, type, keyphrase) {
     })
   )).filter(Boolean);
 
-  if (mediaItems.length === 0) return [];
+  // Mirror Yoast's check: at least half of keyphrase words must appear in the alt text
+  const keyphraseWords = keyphrase.toLowerCase().split(/\s+/).filter(Boolean);
+  const required = Math.ceil(keyphraseWords.length / 2);
+  const needsImprovement = mediaItems.filter(item => {
+    const altLower = item.currentAlt.toLowerCase();
+    const matched = keyphraseWords.filter(w => altLower.includes(w)).length;
+    return matched < required;
+  });
 
-  const suggestions = await generateImageAltWithKeyphrase(mediaItems, title, keyphrase);
+  if (needsImprovement.length === 0) return [];
 
-  return mediaItems.map(item => {
+  const suggestions = await generateImageAltWithKeyphrase(needsImprovement, title, keyphrase);
+
+  return needsImprovement.map(item => {
     const suggestion = suggestions.find(s => s.id === item.id);
     return {
       imageId: item.id,
