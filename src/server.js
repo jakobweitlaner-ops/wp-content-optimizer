@@ -9,7 +9,7 @@ import { dirname, join } from 'path';
 import { exec } from 'child_process';
 import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI } from './modules/media-optimizer.js';
 import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem } from './modules/seo-optimizer.js';
-import { updatePost, updatePage, getPost, getPage } from './utils/wp-api.js';
+import { updatePost, updatePage } from './utils/wp-api.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -88,42 +88,7 @@ app.get('/preview/audit-media-ai', (req, res) => {
     });
 });
 
-app.get('/api/debug-routes', async (req, res) => {
-  try {
-    const { data } = await (await import('axios')).default.get(
-      `${process.env.WP_URL}/wp-json/`,
-      { httpsAgent: new (await import('https')).default.Agent({ rejectUnauthorized: false }), timeout: 15000 }
-    );
-    const namespaces = data.namespaces || [];
-    const surerank = namespaces.filter(n => /surerank|rank/i.test(n));
-    res.json({ namespaces, surerank_namespaces: surerank });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-app.get('/api/debug-meta/:type/:id', async (req, res) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    const item = req.params.type === 'page'
-      ? await getPage(id, { context: 'edit' })
-      : await getPost(id, { context: 'edit' });
-    const allMeta = item.meta || {};
-    const seoRelatedMeta = Object.fromEntries(
-      Object.entries(allMeta).filter(([k]) =>
-        /surerank|rank_math|seo|yoast|wpseo|title|description|noindex|robots|meta/i.test(k)
-      )
-    );
-    res.json({
-      id,
-      type: req.params.type,
-      seo_meta_keys: seoRelatedMeta,
-      all_meta_keys: Object.keys(allMeta),
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 app.get('/api/seo-audit', async (req, res) => {
   try {
