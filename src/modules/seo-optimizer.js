@@ -1,6 +1,6 @@
 import { getPosts, getPages, getPost, getPage, updatePost, updatePage, updateMedia, getMediaItem } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
-import { getSeoSuggestions, generateSeoFixes, generateH1Fix, generateContentExtension, generateKeyphrase, generateImageAltWithKeyphrase } from '../utils/claude-suggestions.js';
+import { getSeoSuggestions, generateSeoFixes, generateH1Fix, generateContentExtension, generateKeyphrase, generateImageAltWithKeyphrase, generateIntroFix } from '../utils/claude-suggestions.js';
 
 function stripHtml(html) {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -94,6 +94,51 @@ export function scoreSeo(post) {
   issues.push(...yoastIssues);
   score = Math.min(100, score + bonus);
 
+  // Keyphrase checks (only when keyphrase is set)
+  const keyphrase = post.meta?.['_yoast_wpseo_focuskw'] || '';
+  if (keyphrase) {
+    const kpWords = keyphrase.toLowerCase().split(/\s+/).filter(Boolean);
+    const yoastTitle = (post.yoast_head_json?.og_title || post.yoast_head_json?.title || '').toLowerCase();
+    const metaDescText = (post.yoast_head_json?.og_description || post.yoast_head_json?.description || '').toLowerCase();
+    const contentLower = text.toLowerCase();
+
+    // Keyphrase in SEO title
+    if (yoastTitle && !kpWords.every(w => yoastTitle.includes(w))) {
+      issues.push('Keyphrase not in SEO title');
+      score -= 10;
+    }
+
+    // Keyphrase in meta description
+    if (metaDescText && !kpWords.some(w => metaDescText.includes(w))) {
+      issues.push('Keyphrase not in meta description');
+      score -= 10;
+    }
+
+    // Keyphrase in first paragraph
+    const firstParaMatch = content.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    const firstParaText = firstParaMatch ? firstParaMatch[1].replace(/<[^>]+>/g, '').toLowerCase() : '';
+    if (!firstParaText || !kpWords.some(w => firstParaText.includes(w))) {
+      issues.push('Keyphrase not in first paragraph');
+      score -= 10;
+    }
+
+    // Keyphrase density
+    const escaped = keyphrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const kpCount = (contentLower.match(new RegExp(escaped, 'gi')) || []).length;
+    if (kpCount < 2) {
+      issues.push(`Keyphrase density too low (${kpCount}×, min 2)`);
+      score -= 5;
+    }
+
+    // Keyphrase in subheadings
+    const h2h3Text = (content.match(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/gi) || [])
+      .join(' ').replace(/<[^>]+>/g, '').toLowerCase();
+    if (wordCount > 300 && h2h3Text && !kpWords.some(w => h2h3Text.includes(w))) {
+      issues.push('Keyphrase not in subheadings');
+      score -= 5;
+    }
+  }
+
   return { score: Math.max(0, score), issues, wordCount, h1Count: h1Matches.length, h2Count: h2Matches.length, _wordCount: wordCount };
 }
 
@@ -108,6 +153,8 @@ export async function auditSeoItems() {
     const yoast = post.yoast_head_json || {};
     const h1Match = post.content?.rendered?.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
     const currentH1 = h1Match ? h1Match[1].replace(/<[^>]+>/g, '').trim() : '';
+    const firstParaMatch2 = post.content?.rendered?.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    const currentIntro = firstParaMatch2 ? firstParaMatch2[1].replace(/<[^>]+>/g, '').trim().substring(0, 150) : '';
     return {
       id: post.id,
       type: post._type,
@@ -117,6 +164,7 @@ export async function auditSeoItems() {
       currentYoastDesc: yoast.og_description || yoast.description || '',
       currentKeyphrase: post.meta?.['_yoast_wpseo_focuskw'] || '',
       currentH1,
+      currentIntro,
       isNoindex: yoast.robots?.index === 'noindex' || post.meta?.['_yoast_wpseo_meta-robots-noindex'] == 1,
       ...seo,
     };
@@ -130,6 +178,13 @@ export async function generateSeoFixForItem(id, type, field) {
 
   if (field === 'keyphrase') {
     return generateKeyphrase(post);
+  }
+
+  if (field === 'intro') {
+    const kp = post.meta?.['_yoast_wpseo_focuskw'] || '';
+    const firstParaMatch = post.content?.rendered?.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    const currentIntro = firstParaMatch ? firstParaMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+    return generateIntroFix({ ...post, currentIntro }, kp);
   }
 
   if (field === 'h1') {
@@ -149,7 +204,8 @@ export async function generateSeoFixForItem(id, type, field) {
     : (seo.issues.filter((i) => /excerpt|meta description/i.test(i)).length
         ? seo.issues.filter((i) => /excerpt|meta description/i.test(i))
         : ['meta description needs improvement']);
-  const fixes = await generateSeoFixes(post, issues);
+  const kp = post.meta?.['_yoast_wpseo_focuskw'] || '';
+  const fixes = await generateSeoFixes(post, issues, kp);
   return field === 'excerpt' ? (fixes.excerpt || null) : (fixes.title || null);
 }
 
@@ -340,7 +396,7 @@ export async function applySeoFixes(changes) {
         continue;
       }
       let data;
-      if (field === 'h1' || field === 'content') {
+      if (field === 'h1' || field === 'content' || field === 'intro') {
         const post = type === 'page'
           ? await getPage(id, { context: 'edit' })
           : await getPost(id, { context: 'edit' });
@@ -359,6 +415,24 @@ export async function applySeoFixes(changes) {
             newContent = isGutenberg
               ? `<!-- wp:heading {"level":1} -->\n<h1 class="wp-block-heading">${safeValue}</h1>\n<!-- /wp:heading -->\n\n` + rawContent
               : `<h1>${safeValue}</h1>\n` + rawContent;
+          }
+          data = { content: newContent };
+        } else if (field === 'intro') {
+          let newContent;
+          if (isGutenberg) {
+            const blockRegex = /<!-- wp:paragraph -->\n?<p[^>]*>[\s\S]*?<\/p>\n?<!-- \/wp:paragraph -->/;
+            if (blockRegex.test(rawContent)) {
+              newContent = rawContent.replace(blockRegex,
+                `<!-- wp:paragraph -->\n<p>${safeValue}</p>\n<!-- /wp:paragraph -->`);
+            } else {
+              newContent = `<!-- wp:paragraph -->\n<p>${safeValue}</p>\n<!-- /wp:paragraph -->\n\n` + rawContent;
+            }
+          } else {
+            if (/<p[^>]*>/.test(rawContent)) {
+              newContent = rawContent.replace(/<p[^>]*>[\s\S]*?<\/p>/, `<p>${safeValue}</p>`);
+            } else {
+              newContent = `<p>${safeValue}</p>\n` + rawContent;
+            }
           }
           data = { content: newContent };
         } else {
