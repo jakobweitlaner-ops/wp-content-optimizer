@@ -118,6 +118,8 @@ app.post('/api/seo-noindex', express.json(), async (req, res) => {
     const data = { meta: { '_yoast_wpseo_meta-robots-noindex': noindex ? 1 : 0 } };
     const result = type === 'page' ? await updatePage(id, data) : await updatePost(id, data);
     const savedValue = result?.meta?.['_yoast_wpseo_meta-robots-noindex'];
+    console.log(`[noindex] id=${id} type=${type} sent=${noindex ? 1 : 0} savedValue=${JSON.stringify(savedValue)}`);
+    console.log(`[noindex] all meta keys: ${Object.keys(result?.meta || {}).join(', ')}`);
     res.json({ success: true, sent: noindex ? 1 : 0, savedValue });
   } catch (err) {
     res.status(500).json({ error: err.message, stack: err.stack });
