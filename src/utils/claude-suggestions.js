@@ -3,18 +3,21 @@ import Anthropic from '@anthropic-ai/sdk';
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // Heuristic language detection — returns ISO 639-1 code ('de', 'fr', 'es', 'it', 'en', …)
+// Requires BOTH common-word matches AND special-char matches so that place names
+// (e.g. "Außervillgraten" with ü) in otherwise-English text don't trigger a false positive.
 function detectLanguage(text) {
   const sample = text.substring(0, 800).toLowerCase();
   const checks = [
-    { lang: 'de', re: /\b(der|die|das|und|ist|nicht|mit|auf|für|von|zu|auch|als|bei|aus|nach|über|haben|sind|wird|kann|werden|sein|keine|dieser|unserem|unsere)\b/g, chars: /[äöüß]/g, wordThreshold: 5, charThreshold: 2 },
-    { lang: 'fr', re: /\b(le|la|les|et|est|pas|avec|sur|pour|dans|qui|que|une|des|du|au|aux|nous|vous|ils|elle|sont|avoir|être|faire|plus|par)\b/g, chars: /[éèêëàâùûîïœç]/g, wordThreshold: 5, charThreshold: 3 },
-    { lang: 'es', re: /\b(el|la|los|las|y|es|no|con|por|para|en|que|una|del|al|su|se|un|son|hay|más|pero|como|este|esta)\b/g, chars: /[áéíóúüñ¿¡]/g, wordThreshold: 5, charThreshold: 2 },
-    { lang: 'it', re: /\b(il|lo|la|i|gli|le|e|è|non|con|per|in|che|una|del|al|su|si|un|sono|più|ma|come|questo|questa|essere)\b/g, chars: /[àèéìíîòóùú]/g, wordThreshold: 5, charThreshold: 2 },
+    { lang: 'de', re: /\b(der|die|das|und|ist|nicht|mit|auf|für|von|zu|auch|als|bei|aus|nach|über|haben|sind|wird|kann|werden|sein|keine|dieser|unsere|wir|sie|ihr)\b/g, chars: /[äöüß]/g, wordThreshold: 4, charThreshold: 3 },
+    { lang: 'fr', re: /\b(le|la|les|et|est|pas|avec|sur|pour|dans|qui|que|une|des|du|au|aux|nous|vous|ils|elle|sont|avoir|plus|par)\b/g, chars: /[éèêëàâùûîïœç]/g, wordThreshold: 4, charThreshold: 3 },
+    { lang: 'es', re: /\b(el|la|los|las|y|es|no|con|por|para|en|que|una|del|al|su|se|un|son|hay|más|pero|como|este|esta)\b/g, chars: /[áéíóúüñ]/g, wordThreshold: 4, charThreshold: 2 },
+    { lang: 'it', re: /\b(il|lo|la|i|gli|le|e|non|con|per|in|che|una|del|al|su|si|un|sono|più|ma|come|questo|questa)\b/g, chars: /[àèéìíîòóùú]/g, wordThreshold: 4, charThreshold: 2 },
   ];
   for (const { lang, re, chars, wordThreshold, charThreshold } of checks) {
     const words = (sample.match(re) || []).length;
     const charMatches = (sample.match(chars) || []).length;
-    if (words >= wordThreshold || charMatches >= charThreshold) return lang;
+    // Both conditions must be met to avoid false positives from proper nouns / place names
+    if (words >= wordThreshold && charMatches >= charThreshold) return lang;
   }
   return 'en';
 }
