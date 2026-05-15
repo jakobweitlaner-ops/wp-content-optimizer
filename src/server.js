@@ -88,6 +88,20 @@ app.get('/preview/audit-media-ai', (req, res) => {
     });
 });
 
+app.get('/api/debug-routes', async (req, res) => {
+  try {
+    const { data } = await (await import('axios')).default.get(
+      `${process.env.WP_URL}/wp-json/`,
+      { httpsAgent: new (await import('https')).default.Agent({ rejectUnauthorized: false }), timeout: 15000 }
+    );
+    const namespaces = data.namespaces || [];
+    const surerank = namespaces.filter(n => /surerank|rank/i.test(n));
+    res.json({ namespaces, surerank_namespaces: surerank });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/debug-meta/:type/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
