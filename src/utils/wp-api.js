@@ -97,11 +97,11 @@ async function fetchAllPages(endpoint, params = {}) {
 }
 
 export async function getPosts(params = {}) {
-  return fetchAllPages('/posts', { status: 'publish', ...params });
+  return fetchAllPages('/posts', { status: 'publish', context: 'edit', ...params });
 }
 
 export async function getPages(params = {}) {
-  return fetchAllPages('/pages', { status: 'publish', ...params });
+  return fetchAllPages('/pages', { status: 'publish', context: 'edit', ...params });
 }
 
 export async function getMedia(params = {}) {
