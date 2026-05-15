@@ -113,7 +113,7 @@ export async function auditSeoItems() {
       url: post.link,
       currentYoastTitle: yoast.og_title || yoast.title || '',
       currentYoastDesc: yoast.og_description || yoast.description || '',
-      isNoindex: post.meta?.['_yoast_wpseo_meta-robots-noindex'] == '1',
+      isNoindex: yoast.robots?.index === 'noindex' || post.meta?.['_yoast_wpseo_meta-robots-noindex'] == 1,
       ...seo,
     };
   }).sort((a, b) => a.score - b.score);
