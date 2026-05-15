@@ -69,7 +69,11 @@ Respond with ONLY this JSON (no explanation, no markdown):
   const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
   try {
     const parsed = JSON.parse(cleaned);
-    return typeof parsed === 'object' && parsed !== null ? parsed : {};
+    if (typeof parsed !== 'object' || parsed === null) return {};
+    if (parsed.excerpt && parsed.excerpt.length > 120) {
+      parsed.excerpt = parsed.excerpt.substring(0, 120).replace(/\s\S*$/, '').trim();
+    }
+    return parsed;
   } catch {
     return {};
   }
