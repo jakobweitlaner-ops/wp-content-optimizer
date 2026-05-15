@@ -23,7 +23,7 @@ Issues: ${issues.join('; ')}
 
 Rules:
 - title: 20-60 characters, descriptive, same language as content
-- excerpt: 120-156 characters, compelling summary, same language as content
+- excerpt: 100-120 characters, compelling summary, same language as content
 
 Respond with ONLY this JSON (no explanation, no markdown):
 {"title": "your improved title", "excerpt": "your meta description"}`;
@@ -49,7 +49,7 @@ Content: ${contentSnippet}
 Issue: ${issues.join('; ')}
 
 Rules:
-- Must be 120-156 characters
+- Must be 100-120 characters
 - Compelling summary of the page
 - Same language as the content
 
@@ -106,6 +106,42 @@ Respond with ONLY this JSON (no explanation, no markdown):
     return parsed.keyphrase || null;
   } catch {
     return null;
+  }
+}
+
+export async function generateImageAltWithKeyphrase(images, postTitle, keyphrase) {
+  const prompt = `You are an SEO expert. Improve the alt texts for images in a WordPress post so they naturally include words from the focus keyphrase.
+
+Post title: "${postTitle}"
+Focus keyphrase: "${keyphrase}"
+
+Images:
+${images.map((img, i) => `${i + 1}. ID: ${img.id}, Current alt: "${img.currentAlt || '(empty)'}", File: "${img.filename}"`).join('\n')}
+
+Rules:
+- Include 1-2 words from the keyphrase naturally in each alt text
+- Alt text describes the image, not keyword stuffing
+- 5-15 words per alt text
+- Same language as the post title
+- If current alt is good, still try to work in keyphrase words
+
+Respond with ONLY this JSON array (no explanation, no markdown):
+[{"id": 123, "alt": "improved alt text"}]`;
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 512,
+    system: 'You are an SEO assistant. Always respond with valid JSON only. Never add explanation or markdown formatting.',
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const raw = message.content[0]?.text?.trim() || '[]';
+  const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
 }
 
