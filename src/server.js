@@ -9,7 +9,7 @@ import { dirname, join } from 'path';
 import { exec } from 'child_process';
 import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI } from './modules/media-optimizer.js';
 import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem } from './modules/seo-optimizer.js';
-import { updatePost, updatePage } from './utils/wp-api.js';
+import { updatePost, updatePage, getPost, getPage } from './utils/wp-api.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -86,6 +86,16 @@ app.get('/preview/audit-media-ai', (req, res) => {
       send('done', 'error');
       res.end();
     });
+});
+
+app.get('/api/debug-meta/:type/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const item = req.params.type === 'page' ? await getPage(id) : await getPost(id);
+    res.json({ id, type: req.params.type, meta: item.meta || {}, yoast_head_json: item.yoast_head_json || {} });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/seo-audit', async (req, res) => {
