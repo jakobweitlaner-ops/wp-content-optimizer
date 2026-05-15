@@ -1,6 +1,6 @@
 import { getPosts, getPages, getPost, getPage, updatePost, updatePage } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
-import { getSeoSuggestions, generateSeoFixes } from '../utils/claude-suggestions.js';
+import { getSeoSuggestions, generateSeoFixes, generateH1Fix, generateContentExtension } from '../utils/claude-suggestions.js';
 
 function stripHtml(html) {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -106,6 +106,8 @@ export async function auditSeoItems() {
   return content.map((post) => {
     const seo = scoreSeo(post);
     const yoast = post.yoast_head_json || {};
+    const h1Match = post.content?.rendered?.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    const currentH1 = h1Match ? h1Match[1].replace(/<[^>]+>/g, '').trim() : '';
     return {
       id: post.id,
       type: post._type,
@@ -113,6 +115,7 @@ export async function auditSeoItems() {
       url: post.link,
       currentYoastTitle: yoast.og_title || yoast.title || '',
       currentYoastDesc: yoast.og_description || yoast.description || '',
+      currentH1,
       isNoindex: yoast.robots?.index === 'noindex' || post.meta?.['_yoast_wpseo_meta-robots-noindex'] == 1,
       ...seo,
     };
@@ -123,6 +126,17 @@ export async function generateSeoFixForItem(id, type, field) {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not set');
   const post = type === 'page' ? await getPage(id) : await getPost(id);
   const seo = scoreSeo(post);
+
+  if (field === 'h1') {
+    const h1Match = post.content?.rendered?.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    const currentH1 = h1Match ? h1Match[1].replace(/<[^>]+>/g, '').trim() : '';
+    return generateH1Fix({ ...post, currentH1 });
+  }
+
+  if (field === 'content') {
+    return generateContentExtension({ ...post, _wordCount: seo.wordCount });
+  }
+
   const issues = field === 'title'
     ? (seo.issues.filter((i) => /title/i.test(i)).length
         ? seo.issues.filter((i) => /title/i.test(i))
@@ -280,13 +294,42 @@ export async function applySeoFixes(changes) {
   const results = [];
   for (const { id, type, field, value } of changes) {
     try {
-      const yoastKey = YOAST_FIELD_MAP[field];
-      const data = yoastKey ? { meta: { [yoastKey]: value } } : { [field]: value };
-      if (type === 'page') {
-        await updatePage(id, data);
+      let data;
+      if (field === 'h1' || field === 'content') {
+        const post = type === 'page'
+          ? await getPage(id, { context: 'edit' })
+          : await getPost(id, { context: 'edit' });
+        const rawContent = post.content?.raw || post.content?.rendered || '';
+        const safeValue = value.replace(/<[^>]+>/g, '').trim();
+        const isGutenberg = rawContent.includes('<!-- wp:');
+
+        if (field === 'h1') {
+          let newContent;
+          if (/<h1[^>]*>/i.test(rawContent)) {
+            const replacement = isGutenberg
+              ? `<h1 class="wp-block-heading">${safeValue}</h1>`
+              : `<h1>${safeValue}</h1>`;
+            newContent = rawContent.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, replacement);
+          } else {
+            newContent = isGutenberg
+              ? `<!-- wp:heading {"level":1} -->\n<h1 class="wp-block-heading">${safeValue}</h1>\n<!-- /wp:heading -->\n\n` + rawContent
+              : `<h1>${safeValue}</h1>\n` + rawContent;
+          }
+          data = { content: newContent };
+        } else {
+          const paragraphs = safeValue.split(/\n\n+/).filter(Boolean);
+          const addition = isGutenberg
+            ? paragraphs.map(p => `<!-- wp:paragraph -->\n<p>${p.trim()}</p>\n<!-- /wp:paragraph -->`).join('\n\n')
+            : paragraphs.map(p => `<p>${p.trim()}</p>`).join('\n');
+          data = { content: rawContent + '\n\n' + addition };
+        }
       } else {
-        await updatePost(id, data);
+        const yoastKey = YOAST_FIELD_MAP[field];
+        data = yoastKey ? { meta: { [yoastKey]: value } } : { [field]: value };
       }
+
+      if (type === 'page') await updatePage(id, data);
+      else await updatePost(id, data);
       results.push({ id, type, field, value, success: true });
     } catch (err) {
       results.push({ id, type, field, error: err.message, success: false });
