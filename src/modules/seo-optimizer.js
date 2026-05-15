@@ -1,4 +1,4 @@
-import { getPosts, getPages, updatePost, updatePage } from '../utils/wp-api.js';
+import { getPosts, getPages, getPost, getPage, updatePost, updatePage } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
 import { getSeoSuggestions, generateSeoFixes } from '../utils/claude-suggestions.js';
 
@@ -36,7 +36,7 @@ function scoreYoast(post) {
   return { issues, bonus };
 }
 
-function scoreSeo(post) {
+export function scoreSeo(post) {
   const title = post.title?.rendered || '';
   const content = post.content?.rendered || '';
   const text = stripHtml(content);
@@ -95,6 +95,42 @@ function scoreSeo(post) {
   score = Math.min(100, score + bonus);
 
   return { score: Math.max(0, score), issues, wordCount, h1Count: h1Matches.length, h2Count: h2Matches.length, _wordCount: wordCount };
+}
+
+export async function auditSeoItems() {
+  const [posts, pages] = await Promise.all([getPosts(), getPages()]);
+  const content = [
+    ...posts.map((p) => ({ ...p, _type: 'post' })),
+    ...pages.map((p) => ({ ...p, _type: 'page' })),
+  ];
+  return content.map((post) => {
+    const seo = scoreSeo(post);
+    const yoast = post.yoast_head_json || {};
+    return {
+      id: post.id,
+      type: post._type,
+      title: post.title?.rendered || '(no title)',
+      url: post.link,
+      currentYoastTitle: yoast.og_title || yoast.title || '',
+      currentYoastDesc: yoast.og_description || yoast.description || '',
+      ...seo,
+    };
+  }).sort((a, b) => a.score - b.score);
+}
+
+export async function generateSeoFixForItem(id, type, field) {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not set');
+  const post = type === 'page' ? await getPage(id) : await getPost(id);
+  const seo = scoreSeo(post);
+  const issues = field === 'title'
+    ? (seo.issues.filter((i) => /title/i.test(i)).length
+        ? seo.issues.filter((i) => /title/i.test(i))
+        : ['title needs improvement'])
+    : (seo.issues.filter((i) => /excerpt|meta description/i.test(i)).length
+        ? seo.issues.filter((i) => /excerpt|meta description/i.test(i))
+        : ['meta description needs improvement']);
+  const fixes = await generateSeoFixes(post, issues);
+  return field === 'excerpt' ? (fixes.excerpt || null) : (fixes.title || null);
 }
 
 export async function auditSeo({ minScore = 80, aiSuggestions = false, output } = {}) {

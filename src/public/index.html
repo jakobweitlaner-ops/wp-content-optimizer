@@ -439,6 +439,234 @@
     .edit-input:focus { border-color: #4f6ef7; color: #e2e8f0; }
     .edit-input::placeholder { color: #3d4a63; }
 
+    /* ── SEO View ─────────────────────────────────────────── */
+
+    .seo-view {
+      flex: 1;
+      min-height: 0;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .seo-view-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.55rem 1.25rem;
+      border-bottom: 1px solid #1e2435;
+      flex-shrink: 0;
+    }
+
+    .seo-back-btn {
+      background: none;
+      border: 1px solid #1e2435;
+      color: #475569;
+      border-radius: 5px;
+      padding: 0.22rem 0.6rem;
+      font-size: 0.74rem;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      flex-shrink: 0;
+    }
+    .seo-back-btn:hover { color: #e2e8f0; border-color: #475569; }
+
+    .seo-view-heading {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #94a3b8;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .seo-avg-label {
+      font-size: 0.72rem;
+      color: #3d4a63;
+      flex-shrink: 0;
+    }
+
+    .seo-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.6rem 1.25rem 1.25rem;
+    }
+
+    /* list items */
+    .seo-list-item {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid #1e2435;
+      background: #0a0d14;
+      cursor: pointer;
+      transition: border-color 0.12s, background 0.12s;
+      margin-bottom: 0.3rem;
+    }
+    .seo-list-item:hover { border-color: rgba(79,110,247,0.4); background: #0d1120; }
+
+    .score-pill {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.18rem 0.45rem;
+      border-radius: 5px;
+      flex-shrink: 0;
+      min-width: 3rem;
+      text-align: center;
+    }
+    .score-red    { background: rgba(239,68,68,0.15);  color: #ef4444; }
+    .score-yellow { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .score-green  { background: rgba(34,197,94,0.15);  color: #22c55e; }
+
+    .seo-list-body { flex: 1; min-width: 0; }
+    .seo-list-title {
+      font-size: 0.81rem;
+      font-weight: 600;
+      color: #c4cedd;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .seo-list-issues {
+      font-size: 0.69rem;
+      color: #3d4a63;
+      margin-top: 0.05rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .seo-type-tag { font-size: 0.64rem; color: #3d4a63; flex-shrink: 0; }
+    .seo-chevron  { color: #3d4a63; font-size: 0.78rem; flex-shrink: 0; }
+
+    /* detail view */
+    .seo-detail-score {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.18rem 0.45rem;
+      border-radius: 5px;
+      flex-shrink: 0;
+    }
+
+    .seo-issue-item {
+      background: #0a0d14;
+      border: 1px solid #1e2435;
+      border-radius: 8px;
+      padding: 0.7rem 0.9rem;
+      margin-bottom: 0.35rem;
+    }
+    .seo-issue-item.is-applied { border-color: rgba(34,197,94,0.25); }
+
+    .seo-issue-header {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+    }
+    .seo-issue-icon { font-size: 0.85rem; flex-shrink: 0; }
+    .seo-issue-label { font-size: 0.8rem; font-weight: 600; color: #c4cedd; flex: 1; }
+
+    .seo-fix-btn {
+      background: linear-gradient(135deg, rgba(99,102,241,0.14), rgba(139,92,246,0.09));
+      border: 1px solid rgba(99,102,241,0.3);
+      color: #818cf8;
+      border-radius: 5px;
+      padding: 0.25rem 0.65rem;
+      font-size: 0.71rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      flex-shrink: 0;
+    }
+    .seo-fix-btn:hover { opacity: 0.8; }
+    .seo-fix-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .seo-issue-sub {
+      font-size: 0.7rem;
+      color: #475569;
+      margin-top: 0.28rem;
+      padding-left: 1.4rem;
+    }
+    .seo-current-val {
+      font-size: 0.69rem;
+      color: #3d4a63;
+      margin-top: 0.18rem;
+      padding-left: 1.4rem;
+      font-style: italic;
+    }
+
+    .seo-fix-row {
+      display: none;
+      gap: 0.5rem;
+      margin-top: 0.45rem;
+      padding-left: 1.4rem;
+      align-items: flex-start;
+    }
+    .seo-fix-row .edit-input { flex: 1; }
+
+    .seo-confirm-btn {
+      background: #22c55e;
+      border: none;
+      color: #fff;
+      border-radius: 5px;
+      padding: 0.28rem 0.7rem;
+      font-size: 0.71rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .seo-confirm-btn:hover { background: #16a34a; }
+    .seo-confirm-btn:disabled { background: #1e2435; color: #3d4a63; cursor: not-allowed; }
+
+    .seo-applied-tag {
+      font-size: 0.7rem;
+      color: #22c55e;
+      font-weight: 600;
+      padding-left: 1.4rem;
+      margin-top: 0.35rem;
+      display: block;
+    }
+
+    .seo-manual-note {
+      font-size: 0.69rem;
+      color: #3d4a63;
+      padding-left: 1.4rem;
+      margin-top: 0.2rem;
+    }
+
+    .seo-detail-footer {
+      padding: 0.65rem 1.25rem;
+      border-top: 1px solid #1e2435;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .seo-gen-all-btn {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border: none;
+      color: #fff;
+      border-radius: 7px;
+      padding: 0.42rem 1rem;
+      font-size: 0.76rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .seo-gen-all-btn:hover { opacity: 0.85; }
+    .seo-gen-all-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .seo-loading {
+      padding: 2.5rem;
+      text-align: center;
+      color: #3d4a63;
+      font-size: 0.8rem;
+    }
+
     .review-actions {
       display: flex;
       align-items: center;
@@ -558,16 +786,10 @@
         <span class="nav-item-icon">📈</span>
         <div class="nav-item-body">
           <span class="nav-item-label">SEO Audit</span>
+          <span class="nav-item-note">KI-Optimierung pro Beitrag</span>
         </div>
         <span class="nav-state" id="state-audit-seo">Bereit</span>
       </button>
-      <div class="nav-options">
-        <label class="nav-option" onclick="event.stopPropagation()">
-          <input type="checkbox" id="opt-ai" autocomplete="off">
-          <span>KI-Fixes anwenden</span>
-          <span class="ai-badge">AI</span>
-        </label>
-      </div>
 
       <button class="nav-item" data-cmd="audit-media">
         <span class="nav-item-icon">🖼️</span>
@@ -623,18 +845,33 @@
       </div>
     </div>
 
-    <div class="review-panel" id="seo-review-panel">
-      <div class="review-panel-header">
-        <h3>SEO-Fixes überprüfen</h3>
-        <button class="close-btn" onclick="document.getElementById('seo-review-panel').style.display='none'" title="Schließen">✕</button>
+    <!-- SEO structured view -->
+    <div class="seo-view" id="seo-view">
+
+      <!-- List subview -->
+      <div id="seo-list-view">
+        <div class="seo-view-toolbar">
+          <span class="seo-view-heading" id="seo-list-heading">SEO Audit</span>
+          <span class="seo-avg-label" id="seo-avg-label"></span>
+        </div>
+        <div class="seo-scroll" id="seo-items-list">
+          <div class="seo-loading">Lade…</div>
+        </div>
       </div>
-      <p>Claude hat Verbesserungsvorschläge für Titel und Auszüge generiert. Wähle die Änderungen aus, die du anwenden möchtest.</p>
-      <div class="review-list" id="seo-review-list"></div>
-      <div class="review-actions">
-        <button class="select-all-btn" id="seo-select-all-btn" onclick="toggleSeoSelectAll()">Alle abwählen</button>
-        <button class="apply-btn" id="seo-apply-btn" onclick="applySelectedSeoFixes()">Fixes anwenden</button>
-        <span class="review-count" id="seo-review-count"></span>
+
+      <!-- Detail subview -->
+      <div id="seo-detail-view" style="display:none; flex:1; min-height:0; display:none; flex-direction:column;">
+        <div class="seo-view-toolbar">
+          <button class="seo-back-btn" onclick="showSeoList()">← Übersicht</button>
+          <span class="seo-view-heading" id="seo-detail-heading"></span>
+          <span class="seo-detail-score" id="seo-detail-score"></span>
+        </div>
+        <div class="seo-scroll" id="seo-issues-list"></div>
+        <div class="seo-detail-footer">
+          <button class="seo-gen-all-btn" onclick="generateAllSeoFixes()">Alle KI-Felder generieren</button>
+        </div>
       </div>
+
     </div>
 
     <div class="output-wrap">
@@ -725,6 +962,7 @@
     const cmd = 'get-status';
     if (document.querySelector('.nav-status').dataset.state === 'running') return;
 
+    hideSeoView();
     setNavState(cmd, 'running', 'Läuft…');
     document.getElementById('toolbar-label').textContent = 'Ausgabe: Site Status';
     const reportBox = document.getElementById('report-box');
@@ -755,105 +993,204 @@
     es.onerror = () => { es.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler'); };
   });
 
-  // ── SEO Review Panel ─────────────────────────────────────────
+  // ── SEO View ─────────────────────────────────────────────────
 
-  function updateSeoReviewCount() {
-    const total = document.querySelectorAll('#seo-review-list .review-item').length;
-    const selected = document.querySelectorAll('#seo-review-list .review-item input:checked').length;
-    document.getElementById('seo-review-count').textContent = `${selected} von ${total} ausgewählt`;
-    document.getElementById('seo-apply-btn').disabled = selected === 0;
-    document.getElementById('seo-select-all-btn').textContent =
-      selected === total ? 'Alle abwählen' : 'Alle auswählen';
+  let currentSeoItem = null;
+
+  function showSeoView() {
+    document.getElementById('seo-view').style.display = 'flex';
+    document.querySelector('.output-wrap').style.display = 'none';
+    document.getElementById('review-panel').style.display = 'none';
   }
 
-  function toggleSeoSelectAll() {
-    const items = document.querySelectorAll('#seo-review-list .review-item input');
-    const allChecked = [...items].every(cb => cb.checked);
-    items.forEach(cb => {
-      cb.checked = !allChecked;
-      cb.closest('.review-item').classList.toggle('deselected', allChecked);
-    });
-    updateSeoReviewCount();
+  function hideSeoView() {
+    document.getElementById('seo-view').style.display = 'none';
+    document.querySelector('.output-wrap').style.display = '';
   }
 
-  function showSeoReviewPanel(proposals) {
-    const list = document.getElementById('seo-review-list');
-    list.innerHTML = '';
-    const truncate = (s, n) => s && s.length > n ? s.substring(0, n) + '…' : (s || '');
-    proposals.forEach(p => {
-      const item = document.createElement('div');
-      item.className = 'review-item';
-      item.dataset.id = p.id; item.dataset.type = p.type; item.dataset.field = p.field;
-      const fieldLabel = p.field === 'title' ? 'Yoast SEO Titel' : 'Yoast Meta Description';
-      const isExcerpt = p.field === 'excerpt';
-      item.innerHTML = `
-        <input type="checkbox" checked onchange="this.closest('.review-item').classList.toggle('deselected', !this.checked); updateSeoReviewCount()">
-        <div class="review-item-body">
-          <div class="review-item-filename">[${escapeHtml(p.type)}] ${escapeHtml(p.title)} &mdash; <em style="color:#3d4a63;font-weight:400">${fieldLabel}</em></div>
-          <div class="review-item-change">
-            <span class="from">${p.currentValue ? escapeHtml(truncate(p.currentValue, 60)) : '(leer)'}</span>
-            <span class="arrow">→</span>
-            <span class="to">${escapeHtml(truncate(p.proposedValue, 60))}</span>
+  function showSeoList() {
+    document.getElementById('seo-list-view').style.display = '';
+    document.getElementById('seo-detail-view').style.display = 'none';
+  }
+
+  function showSeoDetail(item) {
+    currentSeoItem = item;
+    document.getElementById('seo-list-view').style.display = 'none';
+    const dv = document.getElementById('seo-detail-view');
+    dv.style.display = 'flex';
+    renderSeoDetail(item);
+  }
+
+  function scoreClass(score) {
+    if (score < 50) return 'score-red';
+    if (score < 75) return 'score-yellow';
+    return 'score-green';
+  }
+
+  async function loadSeoAudit() {
+    showSeoView();
+    showSeoList();
+    setNavState('audit-seo', 'running', 'Läuft…');
+    document.getElementById('toolbar-label').textContent = 'SEO Audit';
+    const listEl = document.getElementById('seo-items-list');
+    listEl.innerHTML = '<div class="seo-loading">Analysiere Beiträge und Seiten…</div>';
+    try {
+      const resp = await fetch('/api/seo-audit');
+      if (!resp.ok) throw new Error(await resp.text());
+      const items = await resp.json();
+      const avg = items.length ? Math.round(items.reduce((s, i) => s + i.score, 0) / items.length) : 0;
+      document.getElementById('seo-avg-label').textContent = `Ø ${avg}/100 · ${items.length} Einträge`;
+      listEl.innerHTML = '';
+      items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'seo-list-item';
+        const issueText = item.issues.length
+          ? item.issues.slice(0, 2).join(' · ') + (item.issues.length > 2 ? ` +${item.issues.length - 2}` : '')
+          : 'Keine kritischen Probleme';
+        div.innerHTML = `
+          <span class="score-pill ${scoreClass(item.score)}">${item.score}</span>
+          <div class="seo-list-body">
+            <div class="seo-list-title">${escapeHtml(item.title)}</div>
+            <div class="seo-list-issues">${escapeHtml(issueText)}</div>
           </div>
-          <div class="review-item-edit">
-            ${isExcerpt
-              ? `<textarea class="edit-input" rows="2" placeholder="Vorschlag bearbeiten…">${escapeHtml(p.proposedValue)}</textarea>`
-              : `<input type="text" class="edit-input" value="${escapeHtml(p.proposedValue)}" placeholder="Vorschlag bearbeiten…">`
-            }
-          </div>
-        </div>`;
-      item.querySelector('.edit-input').addEventListener('click', e => e.stopPropagation());
-      item.addEventListener('click', (e) => {
-        if (e.target.matches('input[type="checkbox"], .edit-input, textarea')) return;
-        const cb = item.querySelector('input[type="checkbox"]');
-        cb.checked = !cb.checked;
-        item.classList.toggle('deselected', !cb.checked);
-        updateSeoReviewCount();
+          <span class="seo-type-tag">${item.type}</span>
+          <span class="seo-chevron">›</span>`;
+        div.addEventListener('click', () => showSeoDetail(item));
+        listEl.appendChild(div);
       });
-      list.appendChild(item);
-    });
-    document.getElementById('seo-review-panel').style.display = 'block';
-    updateSeoReviewCount();
+      setNavState('audit-seo', 'success', 'Fertig');
+      resetNavState('audit-seo');
+    } catch (err) {
+      listEl.innerHTML = `<div class="seo-loading" style="color:#ef4444">Fehler: ${escapeHtml(err.message)}</div>`;
+      setNavState('audit-seo', 'error', 'Fehler');
+    }
   }
 
-  async function applySelectedSeoFixes() {
-    const changes = [...document.querySelectorAll('#seo-review-list .review-item input[type="checkbox"]:checked')]
-      .map(cb => {
-        const item = cb.closest('.review-item');
-        const editInput = item.querySelector('.edit-input');
-        const value = editInput ? editInput.value.trim() : item.dataset.value;
-        return { id: parseInt(item.dataset.id, 10), type: item.dataset.type, field: item.dataset.field, value };
-      })
-      .filter(c => c.value);
-    const btn = document.getElementById('seo-apply-btn');
-    btn.disabled = true; btn.textContent = 'Wird angewendet…';
-    document.getElementById('toolbar-label').textContent = 'Ausgabe: audit-seo (Apply)';
-    setNavState('audit-seo', 'running', 'Läuft...');
+  function renderSeoDetail(item) {
+    document.getElementById('seo-detail-heading').textContent = item.title;
+    const scoreEl = document.getElementById('seo-detail-score');
+    scoreEl.className = `seo-detail-score score-pill ${scoreClass(item.score)}`;
+    scoreEl.textContent = `${item.score}/100`;
+    const issuesEl = document.getElementById('seo-issues-list');
+    issuesEl.innerHTML = '';
 
-    const response = await fetch('/apply/audit-seo', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ changes }),
+    // AI-fixable fields
+    [
+      { field: 'title',   label: 'Yoast SEO Titel',       current: item.currentYoastTitle, emptyHint: '(kein Yoast SEO Titel)' },
+      { field: 'excerpt', label: 'Yoast Meta Description', current: item.currentYoastDesc,  emptyHint: '(keine Meta Description)' },
+    ].forEach(({ field, label, current, emptyHint }) => {
+      const issue = item.issues.find(i => field === 'title' ? /title/i.test(i) : /excerpt|meta description/i.test(i)) || '';
+      const div = document.createElement('div');
+      div.className = 'seo-issue-item';
+      div.id = `seo-item-${item.id}-${field}`;
+      div.innerHTML = `
+        <div class="seo-issue-header">
+          <span class="seo-issue-icon">${issue ? '✗' : '✓'}</span>
+          <span class="seo-issue-label">${label}</span>
+          <button class="seo-fix-btn" onclick="requestSeoFix(${item.id},'${item.type}','${field}',this)">Mit KI optimieren</button>
+        </div>
+        ${issue ? `<div class="seo-issue-sub">${escapeHtml(issue)}</div>` : ''}
+        <div class="seo-current-val" id="seo-cur-${item.id}-${field}">Aktuell: ${current ? escapeHtml(current) : `<em>${emptyHint}</em>`}</div>
+        <div class="seo-fix-row" id="seo-row-${item.id}-${field}">
+          ${field === 'excerpt'
+            ? `<textarea class="edit-input" id="seo-inp-${item.id}-${field}" rows="2" placeholder="KI-Vorschlag…"></textarea>`
+            : `<input type="text" class="edit-input" id="seo-inp-${item.id}-${field}" placeholder="KI-Vorschlag…">`}
+          <button class="seo-confirm-btn" onclick="applySeoFixItem(${item.id},'${item.type}','${field}',this)">✓ Übernehmen</button>
+        </div>`;
+      issuesEl.appendChild(div);
     });
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split('\n\n'); buffer = parts.pop();
-      for (const part of parts) {
-        const line = part.replace(/^data: /, '').trim();
-        if (!line) continue;
-        const { type, text } = JSON.parse(line);
-        if (type === 'done') {
-          document.getElementById('seo-review-panel').style.display = 'none';
-          setNavState('audit-seo', text === 'success' ? 'success' : 'error', text === 'success' ? 'Fertig' : 'Fehler');
-          resetNavState('audit-seo');
-        } else { appendLine(text, type); }
+
+    // Manual issues
+    item.issues
+      .filter(i => !/title|excerpt|meta description/i.test(i))
+      .forEach(issue => {
+        const div = document.createElement('div');
+        div.className = 'seo-issue-item';
+        div.innerHTML = `
+          <div class="seo-issue-header">
+            <span class="seo-issue-icon">⚠</span>
+            <span class="seo-issue-label" style="color:#f59e0b">${escapeHtml(issue)}</span>
+          </div>
+          <div class="seo-manual-note">Manuelle Bearbeitung im WordPress-Editor erforderlich</div>`;
+        issuesEl.appendChild(div);
+      });
+  }
+
+  async function requestSeoFix(id, type, field, btnEl) {
+    btnEl.disabled = true;
+    btnEl.textContent = 'Generiert…';
+    try {
+      const resp = await fetch(`/api/seo-fix?id=${id}&type=${type}&field=${field}`);
+      const { value, error } = await resp.json();
+      if (error) throw new Error(error);
+      if (value) {
+        const inp = document.getElementById(`seo-inp-${id}-${field}`);
+        const row = document.getElementById(`seo-row-${id}-${field}`);
+        inp.value = value;
+        row.style.display = 'flex';
+        btnEl.textContent = 'Neu generieren';
+        btnEl.disabled = false;
+      } else {
+        btnEl.textContent = 'Kein Ergebnis';
+        setTimeout(() => { btnEl.textContent = 'Mit KI optimieren'; btnEl.disabled = false; }, 2000);
       }
+    } catch (err) {
+      btnEl.textContent = 'Fehler – Retry';
+      btnEl.disabled = false;
     }
-    btn.textContent = 'Fixes anwenden';
+  }
+
+  async function applySeoFixItem(id, type, field, btnEl) {
+    const inp = document.getElementById(`seo-inp-${id}-${field}`);
+    const value = inp?.value?.trim();
+    if (!value) return;
+    btnEl.disabled = true;
+    btnEl.textContent = 'Speichert…';
+    try {
+      const resp = await fetch('/apply/audit-seo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ changes: [{ id, type, field, value }] }),
+      });
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '', success = false;
+      while (true) {
+        const { value: chunk, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(chunk, { stream: true });
+        const parts = buf.split('\n\n'); buf = parts.pop();
+        for (const part of parts) {
+          const line = part.replace(/^data: /, '').trim();
+          if (!line) continue;
+          const msg = JSON.parse(line);
+          if (msg.type === 'done') success = msg.text === 'success';
+        }
+      }
+      if (success) {
+        btnEl.closest('.seo-fix-row').style.display = 'none';
+        const issueItem = document.getElementById(`seo-item-${id}-${field}`);
+        issueItem.classList.add('is-applied');
+        const curEl = document.getElementById(`seo-cur-${id}-${field}`);
+        if (curEl) curEl.innerHTML = `Aktuell: ${escapeHtml(value)}`;
+        const icon = issueItem.querySelector('.seo-issue-icon');
+        if (icon) icon.textContent = '✓';
+        const tag = document.createElement('span');
+        tag.className = 'seo-applied-tag';
+        tag.textContent = '✓ Gespeichert';
+        issueItem.appendChild(tag);
+      } else {
+        btnEl.textContent = 'Fehler';
+        setTimeout(() => { btnEl.textContent = '✓ Übernehmen'; btnEl.disabled = false; }, 2000);
+      }
+    } catch {
+      btnEl.textContent = 'Fehler';
+      setTimeout(() => { btnEl.textContent = '✓ Übernehmen'; btnEl.disabled = false; }, 2000);
+    }
+  }
+
+  function generateAllSeoFixes() {
+    document.querySelectorAll('.seo-fix-btn:not([disabled])').forEach(b => b.click());
   }
 
   // ── Media Review Panel ───────────────────────────────────────
@@ -959,9 +1296,16 @@
       if (navItem.dataset.state === 'running') return;
 
       const cmd = navItem.dataset.cmd;
-      const wantsFix      = cmd === 'audit-media' && document.getElementById('opt-fix')?.checked;
+
+      // SEO Audit → new structured view
+      if (cmd === 'audit-seo') { loadSeoAudit(); return; }
+
+      // All other tools → hide SEO view, show terminal
+      hideSeoView();
+
+      const wantsFix       = cmd === 'audit-media' && document.getElementById('opt-fix')?.checked;
       const wantsAiQuality = cmd === 'audit-media' && document.getElementById('opt-media-ai')?.checked;
-      const wantsSeoFix   = cmd === 'audit-seo'   && document.getElementById('opt-ai')?.checked;
+      const wantsSeoFix    = false; // handled above
 
       setNavState(cmd, 'running', 'Läuft...');
       document.getElementById('toolbar-label').textContent = `Ausgabe: ${cmd}`;
@@ -1018,44 +1362,6 @@
                 showReviewPanel(proposals);
               })
               .catch(err => appendLine(`Vorschau fehlgeschlagen: ${err.message}`, 'err'));
-          } else { appendLine(text, type); }
-        };
-        es.onerror = () => { es.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler'); };
-        return;
-      }
-
-      // ── SEO: AI fix generation ─────────────────────────────
-
-      if (wantsSeoFix) {
-        document.getElementById('seo-review-panel').style.display = 'none';
-        const es = new EventSource('/run/audit-seo');
-        setActiveEs(es);
-        es.onmessage = (e) => {
-          const { type, text } = JSON.parse(e.data);
-          if (type === 'done') {
-            es.close();
-            if (text !== 'success') { clearActiveEs(); setNavState(cmd, 'error', 'Fehler'); return; }
-            setNavState(cmd, 'running', 'KI generiert…');
-            const es2 = new EventSource('/preview/audit-seo');
-            setActiveEs(es2);
-            es2.onmessage = (e2) => {
-              const msg = JSON.parse(e2.data);
-              if (msg.type === 'progress') { appendLine(msg.text, 'out'); }
-              else if (msg.type === 'proposals') {
-                es2.close(); clearActiveEs();
-                setNavState(cmd, '', 'Bereit');
-                const proposals = msg.data || [];
-                if (proposals.length === 0) {
-                  appendLine('Keine automatisch behebbaren SEO-Probleme gefunden.', 'out');
-                } else {
-                  appendLine(`${proposals.length} SEO-Fix(es) bereit zur Überprüfung.`, 'out');
-                  showSeoReviewPanel(proposals);
-                }
-              } else if (msg.type === 'done' && msg.text === 'error') {
-                es2.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler');
-              } else if (msg.type === 'err') { appendLine(msg.text, 'err'); }
-            };
-            es2.onerror = () => { es2.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler'); };
           } else { appendLine(text, type); }
         };
         es.onerror = () => { es.close(); clearActiveEs(); setNavState(cmd, 'error', 'Fehler'); };
