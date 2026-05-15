@@ -1145,11 +1145,14 @@
       { field: 'excerpt',   label: 'Yoast Meta Description', current: item.currentYoastDesc,   emptyHint: '(keine Meta Description)' },
       { field: 'keyphrase', label: 'Fokus-Keyphrase',        current: item.currentKeyphrase,   emptyHint: '(keine Keyphrase gesetzt)' },
       { field: 'h1',        label: 'H1-Überschrift',         current: item.currentH1,          emptyHint: '(kein H1 gefunden)' },
+      { field: 'intro',     label: 'Einleitung (erster Absatz)', current: item.currentIntro,   emptyHint: '(kein erster Absatz gefunden)' },
     ].forEach(({ field, label, current, emptyHint }) => {
       const issue = field === 'title'
         ? item.issues.find(i => /title/i.test(i)) || ''
         : field === 'h1'
         ? item.issues.find(i => /h1|heading/i.test(i)) || ''
+        : field === 'intro'
+        ? item.issues.find(i => /first paragraph|einleitung/i.test(i)) || ''
         : item.issues.find(i => /excerpt|meta description/i.test(i)) || '';
       const div = document.createElement('div');
       div.className = 'seo-issue-item';
@@ -1165,6 +1168,8 @@
         <div class="seo-fix-row" id="seo-row-${item.id}-${field}">
           ${field === 'excerpt'
             ? `<textarea class="edit-input" id="seo-inp-${item.id}-${field}" rows="2" placeholder="KI-Vorschlag…"></textarea>`
+            : field === 'intro'
+            ? `<textarea class="edit-input" id="seo-inp-${item.id}-${field}" rows="3" placeholder="KI-Vorschlag…"></textarea>`
             : `<input type="text" class="edit-input" id="seo-inp-${item.id}-${field}" placeholder="KI-Vorschlag…">`}
           <button class="seo-confirm-btn" onclick="applySeoFixItem(${item.id},'${item.type}','${field}',this)">✓ Übernehmen</button>
         </div>`;
@@ -1247,7 +1252,7 @@
 
     // Manual issues (exclude anything handled by AI-fix cards above)
     item.issues
-      .filter(i => !/title|excerpt|meta description|h1|heading|content too short|content could be longer/i.test(i))
+      .filter(i => !/title|excerpt|meta description|h1|heading|content too short|content could be longer|first paragraph/i.test(i))
       .forEach(issue => {
         const div = document.createElement('div');
         div.className = 'seo-issue-item';
@@ -1328,7 +1333,7 @@
         tag.className = 'seo-applied-tag';
         tag.textContent = '✓ Gespeichert';
         issueItem.appendChild(tag);
-        if (field === 'h1' || field === 'content') {
+        if (field === 'h1' || field === 'content' || field === 'intro') {
           const hint = document.createElement('span');
           hint.className = 'seo-manual-note';
           hint.style.color = '#f59e0b';

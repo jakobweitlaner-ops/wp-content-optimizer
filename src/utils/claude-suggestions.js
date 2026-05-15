@@ -2,11 +2,12 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-export async function generateSeoFixes(post, issues) {
+export async function generateSeoFixes(post, issues, keyphrase = '') {
   const title = post.title?.rendered || '(no title)';
   const excerpt = post.excerpt?.rendered?.replace(/<[^>]+>/g, '').trim() || '';
   const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
   const contentSnippet = content.substring(0, 400);
+  const keyphraseHint = keyphrase ? `\nFocus keyphrase: "${keyphrase}" — must appear naturally in the generated text.` : '';
 
   const needsTitle = issues.some((i) => /title/i.test(i));
   const needsExcerpt = issues.some((i) => /excerpt|meta description/i.test(i));
@@ -19,7 +20,7 @@ export async function generateSeoFixes(post, issues) {
 
 Current title: "${title}"
 Content: ${contentSnippet}
-Issues: ${issues.join('; ')}
+Issues: ${issues.join('; ')}${keyphraseHint}
 
 Rules:
 - title: 20-60 characters, descriptive, same language as content
@@ -32,7 +33,7 @@ Respond with ONLY this JSON (no explanation, no markdown):
 
 Current title: "${title}"
 Content: ${contentSnippet}
-Issue: ${issues.join('; ')}
+Issue: ${issues.join('; ')}${keyphraseHint}
 
 Rules:
 - Must be 20-60 characters
@@ -46,7 +47,7 @@ Respond with ONLY this JSON (no explanation, no markdown):
 
 Title: "${title}"
 Content: ${contentSnippet}
-Issue: ${issues.join('; ')}
+Issue: ${issues.join('; ')}${keyphraseHint}
 
 Rules:
 - Must be 100-120 characters
@@ -142,6 +143,43 @@ Respond with ONLY this JSON array (no explanation, no markdown):
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+export async function generateIntroFix(post, keyphrase) {
+  const title = post.title?.rendered || '(no title)';
+  const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
+  const firstPara = post.currentIntro || content.substring(0, 300);
+
+  const prompt = `You are an SEO expert. Rewrite or create an introduction paragraph for this WordPress post that naturally includes the focus keyphrase.
+
+Post title: "${title}"
+Focus keyphrase: "${keyphrase}"
+Current first paragraph: "${firstPara || '(empty)'}"
+
+Rules:
+- Include the focus keyphrase naturally in the first or second sentence
+- Same language and tone as the existing content
+- 40-80 words
+- Plain text only, no HTML tags
+
+Respond with ONLY this JSON (no explanation, no markdown):
+{"intro": "your rewritten introduction paragraph"}`;
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 512,
+    system: 'You are an SEO assistant. Always respond with valid JSON only. Never add explanation or markdown formatting.',
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const raw = message.content[0]?.text?.trim() || '{}';
+  const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return parsed.intro || null;
+  } catch {
+    return null;
   }
 }
 
