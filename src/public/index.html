@@ -1141,9 +1141,10 @@
 
     // AI-fixable fields
     [
-      { field: 'title',   label: 'Yoast SEO Titel',       current: item.currentYoastTitle, emptyHint: '(kein Yoast SEO Titel)' },
-      { field: 'excerpt', label: 'Yoast Meta Description', current: item.currentYoastDesc,  emptyHint: '(keine Meta Description)' },
-      { field: 'h1',      label: 'H1-Überschrift',         current: item.currentH1,         emptyHint: '(kein H1 gefunden)' },
+      { field: 'title',     label: 'Yoast SEO Titel',       current: item.currentYoastTitle,  emptyHint: '(kein Yoast SEO Titel)' },
+      { field: 'excerpt',   label: 'Yoast Meta Description', current: item.currentYoastDesc,   emptyHint: '(keine Meta Description)' },
+      { field: 'keyphrase', label: 'Fokus-Keyphrase',        current: item.currentKeyphrase,   emptyHint: '(keine Keyphrase gesetzt)' },
+      { field: 'h1',        label: 'H1-Überschrift',         current: item.currentH1,          emptyHint: '(kein H1 gefunden)' },
     ].forEach(({ field, label, current, emptyHint }) => {
       const issue = field === 'title'
         ? item.issues.find(i => /title/i.test(i)) || ''
