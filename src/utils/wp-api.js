@@ -132,3 +132,8 @@ export async function updateMedia(id, data) {
   const response = await client.put(`/media/${id}`, data);
   return response.data;
 }
+
+export async function getMediaItem(id) {
+  const { data } = await client.get(`/media/${id}`);
+  return data;
+}
