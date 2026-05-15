@@ -2,11 +2,35 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Heuristic language detection — returns ISO 639-1 code ('de', 'fr', 'es', 'it', 'en', …)
+function detectLanguage(text) {
+  const sample = text.substring(0, 800).toLowerCase();
+  const checks = [
+    { lang: 'de', re: /\b(der|die|das|und|ist|nicht|mit|auf|für|von|zu|auch|als|bei|aus|nach|über|haben|sind|wird|kann|werden|sein|keine|dieser|unserem|unsere)\b/g, chars: /[äöüß]/g, wordThreshold: 5, charThreshold: 2 },
+    { lang: 'fr', re: /\b(le|la|les|et|est|pas|avec|sur|pour|dans|qui|que|une|des|du|au|aux|nous|vous|ils|elle|sont|avoir|être|faire|plus|par)\b/g, chars: /[éèêëàâùûîïœç]/g, wordThreshold: 5, charThreshold: 3 },
+    { lang: 'es', re: /\b(el|la|los|las|y|es|no|con|por|para|en|que|una|del|al|su|se|un|son|hay|más|pero|como|este|esta)\b/g, chars: /[áéíóúüñ¿¡]/g, wordThreshold: 5, charThreshold: 2 },
+    { lang: 'it', re: /\b(il|lo|la|i|gli|le|e|è|non|con|per|in|che|una|del|al|su|si|un|sono|più|ma|come|questo|questa|essere)\b/g, chars: /[àèéìíîòóùú]/g, wordThreshold: 5, charThreshold: 2 },
+  ];
+  for (const { lang, re, chars, wordThreshold, charThreshold } of checks) {
+    const words = (sample.match(re) || []).length;
+    const charMatches = (sample.match(chars) || []).length;
+    if (words >= wordThreshold || charMatches >= charThreshold) return lang;
+  }
+  return 'en';
+}
+
+const LANG_NAMES = { de: 'German', fr: 'French', es: 'Spanish', it: 'Italian', en: 'English' };
+
+function langName(code) {
+  return LANG_NAMES[code] || 'English';
+}
+
 export async function generateSeoFixes(post, issues, keyphrase = '') {
   const title = post.title?.rendered || '(no title)';
   const excerpt = post.excerpt?.rendered?.replace(/<[^>]+>/g, '').trim() || '';
   const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
   const contentSnippet = content.substring(0, 400);
+  const lang = langName(detectLanguage(title + ' ' + content));
   const keyphraseHint = keyphrase ? `\nFocus keyphrase: "${keyphrase}" — must appear naturally in the generated text.` : '';
 
   const needsTitle = issues.some((i) => /title/i.test(i));
@@ -18,19 +42,21 @@ export async function generateSeoFixes(post, issues, keyphrase = '') {
   if (needsTitle && needsExcerpt) {
     prompt = `You are an SEO expert. Create an improved title and meta description for this WordPress page.
 
+Language: ${lang} — write ONLY in ${lang}.
 Current title: "${title}"
 Content: ${contentSnippet}
 Issues: ${issues.join('; ')}${keyphraseHint}
 
 Rules:
-- title: 20-60 characters, descriptive, same language as content
-- excerpt: 100-120 characters, compelling summary, same language as content
+- title: 20-60 characters, descriptive
+- excerpt: 100-120 characters, compelling summary
 
 Respond with ONLY this JSON (no explanation, no markdown):
 {"title": "your improved title", "excerpt": "your meta description"}`;
   } else if (needsTitle) {
     prompt = `You are an SEO expert. Create an improved SEO title for this WordPress page.
 
+Language: ${lang} — write ONLY in ${lang}.
 Current title: "${title}"
 Content: ${contentSnippet}
 Issue: ${issues.join('; ')}${keyphraseHint}
@@ -38,13 +64,13 @@ Issue: ${issues.join('; ')}${keyphraseHint}
 Rules:
 - Must be 20-60 characters
 - Descriptive and specific to the page content
-- Same language as the content
 
 Respond with ONLY this JSON (no explanation, no markdown):
 {"title": "your improved title"}`;
   } else {
     prompt = `You are an SEO expert. Create a meta description for this WordPress page.
 
+Language: ${lang} — write ONLY in ${lang}.
 Title: "${title}"
 Content: ${contentSnippet}
 Issue: ${issues.join('; ')}${keyphraseHint}
@@ -52,7 +78,6 @@ Issue: ${issues.join('; ')}${keyphraseHint}
 Rules:
 - Must be 100-120 characters
 - Compelling summary of the page
-- Same language as the content
 
 Respond with ONLY this JSON (no explanation, no markdown):
 {"excerpt": "your meta description"}`;
@@ -82,16 +107,17 @@ Respond with ONLY this JSON (no explanation, no markdown):
 export async function generateKeyphrase(post) {
   const title = post.title?.rendered || '(no title)';
   const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
+  const lang = langName(detectLanguage(title + ' ' + content));
 
   const prompt = `You are an SEO expert. Generate a focus keyphrase for this WordPress post.
 
+Language: ${lang} — write ONLY in ${lang}.
 Title: "${title}"
 Content snippet: ${content.substring(0, 600)}
 
 Rules:
 - 2-4 words, specific and relevant to the main topic
 - Should be a phrase people actually search for
-- Same language as the content
 - Plain text only, no quotes
 
 Respond with ONLY this JSON (no explanation, no markdown):
@@ -115,8 +141,11 @@ Respond with ONLY this JSON (no explanation, no markdown):
 }
 
 export async function generateImageAltWithKeyphrase(images, postTitle, keyphrase) {
+  const lang = langName(detectLanguage(postTitle + ' ' + keyphrase));
+
   const prompt = `You are an SEO expert. Improve the alt texts for images in a WordPress post so they naturally include words from the focus keyphrase.
 
+Language: ${lang} — write ONLY in ${lang}.
 Post title: "${postTitle}"
 Focus keyphrase: "${keyphrase}"
 
@@ -127,7 +156,6 @@ Rules:
 - Include 1-2 words from the keyphrase naturally in each alt text
 - Alt text describes the image, not keyword stuffing
 - 5-15 words per alt text
-- Same language as the post title
 - If current alt is good, still try to work in keyphrase words
 
 Respond with ONLY this JSON array (no explanation, no markdown):
@@ -154,16 +182,18 @@ export async function generateIntroFix(post, keyphrase) {
   const title = post.title?.rendered || '(no title)';
   const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
   const firstPara = post.currentIntro || content.substring(0, 300);
+  const lang = langName(detectLanguage(title + ' ' + content));
 
   const prompt = `You are an SEO expert. Rewrite or create an introduction paragraph for this WordPress post that naturally includes the focus keyphrase.
 
+Language: ${lang} — write ONLY in ${lang}.
 Post title: "${title}"
 Focus keyphrase: "${keyphrase}"
 Current first paragraph: "${firstPara || '(empty)'}"
 
 Rules:
 - Include the focus keyphrase naturally in the first or second sentence
-- Same language and tone as the existing content
+- Same tone as the existing content
 - 40-80 words
 - Plain text only, no HTML tags
 
@@ -191,9 +221,11 @@ export async function generateH1Fix(post) {
   const title = post.title?.rendered || '(no title)';
   const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
   const currentH1 = post.currentH1 || '';
+  const lang = langName(detectLanguage(title + ' ' + content));
 
   const prompt = `You are an SEO expert. Create an optimized H1 heading for this WordPress page.
 
+Language: ${lang} — write ONLY in ${lang}.
 Title: "${title}"
 ${currentH1 ? `Current H1: "${currentH1}"` : 'Current H1: (none)'}
 Content snippet: ${content.substring(0, 600)}
@@ -201,7 +233,6 @@ Content snippet: ${content.substring(0, 600)}
 Rules:
 - Descriptive and contains the main keyword
 - Should differ from the SEO title when possible (can be more natural/longer)
-- Same language as the content
 - Plain text only, no HTML tags
 
 Respond with ONLY this JSON (no explanation, no markdown):
@@ -228,14 +259,15 @@ export async function generateContentExtension(post) {
   const title = post.title?.rendered || '(no title)';
   const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
   const wordCount = post._wordCount || 0;
+  const lang = langName(detectLanguage(title + ' ' + content));
 
   const prompt = `You are a content writer. Write 1-2 additional paragraphs to extend this WordPress post that is currently too short.
 
+Language: ${lang} — write ONLY in ${lang}.
 Post title: "${title}"
 Current content (${wordCount} words): ${content.substring(0, 800)}
 
 Rules:
-- Same language and tone as the existing content
 - Add useful, relevant information that complements the existing text
 - Each paragraph 60-100 words
 - Separate paragraphs with a blank line
