@@ -1141,9 +1141,10 @@
 
     // AI-fixable fields
     [
-      { field: 'title',   label: 'Yoast SEO Titel',       current: item.currentYoastTitle, emptyHint: '(kein Yoast SEO Titel)' },
-      { field: 'excerpt', label: 'Yoast Meta Description', current: item.currentYoastDesc,  emptyHint: '(keine Meta Description)' },
-      { field: 'h1',      label: 'H1-Überschrift',         current: item.currentH1,         emptyHint: '(kein H1 gefunden)' },
+      { field: 'title',     label: 'Yoast SEO Titel',       current: item.currentYoastTitle,  emptyHint: '(kein Yoast SEO Titel)' },
+      { field: 'excerpt',   label: 'Yoast Meta Description', current: item.currentYoastDesc,   emptyHint: '(keine Meta Description)' },
+      { field: 'keyphrase', label: 'Fokus-Keyphrase',        current: item.currentKeyphrase,   emptyHint: '(keine Keyphrase gesetzt)' },
+      { field: 'h1',        label: 'H1-Überschrift',         current: item.currentH1,          emptyHint: '(kein H1 gefunden)' },
     ].forEach(({ field, label, current, emptyHint }) => {
       const issue = field === 'title'
         ? item.issues.find(i => /title/i.test(i)) || ''
@@ -1208,9 +1209,9 @@
       </div>`;
     issuesEl.appendChild(robotsDiv);
 
-    // Manual issues
+    // Manual issues (exclude anything handled by AI-fix cards above)
     item.issues
-      .filter(i => !/title|excerpt|meta description/i.test(i))
+      .filter(i => !/title|excerpt|meta description|h1|heading|content too short|content could be longer/i.test(i))
       .forEach(issue => {
         const div = document.createElement('div');
         div.className = 'seo-issue-item';
@@ -1280,13 +1281,24 @@
         const issueItem = document.getElementById(`seo-item-${id}-${field}`);
         issueItem.classList.add('is-applied');
         const curEl = document.getElementById(`seo-cur-${id}-${field}`);
-        if (curEl) curEl.innerHTML = `Aktuell: ${escapeHtml(value)}`;
+        if (field === 'content') {
+          if (curEl) curEl.innerHTML = 'Inhalt wurde erweitert';
+        } else {
+          if (curEl) curEl.innerHTML = `Aktuell: ${escapeHtml(value)}`;
+        }
         const icon = issueItem.querySelector('.seo-issue-icon');
         if (icon) icon.textContent = '✓';
         const tag = document.createElement('span');
         tag.className = 'seo-applied-tag';
         tag.textContent = '✓ Gespeichert';
         issueItem.appendChild(tag);
+        if (field === 'h1' || field === 'content') {
+          const hint = document.createElement('span');
+          hint.className = 'seo-manual-note';
+          hint.style.color = '#f59e0b';
+          hint.textContent = '↺ WordPress-Editor neu laden um die Änderung zu sehen';
+          issueItem.appendChild(hint);
+        }
       } else {
         btnEl.textContent = 'Fehler';
         setTimeout(() => { btnEl.textContent = '✓ Übernehmen'; btnEl.disabled = false; }, 2000);

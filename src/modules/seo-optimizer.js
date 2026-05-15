@@ -1,6 +1,6 @@
 import { getPosts, getPages, getPost, getPage, updatePost, updatePage } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
-import { getSeoSuggestions, generateSeoFixes, generateH1Fix, generateContentExtension } from '../utils/claude-suggestions.js';
+import { getSeoSuggestions, generateSeoFixes, generateH1Fix, generateContentExtension, generateKeyphrase } from '../utils/claude-suggestions.js';
 
 function stripHtml(html) {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -18,12 +18,12 @@ function scoreYoast(post) {
   if (!yoast) return { issues, bonus };
 
   const metaDesc = yoast.og_description || yoast.description || '';
-  if (metaDesc && metaDesc.length >= 50 && metaDesc.length <= 160) {
+  if (metaDesc && metaDesc.length >= 50 && metaDesc.length <= 156) {
     bonus += 10;
   } else if (!metaDesc) {
     issues.push('Yoast: Missing meta description');
   } else {
-    issues.push(`Yoast: Meta description length ${metaDesc.length} chars (50–160 recommended)`);
+    issues.push(`Yoast: Meta description length ${metaDesc.length} chars (50–156 recommended)`);
   }
 
   const seoTitle = yoast.og_title || yoast.title || '';
@@ -115,6 +115,7 @@ export async function auditSeoItems() {
       url: post.link,
       currentYoastTitle: yoast.og_title || yoast.title || '',
       currentYoastDesc: yoast.og_description || yoast.description || '',
+      currentKeyphrase: post.meta?.['_yoast_wpseo_focuskw'] || '',
       currentH1,
       isNoindex: yoast.robots?.index === 'noindex' || post.meta?.['_yoast_wpseo_meta-robots-noindex'] == 1,
       ...seo,
@@ -126,6 +127,10 @@ export async function generateSeoFixForItem(id, type, field) {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not set');
   const post = type === 'page' ? await getPage(id) : await getPost(id);
   const seo = scoreSeo(post);
+
+  if (field === 'keyphrase') {
+    return generateKeyphrase(post);
+  }
 
   if (field === 'h1') {
     const h1Match = post.content?.rendered?.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
@@ -288,6 +293,7 @@ export async function previewSeoFixes({ minScore = 80, onProgress, onError } = {
 const YOAST_FIELD_MAP = {
   title: '_yoast_wpseo_title',
   excerpt: '_yoast_wpseo_metadesc',
+  keyphrase: '_yoast_wpseo_focuskw',
 };
 
 export async function applySeoFixes(changes) {

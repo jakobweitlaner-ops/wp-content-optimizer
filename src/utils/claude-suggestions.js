@@ -23,7 +23,7 @@ Issues: ${issues.join('; ')}
 
 Rules:
 - title: 20-60 characters, descriptive, same language as content
-- excerpt: 120-160 characters, compelling summary, same language as content
+- excerpt: 120-156 characters, compelling summary, same language as content
 
 Respond with ONLY this JSON (no explanation, no markdown):
 {"title": "your improved title", "excerpt": "your meta description"}`;
@@ -49,7 +49,7 @@ Content: ${contentSnippet}
 Issue: ${issues.join('; ')}
 
 Rules:
-- Must be 120-160 characters
+- Must be 120-156 characters
 - Compelling summary of the page
 - Same language as the content
 
@@ -71,6 +71,41 @@ Respond with ONLY this JSON (no explanation, no markdown):
     return typeof parsed === 'object' && parsed !== null ? parsed : {};
   } catch {
     return {};
+  }
+}
+
+export async function generateKeyphrase(post) {
+  const title = post.title?.rendered || '(no title)';
+  const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
+
+  const prompt = `You are an SEO expert. Generate a focus keyphrase for this WordPress post.
+
+Title: "${title}"
+Content snippet: ${content.substring(0, 600)}
+
+Rules:
+- 2-4 words, specific and relevant to the main topic
+- Should be a phrase people actually search for
+- Same language as the content
+- Plain text only, no quotes
+
+Respond with ONLY this JSON (no explanation, no markdown):
+{"keyphrase": "your focus keyphrase"}`;
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 128,
+    system: 'You are an SEO assistant. Always respond with valid JSON only. Never add explanation or markdown formatting.',
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const raw = message.content[0]?.text?.trim() || '{}';
+  const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return parsed.keyphrase || null;
+  } catch {
+    return null;
   }
 }
 
