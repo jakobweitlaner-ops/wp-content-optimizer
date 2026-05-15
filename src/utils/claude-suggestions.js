@@ -23,7 +23,7 @@ Issues: ${issues.join('; ')}
 
 Rules:
 - title: 20-60 characters, descriptive, same language as content
-- excerpt: 120-156 characters, compelling summary, same language as content
+- excerpt: 120-150 characters, compelling summary, same language as content
 
 Respond with ONLY this JSON (no explanation, no markdown):
 {"title": "your improved title", "excerpt": "your meta description"}`;
@@ -49,7 +49,7 @@ Content: ${contentSnippet}
 Issue: ${issues.join('; ')}
 
 Rules:
-- Must be 120-156 characters
+- Must be 120-150 characters
 - Compelling summary of the page
 - Same language as the content
 
