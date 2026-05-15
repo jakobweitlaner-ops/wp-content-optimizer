@@ -44,14 +44,17 @@ export function scoreSeo(post) {
   let score = 100;
 
   // Title checks (25 points)
+  // Use Yoast SEO title for length checks when available — that's what search engines see
+  const yoastRenderedTitle = post.yoast_head_json?.og_title || post.yoast_head_json?.title || '';
+  const effectiveTitle = yoastRenderedTitle || title;
   if (!title) {
     issues.push('Missing title');
     score -= 25;
-  } else if (title.length < 20) {
-    issues.push(`Title too short (${title.length} chars, min 20)`);
+  } else if (effectiveTitle.length < 20) {
+    issues.push(`Title too short (${effectiveTitle.length} chars, min 20)`);
     score -= 10;
-  } else if (title.length > 60) {
-    issues.push(`Title too long (${title.length} chars, max 60)`);
+  } else if (effectiveTitle.length > 60) {
+    issues.push(`Title too long (${effectiveTitle.length} chars, max 60)`);
     score -= 5;
   }
 
