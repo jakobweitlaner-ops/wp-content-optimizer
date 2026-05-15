@@ -168,7 +168,7 @@ export async function auditSeoItems() {
       isNoindex: yoast.robots?.index === 'noindex' || post.meta?.['_yoast_wpseo_meta-robots-noindex'] == 1,
       ...seo,
     };
-  }).sort((a, b) => a.score - b.score);
+  }).filter(item => !item.isNoindex).sort((a, b) => a.score - b.score);
 }
 
 export async function generateSeoFixForItem(id, type, field) {
