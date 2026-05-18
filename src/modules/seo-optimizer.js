@@ -577,3 +577,42 @@ export async function applySeoFixes(changes) {
   }
   return results;
 }
+
+// Fix brand name spelling in all relevant fields of a single post/page.
+// Returns { fixed: string[] } listing which fields were updated.
+export async function applyBrandFix(id, type) {
+  const post = type === 'page'
+    ? await getPage(id, { context: 'edit' })
+    : await getPost(id, { context: 'edit' });
+
+  const fixed = [];
+  const updates = {};
+
+  // Yoast title meta
+  const yoastTitle = post.meta?.['_yoast_wpseo_title'] || '';
+  if (yoastTitle && hasBrandIssue(yoastTitle)) {
+    updates.meta = { ...updates.meta, '_yoast_wpseo_title': normalizeTitle(yoastTitle) };
+    fixed.push('Yoast-Titel');
+  }
+
+  // Yoast meta description
+  const yoastDesc = post.meta?.['_yoast_wpseo_metadesc'] || '';
+  if (yoastDesc && hasBrandIssue(yoastDesc)) {
+    updates.meta = { ...updates.meta, '_yoast_wpseo_metadesc': normalizeText(yoastDesc) };
+    fixed.push('Meta Description');
+  }
+
+  // Post content (raw Gutenberg or classic)
+  const rawContent = post.content?.raw || post.content?.rendered || '';
+  if (rawContent && hasBrandIssue(rawContent)) {
+    updates.content = normalizeText(rawContent);
+    fixed.push('Inhalt');
+  }
+
+  if (fixed.length === 0) return { fixed: [] };
+
+  if (type === 'page') await updatePage(id, updates);
+  else await updatePost(id, updates);
+
+  return { fixed };
+}

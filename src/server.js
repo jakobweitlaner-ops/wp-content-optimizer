@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { exec } from 'child_process';
 import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI } from './modules/media-optimizer.js';
-import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals } from './modules/seo-optimizer.js';
+import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals, applyBrandFix } from './modules/seo-optimizer.js';
 import { updatePost, updatePage } from './utils/wp-api.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -121,6 +121,17 @@ app.post('/api/seo-noindex', express.json(), async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message, stack: err.stack });
+  }
+});
+
+app.post('/api/seo-fix-brand', express.json(), async (req, res) => {
+  const { id, type } = req.body;
+  if (!id || !type) return res.status(400).json({ error: 'id and type required' });
+  try {
+    const result = await applyBrandFix(parseInt(id, 10), type);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
