@@ -35,12 +35,12 @@ function scoreYoast(post) {
   if (!yoast) return { issues, bonus };
 
   const metaDesc = yoast.og_description || yoast.description || '';
-  if (metaDesc && metaDesc.length >= 50 && metaDesc.length <= 120) {
+  if (metaDesc && metaDesc.length >= 50 && metaDesc.length <= 140) {
     bonus += 10;
   } else if (!metaDesc) {
     issues.push('Yoast: Missing meta description');
   } else {
-    issues.push(`Yoast: Meta description length ${metaDesc.length} chars (50–120 recommended)`);
+    issues.push(`Yoast: Meta description length ${metaDesc.length} chars (50–140 recommended)`);
   }
 
   const seoTitle = yoast.og_title || yoast.title || '';
@@ -533,11 +533,24 @@ export async function applySeoFixes(changes) {
           }
           data = { content: newContent };
         } else {
-          const paragraphs = safeValue.split(/\n\n+/).filter(Boolean);
-          const addition = isGutenberg
-            ? paragraphs.map(p => `<!-- wp:paragraph -->\n<p>${p.trim()}</p>\n<!-- /wp:paragraph -->`).join('\n\n')
-            : paragraphs.map(p => `<p>${p.trim()}</p>`).join('\n');
-          data = { content: rawContent + '\n\n' + addition };
+          // Expanded paragraphs: replace existing wp:paragraph blocks in order
+          const expandedParas = value.split(/\n\n+/).map(p => p.replace(/<[^>]+>/g, '').trim()).filter(Boolean);
+          if (isGutenberg && expandedParas.length > 0) {
+            let paraIdx = 0;
+            const newContent = rawContent.replace(
+              /<!-- wp:paragraph -->\n<p[^>]*>[\s\S]*?<\/p>\n<!-- \/wp:paragraph -->/gi,
+              (match) => {
+                if (paraIdx < expandedParas.length) {
+                  return `<!-- wp:paragraph -->\n<p>${expandedParas[paraIdx++]}</p>\n<!-- /wp:paragraph -->`;
+                }
+                return match;
+              }
+            );
+            data = { content: newContent };
+          } else {
+            const addition = expandedParas.map(p => `<p>${p}</p>`).join('\n');
+            data = { content: rawContent + '\n\n' + addition };
+          }
         }
       } else {
         const yoastKey = YOAST_FIELD_MAP[field];

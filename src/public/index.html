@@ -1250,13 +1250,13 @@
         <div class="seo-issue-header">
           <span class="seo-issue-icon">✗</span>
           <span class="seo-issue-label">Inhalt</span>
-          <button class="seo-fix-btn" data-id="${item.id}" data-type="${item.type}" data-field="content" onclick="requestSeoFix(${item.id},'${item.type}','content',this)">Mit KI erweitern</button>
+          <button class="seo-fix-btn" data-id="${item.id}" data-type="${item.type}" data-field="content" onclick="requestSeoFix(${item.id},'${item.type}','content',this)">Mit KI ausformulieren</button>
         </div>
         <div class="seo-issue-sub">${escapeHtml(contentIssue)}</div>
         <div class="seo-current-val" id="seo-cur-${item.id}-content">Aktuell: ${item.wordCount} Wörter</div>
         <div class="seo-fix-row" id="seo-row-${item.id}-content">
-          <textarea class="edit-input" id="seo-inp-${item.id}-content" rows="4" placeholder="KI-Erweiterung…"></textarea>
-          <button class="seo-confirm-btn" onclick="applySeoFixItem(${item.id},'${item.type}','content',this)">✓ Einfügen</button>
+          <textarea class="edit-input" id="seo-inp-${item.id}-content" rows="4" placeholder="Bestehende Absätze werden ausformuliert…"></textarea>
+          <button class="seo-confirm-btn" onclick="applySeoFixItem(${item.id},'${item.type}','content',this)">✓ Aktualisieren</button>
         </div>`;
       issuesEl.appendChild(div);
     }
@@ -1398,7 +1398,7 @@
         issueItem.classList.add('is-applied');
         const curEl = document.getElementById(`seo-cur-${id}-${field}`);
         if (field === 'content') {
-          if (curEl) curEl.innerHTML = 'Inhalt wurde erweitert';
+          if (curEl) curEl.innerHTML = 'Absätze wurden ausformuliert und aktualisiert';
         } else {
           if (curEl) curEl.innerHTML = `Aktuell: ${escapeHtml(value)}`;
         }
