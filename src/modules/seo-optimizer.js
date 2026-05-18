@@ -465,15 +465,17 @@ export async function applySeoFixes(changes) {
             : `<p>${safeValue}</p>`;
           let newContent;
           if (isGutenberg) {
-            // Check if a paragraph block follows the H1 block with only whitespace between them
-            const h1ImmediateParaRe = /(<!-- \/wp:heading -->)(\n+)(<!-- wp:paragraph -->[\s\S]*?<!-- \/wp:paragraph -->)/i;
-            if (h1ImmediateParaRe.test(rawContent)) {
-              newContent = rawContent.replace(h1ImmediateParaRe, `$1$2${newParagraph}`);
-            } else if (/<!-- \/wp:heading -->/i.test(rawContent)) {
-              // Insert directly after the first heading close tag
-              newContent = rawContent.replace(/(<!-- \/wp:heading -->)/i, `$1\n\n${newParagraph}`);
+            // Find the closing comment of whatever block contains </h1> (wp:heading, uagb, etc.)
+            // by matching </h1> then lazily up to the next --> block-comment close.
+            const h1ThenParaRe = /(<\/h1>[\s\S]*?-->)(\n+)(<!-- wp:paragraph -->[\s\S]*?<!-- \/wp:paragraph -->)/i;
+            const h1BlockCloseRe = /(<\/h1>[\s\S]*?-->)/i;
+            if (h1ThenParaRe.test(rawContent)) {
+              // Paragraph immediately follows H1 block — replace it
+              newContent = rawContent.replace(h1ThenParaRe, `$1$2${newParagraph}`);
+            } else if (h1BlockCloseRe.test(rawContent)) {
+              // Insert directly after the H1 block's closing comment
+              newContent = rawContent.replace(h1BlockCloseRe, `$1\n\n${newParagraph}`);
             } else {
-              // No heading at all — prepend
               newContent = newParagraph + '\n\n' + rawContent;
             }
           } else {
