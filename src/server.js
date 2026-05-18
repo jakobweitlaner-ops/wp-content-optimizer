@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { exec } from 'child_process';
 import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI } from './modules/media-optimizer.js';
-import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals } from './modules/seo-optimizer.js';
+import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals, applyBrandFix } from './modules/seo-optimizer.js';
 import { updatePost, updatePage } from './utils/wp-api.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -99,6 +99,17 @@ app.get('/api/seo-audit', async (req, res) => {
   }
 });
 
+app.get('/api/h1-overview', async (req, res) => {
+  try {
+    const items = await auditSeoItems();
+    res.json(items.map(({ id, type, title, url, lang, currentH1, currentKeyphrase }) =>
+      ({ id, type, title, url, lang, currentH1, currentKeyphrase })
+    ));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/seo-fix', async (req, res) => {
   const { id, type, field, keyphrase = '' } = req.query;
   if (!id || !type || !field) return res.status(400).json({ error: 'id, type, field required' });
@@ -121,6 +132,17 @@ app.post('/api/seo-noindex', express.json(), async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message, stack: err.stack });
+  }
+});
+
+app.post('/api/seo-fix-brand', express.json(), async (req, res) => {
+  const { id, type } = req.body;
+  if (!id || !type) return res.status(400).json({ error: 'id and type required' });
+  try {
+    const result = await applyBrandFix(parseInt(id, 10), type);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
