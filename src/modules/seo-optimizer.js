@@ -7,6 +7,17 @@ function stripHtml(html) {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function decodeEntities(str) {
+  return str
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+
 function countWords(text) {
   return text.split(/\s+/).filter(Boolean).length;
 }
@@ -187,9 +198,9 @@ export async function auditSeoItems() {
     const yoast = post.yoast_head_json || {};
     const renderedContent = post.content?.rendered || '';
     const h1Match = renderedContent.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-    const currentH1 = h1Match ? h1Match[1].replace(/<[^>]+>/g, '').trim() : '';
+    const currentH1 = h1Match ? decodeEntities(h1Match[1].replace(/<[^>]+>/g, '').trim()) : '';
     const firstParaMatch2 = renderedContent.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-    const currentIntro = firstParaMatch2 ? firstParaMatch2[1].replace(/<[^>]+>/g, '').trim().substring(0, 150) : '';
+    const currentIntro = firstParaMatch2 ? decodeEntities(firstParaMatch2[1].replace(/<[^>]+>/g, '').trim().substring(0, 150)) : '';
     const headingFormat = detectHeadingFormat(renderedContent);
     const plainText = stripHtml(renderedContent);
     const detectedLang = detectLanguage((post.title?.rendered || '') + ' ' + plainText);
