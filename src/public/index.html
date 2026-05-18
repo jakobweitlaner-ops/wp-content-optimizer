@@ -1144,9 +1144,9 @@
       { field: 'title',     label: 'Yoast SEO Titel',       current: item.currentYoastTitle,  emptyHint: '(kein Yoast SEO Titel)' },
       { field: 'excerpt',   label: 'Yoast Meta Description', current: item.currentYoastDesc,   emptyHint: '(keine Meta Description)' },
       { field: 'keyphrase', label: 'Fokus-Keyphrase',        current: item.currentKeyphrase,   emptyHint: '(keine Keyphrase gesetzt)' },
-      { field: 'h1',        label: 'H1-Überschrift',         current: item.currentH1,          emptyHint: '(kein H1 gefunden)' },
+      { field: 'h1',        label: 'H1-Überschrift',         current: item.currentH1,          emptyHint: item.headingFormat ? `(kein H1 – gefunden: ${item.headingFormat.tag.toUpperCase()}${item.headingFormat.classes ? ' · ' + item.headingFormat.classes : ''})` : '(kein H1 gefunden)', headingFormat: item.headingFormat },
       { field: 'intro',     label: 'Einleitung (erster Absatz)', current: item.currentIntro,   emptyHint: '(kein erster Absatz gefunden)' },
-    ].forEach(({ field, label, current, emptyHint }) => {
+    ].forEach(({ field, label, current, emptyHint, headingFormat }) => {
       const issue = field === 'title'
         ? item.issues.find(i => /title/i.test(i)) || ''
         : field === 'h1'
@@ -1154,6 +1154,17 @@
         : field === 'intro'
         ? item.issues.find(i => /first paragraph|einleitung/i.test(i)) || ''
         : item.issues.find(i => /excerpt|meta description/i.test(i)) || '';
+
+      let conversionNote = '';
+      if (field === 'h1' && headingFormat?.needsConversion) {
+        const classInfo = headingFormat.classes ? ` · Klassen: <code>${escapeHtml(headingFormat.classes)}</code>` : '';
+        conversionNote = `<div class="seo-manual-note" style="color:#818cf8;margin-top:0.25rem">` +
+          `${headingFormat.tag.toUpperCase()} wird zu H1 konvertiert – CSS-Klassen bleiben erhalten${classInfo}</div>`;
+      } else if (field === 'h1' && headingFormat?.isH1 && headingFormat.classes) {
+        conversionNote = `<div class="seo-manual-note" style="margin-top:0.25rem">` +
+          `CSS-Klassen: <code>${escapeHtml(headingFormat.classes)}</code></div>`;
+      }
+
       const div = document.createElement('div');
       div.className = 'seo-issue-item';
       div.id = `seo-item-${item.id}-${field}`;
@@ -1165,6 +1176,7 @@
         </div>
         ${issue ? `<div class="seo-issue-sub">${escapeHtml(issue)}</div>` : ''}
         <div class="seo-current-val" id="seo-cur-${item.id}-${field}">Aktuell: ${current ? escapeHtml(current) : `<em>${emptyHint}</em>`}</div>
+        ${conversionNote}
         <div class="seo-fix-row" id="seo-row-${item.id}-${field}">
           ${field === 'excerpt'
             ? `<textarea class="edit-input" id="seo-inp-${item.id}-${field}" rows="2" placeholder="KI-Vorschlag…"></textarea>`
