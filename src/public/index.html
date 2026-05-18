@@ -558,19 +558,19 @@
       margin-top: 0.22rem;
     }
     .issue-badge {
-      font-size: 0.59rem;
+      font-size: 0.64rem;
       font-weight: 700;
-      padding: 0.1rem 0.32rem;
-      border-radius: 3px;
-      letter-spacing: 0.03em;
+      padding: 0.15rem 0.42rem;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
       flex-shrink: 0;
     }
-    .badge-red    { background: rgba(239,68,68,0.1);   color: #dc2626; }
-    .badge-orange { background: rgba(245,158,11,0.12); color: #b45309; }
-    .badge-purple { background: rgba(139,92,246,0.1);  color: #7c3aed; }
-    .badge-yellow { background: rgba(234,179,8,0.1);   color: #a16207; }
-    .badge-blue   { background: rgba(59,130,246,0.1);  color: #1d4ed8; }
+    .badge-red    { background: rgba(239,68,68,0.15);  color: #b91c1c; }
+    .badge-orange { background: rgba(245,158,11,0.18); color: #92400e; }
+    .badge-purple { background: rgba(139,92,246,0.15); color: #5b21b6; }
+    .badge-yellow { background: rgba(234,179,8,0.15);  color: #78350f; }
+    .badge-blue   { background: rgba(59,130,246,0.15); color: #1e40af; }
     .seo-list-ok  { font-size: 0.68rem; color: #86efac; margin-top: 0.18rem; }
 
     .seo-noindex-tag {
@@ -657,18 +657,18 @@
     .seo-issue-label { font-size: 0.8rem; font-weight: 600; color: #334155; flex: 1; }
 
     .seo-fix-btn {
-      background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.05));
-      border: 1px solid rgba(99,102,241,0.25);
-      color: #6366f1;
+      background: #4f46e5;
+      border: none;
+      color: #fff;
       border-radius: 5px;
-      padding: 0.25rem 0.65rem;
-      font-size: 0.71rem;
+      padding: 0.28rem 0.75rem;
+      font-size: 0.72rem;
       font-weight: 600;
       cursor: pointer;
       transition: opacity 0.15s;
       flex-shrink: 0;
     }
-    .seo-fix-btn:hover { opacity: 0.75; }
+    .seo-fix-btn:hover { opacity: 0.85; }
     .seo-fix-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
     .seo-issue-sub {
@@ -699,8 +699,8 @@
       border: none;
       color: #fff;
       border-radius: 5px;
-      padding: 0.28rem 0.7rem;
-      font-size: 0.71rem;
+      padding: 0.3rem 0.85rem;
+      font-size: 0.73rem;
       font-weight: 600;
       cursor: pointer;
       transition: background 0.15s;
@@ -809,6 +809,36 @@
       color: #64748b;
       white-space: nowrap;
     }
+    .h1-edit-row {
+      display: flex;
+      gap: 0.3rem;
+      align-items: center;
+    }
+    .h1-edit-input {
+      flex: 1;
+      font-size: 0.78rem;
+      padding: 0.2rem 0.4rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      background: #fff;
+      color: #1e293b;
+      min-width: 0;
+    }
+    .h1-edit-input:focus { outline: none; border-color: #4f6ef7; }
+    .h1-save-btn {
+      font-size: 0.72rem;
+      padding: 0.2rem 0.5rem;
+      border: none;
+      border-radius: 4px;
+      background: #4f6ef7;
+      color: #fff;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .h1-save-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .h1-save-btn.success { background: #16a34a; }
+    .h1-save-btn.error   { background: #ef4444; }
 
     .review-actions {
       display: flex;
@@ -1031,6 +1061,7 @@
       <div class="seo-view-toolbar">
         <span class="seo-view-heading">H1 Übersicht</span>
         <span class="seo-avg-label" id="h1-count-label"></span>
+        <button class="seo-fix-btn" id="h1-brand-bulk-btn" style="display:none" onclick="applyBrandFixAll()">Markenname überall korrigieren</button>
       </div>
       <div class="seo-scroll" id="h1-items-list">
         <div class="seo-loading">Lade…</div>
@@ -1205,7 +1236,16 @@
       const langOrder = ['de', 'fr', 'es', 'it', 'en'];
       const langs = [...new Set([...langOrder, ...Object.keys(grouped)])].filter(l => grouped[l]);
 
+      const brandCount = items.filter(i => i.hasBrandIssue).length;
       document.getElementById('h1-count-label').textContent = `${items.length} Einträge · ${langs.length} Sprachen`;
+      const bulkBtn = document.getElementById('h1-brand-bulk-btn');
+      if (brandCount > 0) {
+        bulkBtn.style.display = '';
+        bulkBtn.textContent = `Markenname korrigieren (${brandCount})`;
+        bulkBtn._items = items.filter(i => i.hasBrandIssue);
+      } else {
+        bulkBtn.style.display = 'none';
+      }
 
       listEl.innerHTML = '';
       for (const lang of langs) {
@@ -1220,15 +1260,16 @@
         for (const item of group) {
           const card = document.createElement('div');
           card.className = 'h1-card';
-          const h1Text = item.currentH1
-            ? escapeHtml(item.currentH1)
-            : '<span class="empty">(keine H1)</span>';
+          card.id = `h1-card-${item.id}`;
           card.innerHTML = `
             <div class="h1-card-title">
               <a href="${escapeHtml(item.url)}" target="_blank" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</a>
               <span class="h1-type-badge">${item.type === 'page' ? 'Seite' : 'Beitrag'}</span>
             </div>
-            <div class="h1-card-h1 ${item.currentH1 ? '' : 'empty'}">${h1Text}</div>
+            <div class="h1-edit-row">
+              <input class="h1-edit-input" type="text" value="${escapeHtml(item.currentH1 || '')}" placeholder="(keine H1)" id="h1-inp-${item.id}">
+              <button class="h1-save-btn" id="h1-save-${item.id}" onclick="saveH1FromOverview(${item.id},'${item.type}',this)">✓ Speichern</button>
+            </div>
             <div class="h1-card-kp">${item.currentKeyphrase ? escapeHtml(item.currentKeyphrase) : ''}</div>`;
           groupEl.appendChild(card);
         }
@@ -1241,6 +1282,72 @@
       listEl.innerHTML = `<div class="seo-loading" style="color:#ef4444">Fehler: ${escapeHtml(err.message)}</div>`;
       setNavState('h1-overview', 'error', 'Fehler');
     }
+  }
+
+  async function saveH1FromOverview(id, type, btnEl) {
+    const inp = document.getElementById(`h1-inp-${id}`);
+    const value = inp?.value?.trim();
+    if (!value) return;
+    btnEl.disabled = true;
+    btnEl.textContent = 'Speichert…';
+    try {
+      const resp = await fetch('/apply/audit-seo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ changes: [{ id, type, field: 'h1', value }] }),
+      });
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '', success = false, errMsg = '';
+      while (true) {
+        const { value: chunk, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(chunk, { stream: true });
+        const parts = buf.split('\n\n'); buf = parts.pop();
+        for (const part of parts) {
+          const line = part.replace(/^data: /, '').trim();
+          if (!line) continue;
+          const msg = JSON.parse(line);
+          if (msg.type === 'done') success = msg.text === 'success';
+          if (msg.type === 'err') errMsg = msg.text.replace(/^✖ ID \d+: /, '');
+        }
+      }
+      if (success) {
+        btnEl.textContent = '✓ Gespeichert';
+        btnEl.className = 'h1-save-btn success';
+        inp.style.borderColor = '#16a34a';
+        setTimeout(() => { btnEl.textContent = '✓ Speichern'; btnEl.className = 'h1-save-btn'; btnEl.disabled = false; inp.style.borderColor = ''; }, 2500);
+      } else {
+        throw new Error(errMsg || 'Unbekannter Fehler');
+      }
+    } catch (err) {
+      btnEl.textContent = `Fehler`;
+      btnEl.className = 'h1-save-btn error';
+      btnEl.title = err.message;
+      setTimeout(() => { btnEl.textContent = '✓ Speichern'; btnEl.className = 'h1-save-btn'; btnEl.disabled = false; }, 3000);
+    }
+  }
+
+  async function applyBrandFixAll() {
+    const btn = document.getElementById('h1-brand-bulk-btn');
+    const items = btn._items || [];
+    if (!items.length) return;
+    btn.disabled = true;
+    let done = 0;
+    for (const item of items) {
+      btn.textContent = `Korrigiere… ${done}/${items.length}`;
+      try {
+        await fetch('/api/seo-fix-brand', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: item.id, type: item.type }),
+        });
+      } catch { /* continue */ }
+      done++;
+    }
+    btn.textContent = `✓ ${done} Einträge korrigiert`;
+    btn.style.background = '#16a34a';
+    btn._items = [];
   }
 
   function showSeoList() {
@@ -1375,7 +1482,7 @@
         <div class="seo-issue-header">
           <span class="seo-issue-icon">${issue ? '✗' : '✓'}</span>
           <span class="seo-issue-label">${label}</span>
-          ${hasSeparatorIssue ? `<button class="seo-fix-btn" style="background:#6366f1" onclick="prefillSeparatorFix(${item.id},'${item.type}','${escapeHtml(normalizedTitle).replace(/'/g,"\\'")}')">- → |</button>` : ''}
+          ${hasSeparatorIssue ? `<button class="seo-fix-btn" onclick="prefillSeparatorFix(${item.id},'${item.type}','${escapeHtml(normalizedTitle).replace(/'/g,"\\'")}')">- → |</button>` : ''}
           <button class="seo-fix-btn" data-id="${item.id}" data-type="${item.type}" data-field="${field}" data-keyphrase="${escapeHtml(item.currentKeyphrase||'')}" onclick="requestSeoFix(${item.id},'${item.type}','${field}',this)">Mit KI optimieren</button>
         </div>
         ${issue ? `<div class="seo-issue-sub">${escapeHtml(issue)}</div>` : ''}
@@ -1476,7 +1583,7 @@
         <div class="seo-issue-header">
           <span class="seo-issue-icon">✗</span>
           <span class="seo-issue-label">Markenname falsch geschrieben</span>
-          <button class="seo-fix-btn" style="background:#7c3aed" onclick="applyBrandFix(${item.id},'${item.type}',this)">→ "Das Auss.Zeit" korrigieren</button>
+          <button class="seo-fix-btn" onclick="applyBrandFix(${item.id},'${item.type}',this)">→ "Das Auss.Zeit" korrigieren</button>
         </div>
         ${brandIssues.map(i => `<div class="seo-issue-sub">${escapeHtml(i)}</div>`).join('')}`;
       issuesEl.appendChild(div);
