@@ -22,7 +22,7 @@ export async function getPostsWithImages() {
     getPages({ _fields: 'id,title,link,content,featured_media', per_page: 100 }),
   ]);
 
-  // Deduplicate by id — WordPress IDs are globally unique across post types
+  // Deduplicate by id across posts+pages and within each list
   const seen = new Set();
   const allItems = [];
   for (const item of [...posts.map(p => ({ ...p, type: 'post' })), ...pages.map(p => ({ ...p, type: 'page' }))]) {
@@ -69,7 +69,7 @@ export async function getPostsWithImages() {
     }
   }
 
-  // Resolve featured image URLs in one batch request
+  // Resolve featured image URLs via batch request
   const featuredIds = [...new Set(
     results.flatMap(p => p.images.filter(i => i.slot === 'featured' && i.mediaId).map(i => i.mediaId))
   )];
@@ -79,16 +79,22 @@ export async function getPostsWithImages() {
       const mediaItems = await getMediaByIds(featuredIds);
       const urlMap = {};
       for (const m of mediaItems) {
-        urlMap[m.id] = m.media_details?.sizes?.medium?.source_url || m.source_url;
+        // Use medium size if available, else full size
+        urlMap[String(m.id)] = m.media_details?.sizes?.medium?.source_url
+          || m.media_details?.sizes?.thumbnail?.source_url
+          || m.source_url;
       }
       for (const post of results) {
         for (const img of post.images) {
-          if (img.slot === 'featured' && img.mediaId && urlMap[img.mediaId]) {
-            img.src = urlMap[img.mediaId];
+          if (img.slot === 'featured' && img.mediaId) {
+            const resolved = urlMap[String(img.mediaId)];
+            if (resolved) img.src = resolved;
           }
         }
       }
-    } catch { /* leave src as null, UI shows placeholder */ }
+    } catch (err) {
+      console.error('[seasonal] getMediaByIds failed:', err.message);
+    }
   }
 
   return results;
@@ -110,10 +116,7 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
   if (!oldSrc) throw new Error('oldSrc required for content image replacement');
 
   const updated = rawContent.split(oldSrc).join(newSrc);
-
-  if (updated === rawContent) {
-    throw new Error(`Bild-URL nicht im Inhalt gefunden`);
-  }
+  if (updated === rawContent) throw new Error(`Bild-URL nicht im Inhalt gefunden`);
 
   let finalContent = updated;
   if (oldMediaId && newMediaId) {

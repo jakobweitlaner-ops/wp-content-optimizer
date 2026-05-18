@@ -994,6 +994,16 @@
       flex-shrink: 0;
     }
 
+    .seasonal-img-count {
+      font-size: 0.65rem;
+      font-weight: 500;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      background: #eff6ff;
+      color: #3b82f6;
+      flex-shrink: 0;
+    }
+
     .seasonal-images-grid {
       display: flex;
       flex-direction: column;
@@ -1005,7 +1015,8 @@
       align-items: center;
       gap: 0.75rem;
       padding: 0.75rem 1rem;
-      border-bottom: 1px solid #f1f5f9;
+      border-bottom: 1px solid #e2e8f0;
+      min-height: 72px;
     }
 
     .seasonal-image-row:last-child { border-bottom: none; }
@@ -2517,17 +2528,29 @@
       card.id = `seasonal-post-${post.id}`;
 
       const typeLabel = post.type === 'page' ? 'Seite' : 'Beitrag';
+      const imgCount = post.images.length;
+
       const header = document.createElement('div');
       header.className = 'seasonal-post-header';
-      header.innerHTML = `
-        <div class="seasonal-post-title">
-          <a href="${escapeHtml(post.url)}" target="_blank">${escapeHtml(post.title)}</a>
-        </div>
-        <span class="seasonal-type-badge">${typeLabel}</span>
-      `;
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'seasonal-post-title';
+      const link = document.createElement('a');
+      link.href = post.url;
+      link.target = '_blank';
+      link.textContent = post.title;
+      titleDiv.appendChild(link);
+      const typeBadge = document.createElement('span');
+      typeBadge.className = 'seasonal-type-badge';
+      typeBadge.textContent = typeLabel;
+      const countBadge = document.createElement('span');
+      countBadge.className = 'seasonal-img-count';
+      countBadge.textContent = `${imgCount} Bild${imgCount !== 1 ? 'er' : ''}`;
+      header.appendChild(titleDiv);
+      header.appendChild(typeBadge);
+      header.appendChild(countBadge);
+
       const grid = document.createElement('div');
       grid.className = 'seasonal-images-grid';
-      grid.id = `seasonal-images-${post.id}-${post.type}`;
 
       card.appendChild(header);
       card.appendChild(grid);
@@ -2537,10 +2560,26 @@
         try {
           grid.appendChild(buildImageRow(post, img, idx));
         } catch (e) {
-          console.error('buildImageRow error', e);
+          console.error('buildImageRow error', post.title, idx, e);
+          // Show error row so the user sees something
+          const errRow = document.createElement('div');
+          errRow.className = 'seasonal-image-row';
+          errRow.style.color = '#ef4444';
+          errRow.style.fontSize = '0.75rem';
+          errRow.textContent = `Fehler beim Laden: ${e.message}`;
+          grid.appendChild(errRow);
         }
       });
     }
+  }
+
+  function makePlaceholder() {
+    const ph = document.createElement('div');
+    // Inline styles guarantee visibility regardless of CSS loading order
+    ph.style.cssText = 'width:72px;height:52px;flex-shrink:0;border-radius:6px;background:#f1f5f9;border:1px dashed #94a3b8;display:flex;align-items:center;justify-content:center;font-size:1.3rem;';
+    ph.className = 'seasonal-thumb-placeholder';
+    ph.textContent = '🖼';
+    return ph;
   }
 
   function buildImageRow(post, img, idx) {
@@ -2557,17 +2596,11 @@
       imgEl.alt = '';
       imgEl.loading = 'lazy';
       imgEl.addEventListener('error', () => {
-        const ph = document.createElement('div');
-        ph.className = 'seasonal-thumb-placeholder';
-        ph.textContent = '🖼';
-        imgEl.replaceWith(ph);
+        imgEl.replaceWith(makePlaceholder());
       });
       row.appendChild(imgEl);
     } else {
-      const ph = document.createElement('div');
-      ph.className = 'seasonal-thumb-placeholder';
-      ph.textContent = '🖼';
-      row.appendChild(ph);
+      row.appendChild(makePlaceholder());
     }
 
     // Info text

@@ -115,9 +115,9 @@ export async function getMediaPage(params = {}) {
 
 export async function getMediaByIds(ids) {
   if (!ids.length) return [];
-  const response = await client.get('/media', {
-    params: { include: ids.join(','), per_page: ids.length },
-  });
+  // WordPress REST API accepts repeated include[] params more reliably than comma-separated
+  const qs = ids.map(id => `include[]=${encodeURIComponent(id)}`).join('&');
+  const response = await client.get(`/media?per_page=${ids.length}&${qs}`);
   return response.data;
 }
 
