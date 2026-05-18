@@ -429,52 +429,60 @@ export async function applySeoFixes(changes) {
 
         if (field === 'h1') {
           const headingFormat = detectHeadingFormat(rawContent);
-          const existingClasses = headingFormat?.classes || (isGutenberg ? 'wp-block-heading' : '');
-          const classAttr = existingClasses ? ` class="${existingClasses}"` : '';
-          const newH1Tag = `<h1${classAttr}>${safeValue}</h1>`;
-          const newBlock = `<!-- wp:heading {"level":1} -->\n${newH1Tag}\n<!-- /wp:heading -->`;
 
           let newContent;
           if (headingFormat?.needsConversion) {
-            const srcTag = headingFormat.tag;   // 'h2' or 'h3'
-            const srcLevel = srcTag.slice(1);   // '2' or '3'
+            const srcTag = headingFormat.tag; // 'h2' or 'h3'
+
+            // UAGB advanced-heading: keep block intact, just update headingTag attr + HTML tag.
+            // Replacing with wp:heading would break UAGB's save() validation and revert on open.
+            const uagbRe = /(<!-- wp:uagb\/advanced-heading )(\{[^>]*?\})([\s\S]*?)(<!-- \/wp:uagb\/advanced-heading -->)/i;
             const gutenbergStandardRe = new RegExp(
               `<!-- wp:heading[^\\n]*-->\\n?<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>\\n?<!-- \\/wp:heading -->`, 'i'
             );
-            if (isGutenberg && gutenbergStandardRe.test(rawContent)) {
-              // Standard wp:heading block → replace whole block with level:1
+
+            if (isGutenberg && uagbRe.test(rawContent)) {
+              newContent = rawContent.replace(uagbRe, (match, open, attrsJson, inner, close) => {
+                let attrs;
+                try { attrs = JSON.parse(attrsJson); } catch { attrs = {}; }
+                attrs.headingTag = 'h1';
+                const newAttrs = JSON.stringify(attrs);
+                const newInner = inner.replace(
+                  new RegExp(`<${srcTag}([^>]*)>[\\s\\S]*?<\\/${srcTag}>`, 'i'),
+                  `<h1$1>${safeValue}</h1>`
+                );
+                return `${open}${newAttrs}${newInner}${close}`;
+              });
+            } else if (isGutenberg && gutenbergStandardRe.test(rawContent)) {
+              // Standard wp:heading block — replace entire block with level:1.
+              // save() always adds wp-block-heading; extra classes go in "className".
+              const rawClasses = headingFormat?.classes || '';
+              const extraClasses = rawClasses.split(' ').map(c => c.trim())
+                .filter(c => c && c !== 'wp-block-heading').join(' ');
+              const classNameAttr = extraClasses ? `,"className":"${extraClasses}"` : '';
+              const finalH1Classes = ['wp-block-heading', extraClasses].filter(Boolean).join(' ');
+              const newBlock = `<!-- wp:heading {"level":1${classNameAttr}} -->\n<h1 class="${finalH1Classes}">${safeValue}</h1>\n<!-- /wp:heading -->`;
               newContent = rawContent.replace(gutenbergStandardRe, newBlock);
             } else if (isGutenberg) {
-              // Custom block (UAGB etc.): attribute updates are unreliable because
-              // Gutenberg validates by running the block's save() function — any
-              // mismatch reverts on editor open. Instead, replace the entire custom
-              // block with a standard wp:heading block (keeps CSS classes).
-              const headingPos = rawContent.search(new RegExp(`<${srcTag}[\\s>]`, 'i'));
-              if (headingPos !== -1) {
-                const blockOpenPos = rawContent.lastIndexOf('<!-- wp:', headingPos);
-                const headingClosePos = rawContent.indexOf(`</${srcTag}>`, headingPos) + `</${srcTag}>`.length;
-                const afterClose = rawContent.slice(headingClosePos);
-                const blockCloseMatch = afterClose.match(/<!-- \/wp:[^\n]+-->/i);
-                if (blockOpenPos !== -1 && blockCloseMatch) {
-                  const blockCloseEnd = headingClosePos + afterClose.indexOf(blockCloseMatch[0]) + blockCloseMatch[0].length;
-                  newContent = rawContent.slice(0, blockOpenPos) + newBlock + rawContent.slice(blockCloseEnd);
-                } else {
-                  newContent = rawContent.replace(new RegExp(`<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>`, 'i'), newH1Tag);
-                }
-              } else {
-                newContent = rawContent.replace(new RegExp(`<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>`, 'i'), newH1Tag);
-              }
+              // Unknown custom block: replace just the HTML tag, keep block wrapper
+              newContent = rawContent.replace(
+                new RegExp(`<${srcTag}([^>]*)>[\\s\\S]*?<\\/${srcTag}>`, 'i'),
+                `<h1$1>${safeValue}</h1>`
+              );
             } else {
               newContent = rawContent.replace(
                 new RegExp(`<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>`, 'i'),
-                newH1Tag
+                `<h1>${safeValue}</h1>`
               );
             }
           } else if (/<h1[^>]*>/i.test(rawContent)) {
-            // Update existing H1 text while keeping its classes and block structure
-            const gutenbergStandardRe = /<!-- wp:heading[^>]*-->\n?<h1[^>]*>[\s\S]*?<\/h1>\n?<!-- \/wp:heading -->/i;
-            if (isGutenberg && gutenbergStandardRe.test(rawContent)) {
-              newContent = rawContent.replace(gutenbergStandardRe, newBlock);
+            // Update existing H1 text only, preserve all attributes and block wrapper
+            const uagbRe = /(<!-- wp:uagb\/advanced-heading )(\{[^>]*?\})([\s\S]*?)(<!-- \/wp:uagb\/advanced-heading -->)/i;
+            if (isGutenberg && uagbRe.test(rawContent)) {
+              newContent = rawContent.replace(uagbRe, (match, open, attrsJson, inner, close) => {
+                const newInner = inner.replace(/<h1([^>]*)>[\s\S]*?<\/h1>/i, `<h1$1>${safeValue}</h1>`);
+                return `${open}${attrsJson}${newInner}${close}`;
+              });
             } else {
               newContent = rawContent.replace(/<h1([^>]*)>[\s\S]*?<\/h1>/i, `<h1$1>${safeValue}</h1>`);
             }
