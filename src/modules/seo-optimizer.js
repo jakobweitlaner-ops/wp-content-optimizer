@@ -436,24 +436,45 @@ export async function applySeoFixes(changes) {
 
           let newContent;
           if (headingFormat?.needsConversion) {
-            // Convert first h2/h3 to h1, preserving its CSS classes
-            const srcTag = headingFormat.tag;
-            const gutenbergBlockRe = new RegExp(
-              `<!-- wp:heading[^>]*-->\\n?<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>\\n?<!-- \\/wp:heading -->`, 'i'
+            const srcTag = headingFormat.tag;   // 'h2' or 'h3'
+            const srcLevel = srcTag.slice(1);   // '2' or '3'
+            const gutenbergStandardRe = new RegExp(
+              `<!-- wp:heading[^\\n]*-->\\n?<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>\\n?<!-- \\/wp:heading -->`, 'i'
             );
-            const tagRe = new RegExp(`<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>`, 'i');
-            if (isGutenberg && gutenbergBlockRe.test(rawContent)) {
-              newContent = rawContent.replace(gutenbergBlockRe, newBlock);
+            if (isGutenberg && gutenbergStandardRe.test(rawContent)) {
+              // Standard wp:heading block → replace whole block with level:1
+              newContent = rawContent.replace(gutenbergStandardRe, newBlock);
+            } else if (isGutenberg) {
+              // Custom block (UAGB etc.) → update block-comment attributes AND HTML tag
+              // so Gutenberg doesn't revert to the old level on next save
+              let updated = rawContent;
+              updated = updated.replace(
+                new RegExp(`("headingTag"\\s*:\\s*)"${srcTag}"`, 'i'),
+                `$1"h1"`
+              );
+              updated = updated.replace(
+                new RegExp(`("level"\\s*:\\s*)${srcLevel}(?=[,}\\s])`, 'i'),
+                `$11`
+              );
+              // Update the HTML tag, keep existing classes and content
+              updated = updated.replace(
+                new RegExp(`<${srcTag}([^>]*)>[\\s\\S]*?<\\/${srcTag}>`, 'i'),
+                `<h1$1>${safeValue}</h1>`
+              );
+              newContent = updated;
             } else {
-              newContent = rawContent.replace(tagRe, newH1Tag);
+              newContent = rawContent.replace(
+                new RegExp(`<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>`, 'i'),
+                newH1Tag
+              );
             }
           } else if (/<h1[^>]*>/i.test(rawContent)) {
-            // Update existing H1 text while keeping its classes
-            const gutenbergBlockRe = /<!-- wp:heading[^>]*-->\n?<h1[^>]*>[\s\S]*?<\/h1>\n?<!-- \/wp:heading -->/i;
-            if (isGutenberg && gutenbergBlockRe.test(rawContent)) {
-              newContent = rawContent.replace(gutenbergBlockRe, newBlock);
+            // Update existing H1 text while keeping its classes and block structure
+            const gutenbergStandardRe = /<!-- wp:heading[^>]*-->\n?<h1[^>]*>[\s\S]*?<\/h1>\n?<!-- \/wp:heading -->/i;
+            if (isGutenberg && gutenbergStandardRe.test(rawContent)) {
+              newContent = rawContent.replace(gutenbergStandardRe, newBlock);
             } else {
-              newContent = rawContent.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, newH1Tag);
+              newContent = rawContent.replace(/<h1([^>]*)>[\s\S]*?<\/h1>/i, `<h1$1>${safeValue}</h1>`);
             }
           } else {
             throw new Error('Keine Überschrift (H1/H2/H3) im Content gefunden – H1 bitte manuell im WP-Editor an der gewünschten Position einfügen');
