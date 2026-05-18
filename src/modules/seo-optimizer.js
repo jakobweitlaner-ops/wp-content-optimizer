@@ -122,8 +122,11 @@ export function scoreSeo(post) {
     const metaDescText = (post.yoast_head_json?.og_description || post.yoast_head_json?.description || '').toLowerCase();
     const contentLower = text.toLowerCase();
 
-    // Keyphrase in SEO title
-    if (yoastTitle && !kpWords.every(w => yoastTitle.includes(w))) {
+    // Keyphrase in SEO title — ignore common stopwords so "Apartment mit Garten und Bergblick"
+    // still passes for a title like "Apartment 101 – Garten & Bergblick"
+    const STOPWORDS = new Set(['der','die','das','und','oder','mit','für','von','zu','in','an','auf','bei','im','am','dem','den','des','ein','eine','einen','einem','eines','ist','sind','the','and','or','with','for','of','to','in','a','an','is','are']);
+    const sigWords = kpWords.filter(w => !STOPWORDS.has(w) && w.length > 2);
+    if (yoastTitle && sigWords.length > 0 && !sigWords.every(w => yoastTitle.includes(w))) {
       issues.push('Keyphrase not in SEO title');
       score -= 10;
     }
@@ -499,22 +502,16 @@ export async function applySeoFixes(changes) {
             : `<p>${safeValue}</p>`;
           let newContent;
           if (isGutenberg) {
-            // Anchor on the block-level closing comment, not on HTML tags.
-            // This is reliable even when UAGB headings include large description
-            // paragraphs inside the block (headingDescToggle:true).
-            const headingBlockCloseRe = /<!-- \/wp:(?:heading|uagb\/advanced-heading) -->/i;
-            const headingCloseMatch = rawContent.match(headingBlockCloseRe);
-            if (headingCloseMatch) {
-              const closeEnd = rawContent.indexOf(headingCloseMatch[0]) + headingCloseMatch[0].length;
-              const after = rawContent.slice(closeEnd);
-              const paraMatch = after.match(/^(\n+)(<!-- wp:paragraph -->[\s\S]*?<!-- \/wp:paragraph -->)/i);
-              if (paraMatch) {
-                // Replace the paragraph that immediately follows the heading block
-                newContent = rawContent.slice(0, closeEnd) + paraMatch[1] + newParagraph + rawContent.slice(closeEnd + paraMatch[0].length);
-              } else {
-                // No paragraph immediately follows — insert one right after the heading block
-                newContent = rawContent.slice(0, closeEnd) + '\n\n' + newParagraph + rawContent.slice(closeEnd);
-              }
+            // Single-pass regex: find heading block close + any following paragraph block.
+            // Using one regex avoids indexOf offset bugs and handles optional whitespace.
+            const headingThenParaRe = /(<!-- \/wp:(?:heading|uagb\/advanced-heading) -->)(\n+)(<!-- wp:paragraph -->[\s\S]*?<!-- \/wp:paragraph -->)/i;
+            const headingOnlyRe = /(<!-- \/wp:(?:heading|uagb\/advanced-heading) -->)/i;
+            if (headingThenParaRe.test(rawContent)) {
+              // Replace the paragraph immediately following the heading block
+              newContent = rawContent.replace(headingThenParaRe, `$1$2${newParagraph}`);
+            } else if (headingOnlyRe.test(rawContent)) {
+              // No paragraph after heading — insert one right after it
+              newContent = rawContent.replace(headingOnlyRe, `$1\n\n${newParagraph}`);
             } else {
               newContent = newParagraph + '\n\n' + rawContent;
             }
