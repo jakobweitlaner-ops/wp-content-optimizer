@@ -1133,11 +1133,12 @@
       listEl.innerHTML = '';
       const LANG_FLAGS = { de: '🇩🇪', fr: '🇫🇷', es: '🇪🇸', it: '🇮🇹', en: '🇬🇧' };
       const BADGE_DEFS = [
-        { label: 'H1',     re: /\bh1\b/i,                                          cls: 'badge-red'    },
-        { label: 'Titel',  re: i => /\btitle\b/i.test(i) && !/subheading/i.test(i), cls: 'badge-orange' },
-        { label: 'Meta',   re: /excerpt|meta description/i,                         cls: 'badge-orange' },
-        { label: 'Inhalt', re: /content too short/i,                                cls: 'badge-yellow' },
-        { label: 'Einltg', re: /first paragraph|einleitung/i,                       cls: 'badge-blue'   },
+        { label: 'H1',     re: /\bh1\b/i,                                               cls: 'badge-red'    },
+        { label: 'Titel',  re: i => /\btitle\b/i.test(i) && !/subheading/i.test(i),     cls: 'badge-orange' },
+        { label: 'Meta',   re: /excerpt|meta description/i,                              cls: 'badge-orange' },
+        { label: 'Inhalt', re: /content too short/i,                                     cls: 'badge-yellow' },
+        { label: 'Einltg', re: /first paragraph|einleitung/i,                            cls: 'badge-blue'   },
+        { label: 'Marke',  re: /brand name incorrectly spelled/i,                        cls: 'badge-purple' },
       ];
 
       items.forEach(item => {
@@ -1319,9 +1320,23 @@
       </div>`;
     issuesEl.appendChild(robotsDiv);
 
-    // Manual issues (exclude anything handled by AI-fix cards above)
+    // Brand name issues — auto-fixed on save, show as info only
+    const brandIssues = item.issues.filter(i => /brand name incorrectly spelled/i.test(i));
+    if (brandIssues.length) {
+      const div = document.createElement('div');
+      div.className = 'seo-issue-item';
+      div.innerHTML = `
+        <div class="seo-issue-header">
+          <span class="seo-issue-icon">⚠</span>
+          <span class="seo-issue-label" style="color:#7c3aed">Markenname falsch geschrieben (wird beim nächsten Speichern automatisch korrigiert → "Das Auss.Zeit")</span>
+        </div>
+        ${brandIssues.map(i => `<div class="seo-issue-sub">${escapeHtml(i)}</div>`).join('')}`;
+      issuesEl.appendChild(div);
+    }
+
+    // Manual issues (exclude anything handled by AI-fix cards or auto-fix above)
     item.issues
-      .filter(i => !/title|excerpt|meta description|h1|heading|content too short|content could be longer|first paragraph/i.test(i))
+      .filter(i => !/title|excerpt|meta description|h1|heading|content too short|content could be longer|first paragraph|brand name/i.test(i))
       .forEach(issue => {
         const div = document.createElement('div');
         div.className = 'seo-issue-item';
