@@ -11,6 +11,8 @@ import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI } from './module
 import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals, applyBrandFix } from './modules/seo-optimizer.js';
 import { updatePost, updatePage } from './utils/wp-api.js';
 import { getPostsWithImages, getMediaLibrary, replaceImage } from './modules/seasonal-replacer.js';
+import axios from 'axios';
+import https from 'https';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -259,6 +261,28 @@ app.post('/apply/audit-media', express.json(), async (req, res) => {
 });
 
 // ── Seasonal Image Replacement ────────────────────────────────
+
+const insecureAgent = new https.Agent({ rejectUnauthorized: false });
+
+// Proxy WP image URLs through our server so the browser doesn't hit SSL issues
+app.get('/api/seasonal/proxy-image', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).end('url required');
+  const wpBase = (process.env.WP_URL || '').replace(/\/$/, '');
+  if (wpBase && !url.startsWith(wpBase)) return res.status(403).end('forbidden');
+  try {
+    const upstream = await axios.get(url, {
+      responseType: 'arraybuffer',
+      httpsAgent: insecureAgent,
+      timeout: 10000,
+    });
+    res.set('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(upstream.data));
+  } catch {
+    res.status(502).end('image fetch failed');
+  }
+});
 
 app.get('/api/seasonal/posts', async (req, res) => {
   try {

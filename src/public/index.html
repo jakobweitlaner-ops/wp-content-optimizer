@@ -2497,6 +2497,11 @@
     }
   }
 
+  function proxyThumb(src) {
+    if (!src) return null;
+    return `/api/seasonal/proxy-image?url=${encodeURIComponent(src)}`;
+  }
+
   function renderSeasonalList() {
     const scroll = document.getElementById('seasonal-scroll');
     scroll.innerHTML = '';
@@ -2512,20 +2517,28 @@
       card.id = `seasonal-post-${post.id}`;
 
       const typeLabel = post.type === 'page' ? 'Seite' : 'Beitrag';
-      card.innerHTML = `
-        <div class="seasonal-post-header">
-          <div class="seasonal-post-title">
-            <a href="${escapeHtml(post.url)}" target="_blank">${escapeHtml(post.title)}</a>
-          </div>
-          <span class="seasonal-type-badge">${typeLabel}</span>
+      const header = document.createElement('div');
+      header.className = 'seasonal-post-header';
+      header.innerHTML = `
+        <div class="seasonal-post-title">
+          <a href="${escapeHtml(post.url)}" target="_blank">${escapeHtml(post.title)}</a>
         </div>
-        <div class="seasonal-images-grid" id="seasonal-images-${post.id}-${post.type}"></div>
+        <span class="seasonal-type-badge">${typeLabel}</span>
       `;
+      const grid = document.createElement('div');
+      grid.className = 'seasonal-images-grid';
+      grid.id = `seasonal-images-${post.id}-${post.type}`;
+
+      card.appendChild(header);
+      card.appendChild(grid);
       scroll.appendChild(card);
 
-      const grid = card.querySelector(`#seasonal-images-${post.id}-${post.type}`);
       post.images.forEach((img, idx) => {
-        grid.appendChild(buildImageRow(post, img, idx));
+        try {
+          grid.appendChild(buildImageRow(post, img, idx));
+        } catch (e) {
+          console.error('buildImageRow error', e);
+        }
       });
     }
   }
@@ -2535,46 +2548,61 @@
     row.className = 'seasonal-image-row';
     row.id = `seasonal-row-${post.id}-${post.type}-${idx}`;
 
-    const thumbSrc = img.src || '';
-    const filename = thumbSrc ? thumbSrc.split('/').pop().split('?')[0] : '';
-    const srcDisplay = filename || (img.mediaId ? `Media-ID ${img.mediaId}` : '—');
-
-    // Build thumb element separately so we can attach event handler
-    const thumbContainer = document.createElement('div');
-    thumbContainer.style.flexShrink = '0';
-    if (thumbSrc) {
+    // Thumbnail — loaded via server proxy to bypass SSL cert issues
+    const proxySrc = proxyThumb(img.src);
+    if (proxySrc) {
       const imgEl = document.createElement('img');
       imgEl.className = 'seasonal-thumb';
-      imgEl.src = thumbSrc;
+      imgEl.src = proxySrc;
       imgEl.alt = '';
       imgEl.loading = 'lazy';
-      imgEl.onerror = () => {
+      imgEl.addEventListener('error', () => {
         const ph = document.createElement('div');
         ph.className = 'seasonal-thumb-placeholder';
         ph.textContent = '🖼';
         imgEl.replaceWith(ph);
-      };
-      thumbContainer.appendChild(imgEl);
+      });
+      row.appendChild(imgEl);
     } else {
       const ph = document.createElement('div');
       ph.className = 'seasonal-thumb-placeholder';
       ph.textContent = '🖼';
-      thumbContainer.appendChild(ph);
+      row.appendChild(ph);
     }
 
-    row.appendChild(thumbContainer);
-    row.insertAdjacentHTML('beforeend', `
-      <div class="seasonal-image-info">
-        <div class="seasonal-image-label">${escapeHtml(img.label)}</div>
-        <div class="seasonal-image-src" title="${escapeHtml(thumbSrc)}">${escapeHtml(srcDisplay)}</div>
-      </div>
-      <img class="seasonal-new-thumb" id="new-thumb-${post.id}-${post.type}-${idx}" src="" alt="">
-      <button class="seasonal-replace-btn"
-        id="replace-btn-${post.id}-${post.type}-${idx}"
-        onclick="openMediaPicker(${post.id},'${post.type}',${idx})">
-        Ersetzen
-      </button>
-    `);
+    // Info text
+    const srcDisplay = img.src
+      ? img.src.split('/').pop().split('?')[0]
+      : (img.mediaId ? `Media-ID ${img.mediaId}` : '—');
+
+    const info = document.createElement('div');
+    info.className = 'seasonal-image-info';
+    const labelEl = document.createElement('div');
+    labelEl.className = 'seasonal-image-label';
+    labelEl.textContent = img.label;
+    const srcEl = document.createElement('div');
+    srcEl.className = 'seasonal-image-src';
+    srcEl.title = img.src || '';
+    srcEl.textContent = srcDisplay;
+    info.appendChild(labelEl);
+    info.appendChild(srcEl);
+    row.appendChild(info);
+
+    // Hidden new-thumb shown after successful replacement
+    const newThumb = document.createElement('img');
+    newThumb.className = 'seasonal-new-thumb';
+    newThumb.id = `new-thumb-${post.id}-${post.type}-${idx}`;
+    newThumb.alt = '';
+    row.appendChild(newThumb);
+
+    // Replace button
+    const btn = document.createElement('button');
+    btn.className = 'seasonal-replace-btn';
+    btn.id = `replace-btn-${post.id}-${post.type}-${idx}`;
+    btn.textContent = 'Ersetzen';
+    btn.addEventListener('click', () => openMediaPicker(post.id, post.type, idx));
+    row.appendChild(btn);
+
     return row;
   }
 
@@ -2632,7 +2660,7 @@
         el.dataset.id = item.id;
 
         const imgEl = document.createElement('img');
-        imgEl.src = item.medium || item.thumbnail;
+        imgEl.src = proxyThumb(item.medium || item.thumbnail);
         imgEl.alt = item.altText;
         imgEl.loading = 'lazy';
         imgEl.onerror = () => {
@@ -2727,7 +2755,7 @@
         if (oldThumb) {
           const img2 = document.createElement('img');
           img2.className = 'seasonal-thumb';
-          img2.src = newMedia.src;
+          img2.src = proxyThumb(newMedia.src);
           img2.alt = '';
           img2.loading = 'lazy';
           oldThumb.replaceWith(img2);
@@ -2736,7 +2764,7 @@
         if (srcEl) srcEl.textContent = newMedia.src.split('/').pop();
       }
 
-      if (newThumb) { newThumb.src = newMedia.medium || newMedia.src; newThumb.style.display = 'block'; }
+      if (newThumb) { newThumb.src = proxyThumb(newMedia.medium || newMedia.src); newThumb.style.display = 'block'; }
       if (btn) { btn.disabled = false; btn.textContent = '✓ Ersetzt'; btn.className = 'seasonal-replace-btn success'; }
       setTimeout(() => {
         if (btn) { btn.textContent = 'Ersetzen'; btn.className = 'seasonal-replace-btn'; }
