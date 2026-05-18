@@ -533,26 +533,22 @@ export async function applySeoFixes(changes) {
           }
           data = { content: newContent };
         } else {
-          const paragraphs = safeValue.split(/\n\n+/).filter(Boolean);
-          const addition = isGutenberg
-            ? paragraphs.map(p => `<!-- wp:paragraph -->\n<p>${p.trim()}</p>\n<!-- /wp:paragraph -->`).join('\n\n')
-            : paragraphs.map(p => `<p>${p.trim()}</p>`).join('\n');
-
-          if (isGutenberg) {
-            // Insert after the last content block so new paragraphs stay inside
-            // any UAGB container rather than being appended after its closing tag.
-            const contentBlockRe = /<!-- \/wp:(?:paragraph|heading|list|uagb\/advanced-heading|quote|preformatted|verse|code|table) -->/gi;
-            let lastEnd = -1;
-            let m;
-            while ((m = contentBlockRe.exec(rawContent)) !== null) {
-              lastEnd = m.index + m[0].length;
-            }
-            data = {
-              content: lastEnd !== -1
-                ? rawContent.slice(0, lastEnd) + '\n\n' + addition + rawContent.slice(lastEnd)
-                : rawContent + '\n\n' + addition,
-            };
+          // Expanded paragraphs: replace existing wp:paragraph blocks in order
+          const expandedParas = value.split(/\n\n+/).map(p => p.replace(/<[^>]+>/g, '').trim()).filter(Boolean);
+          if (isGutenberg && expandedParas.length > 0) {
+            let paraIdx = 0;
+            const newContent = rawContent.replace(
+              /<!-- wp:paragraph -->\n<p[^>]*>[\s\S]*?<\/p>\n<!-- \/wp:paragraph -->/gi,
+              (match) => {
+                if (paraIdx < expandedParas.length) {
+                  return `<!-- wp:paragraph -->\n<p>${expandedParas[paraIdx++]}</p>\n<!-- /wp:paragraph -->`;
+                }
+                return match;
+              }
+            );
+            data = { content: newContent };
           } else {
+            const addition = expandedParas.map(p => `<p>${p}</p>`).join('\n');
             data = { content: rawContent + '\n\n' + addition };
           }
         }

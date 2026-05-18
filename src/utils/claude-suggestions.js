@@ -272,37 +272,53 @@ Respond with ONLY this JSON (no explanation, no markdown):
 
 export async function generateContentExtension(post) {
   const title = post.title?.rendered || '(no title)';
-  const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
+  const rendered = post.content?.rendered || '';
+  const content = rendered.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   const wordCount = post._wordCount || 0;
   const lang = langName(detectLanguage(title + ' ' + content));
 
-  const prompt = `You are a content writer. Write 1-2 additional paragraphs to extend this WordPress post that is currently too short.
+  // Extract plain <p> blocks (standalone paragraphs, not uagb-desc-text etc.)
+  const paraTexts = [];
+  const paraRe = /<p>([\s\S]*?)<\/p>/gi;
+  let m;
+  while ((m = paraRe.exec(rendered)) !== null) {
+    const text = m[1].replace(/<[^>]+>/g, '').trim();
+    if (text.length > 30) paraTexts.push(text);
+  }
+
+  if (paraTexts.length === 0) return null;
+
+  const prompt = `You are a content writer. Expand and enrich each of the following existing paragraphs from a WordPress post to increase the total word count.
 
 Language: ${lang} — write ONLY in ${lang}.
 Post title: "${title}"
-Current content (${wordCount} words): ${content.substring(0, 800)}
+Current word count: ${wordCount} words (target: 300+ words)
+
+Paragraphs to expand (${paraTexts.length} total):
+${paraTexts.map((p, i) => `${i + 1}. "${p}"`).join('\n')}
 
 Rules:
-- Add useful, relevant information that complements the existing text
-- Each paragraph 60-100 words
-- Separate paragraphs with a blank line
+- Rewrite each paragraph to be more detailed and informative (roughly 1.5–2× the original length)
+- Keep the same topic, tone, and information — just add more depth and context
 - Plain text only, no HTML tags
+- Return exactly ${paraTexts.length} expanded paragraphs in the same order
 
-Respond with ONLY this JSON (no explanation, no markdown):
-{"content": "your additional paragraph(s) here"}`;
+Respond with ONLY this JSON array (no explanation, no markdown):
+["expanded paragraph 1", "expanded paragraph 2", ...]`;
 
   const message = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 512,
+    max_tokens: 2048,
     system: 'You are a content writer. Always respond with valid JSON only. Never add explanation or markdown formatting.',
     messages: [{ role: 'user', content: prompt }],
   });
 
-  const raw = message.content[0]?.text?.trim() || '{}';
+  const raw = message.content[0]?.text?.trim() || '[]';
   const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
   try {
     const parsed = JSON.parse(cleaned);
-    return parsed.content || null;
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed.filter(p => typeof p === 'string' && p.trim()).join('\n\n');
   } catch {
     return null;
   }
