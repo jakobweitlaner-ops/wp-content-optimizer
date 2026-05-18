@@ -188,18 +188,25 @@ export async function generateIntroFix(post, keyphrase) {
   const firstPara = post.currentIntro || content.substring(0, 300);
   const lang = langName(detectLanguage(title + ' ' + content));
 
+  // Strip the intro from the full content so the AI knows what the rest covers
+  const bodyContent = firstPara
+    ? content.replace(firstPara, '').trim().substring(0, 600)
+    : content.substring(300, 900);
+
   const prompt = `You are an SEO expert. Rewrite or create an introduction paragraph for this WordPress post that naturally includes the focus keyphrase.
 
 Language: ${lang} — write ONLY in ${lang}.
 Post title: "${title}"
 Focus keyphrase: "${keyphrase}"
 Current first paragraph: "${firstPara || '(empty)'}"
+Rest of the page content: "${bodyContent || '(none)'}"
 
 Rules:
 - Include the focus keyphrase naturally in the first or second sentence
 - Same tone as the existing content
 - 40-80 words
 - Plain text only, no HTML tags
+- Do NOT repeat specific information, facts, or phrases already covered in the rest of the page content — the intro should lead into the content, not summarize it
 
 Respond with ONLY this JSON (no explanation, no markdown):
 {"intro": "your rewritten introduction paragraph"}`;

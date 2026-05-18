@@ -1144,9 +1144,9 @@
 
     // AI-fixable fields
     [
+      { field: 'keyphrase', label: 'Fokus-Keyphrase',        current: item.currentKeyphrase,   emptyHint: '(keine Keyphrase gesetzt)' },
       { field: 'title',     label: 'Yoast SEO Titel',       current: item.currentYoastTitle,  emptyHint: '(kein Yoast SEO Titel)' },
       { field: 'excerpt',   label: 'Yoast Meta Description', current: item.currentYoastDesc,   emptyHint: '(keine Meta Description)' },
-      { field: 'keyphrase', label: 'Fokus-Keyphrase',        current: item.currentKeyphrase,   emptyHint: '(keine Keyphrase gesetzt)' },
       { field: 'h1',        label: 'H1-Überschrift',         current: item.currentH1,          emptyHint: item.headingFormat ? `(kein H1 – gefunden: ${item.headingFormat.tag.toUpperCase()}${item.headingFormat.classes ? ' · ' + item.headingFormat.classes : ''})` : '(kein H1 gefunden)', headingFormat: item.headingFormat },
       { field: 'intro',     label: 'Einleitung (erster Absatz)', current: item.currentIntro,   emptyHint: '(kein erster Absatz gefunden)' },
     ].forEach(({ field, label, current, emptyHint, headingFormat }) => {
