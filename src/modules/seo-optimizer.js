@@ -122,8 +122,11 @@ export function scoreSeo(post) {
     const metaDescText = (post.yoast_head_json?.og_description || post.yoast_head_json?.description || '').toLowerCase();
     const contentLower = text.toLowerCase();
 
-    // Keyphrase in SEO title
-    if (yoastTitle && !kpWords.every(w => yoastTitle.includes(w))) {
+    // Keyphrase in SEO title — ignore common stopwords so "Apartment mit Garten und Bergblick"
+    // still passes for a title like "Apartment 101 – Garten & Bergblick"
+    const STOPWORDS = new Set(['der','die','das','und','oder','mit','für','von','zu','in','an','auf','bei','im','am','dem','den','des','ein','eine','einen','einem','eines','ist','sind','the','and','or','with','for','of','to','in','a','an','is','are']);
+    const sigWords = kpWords.filter(w => !STOPWORDS.has(w) && w.length > 2);
+    if (yoastTitle && sigWords.length > 0 && !sigWords.every(w => yoastTitle.includes(w))) {
       issues.push('Keyphrase not in SEO title');
       score -= 10;
     }

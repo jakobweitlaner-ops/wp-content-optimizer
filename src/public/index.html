@@ -1200,9 +1200,9 @@
       { field: 'intro',     label: 'Einleitung (erster Absatz)', current: item.currentIntro,   emptyHint: '(kein erster Absatz gefunden)' },
     ].forEach(({ field, label, current, emptyHint, headingFormat }) => {
       const issue = field === 'title'
-        ? item.issues.find(i => /title/i.test(i)) || ''
+        ? item.issues.find(i => /\btitle\b/i.test(i) && !/subheading/i.test(i)) || ''
         : field === 'h1'
-        ? item.issues.find(i => /h1|heading/i.test(i)) || ''
+        ? item.issues.find(i => /\bh1\b/i.test(i)) || ''
         : field === 'intro'
         ? item.issues.find(i => /first paragraph|einleitung/i.test(i)) || ''
         : item.issues.find(i => /excerpt|meta description/i.test(i)) || '';
