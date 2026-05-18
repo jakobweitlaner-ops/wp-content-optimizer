@@ -1,6 +1,7 @@
 import { getPosts, getPages, getPost, getPage, updatePost, updatePage, updateMedia, getMediaItem } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
 import { getSeoSuggestions, generateSeoFixes, generateH1Fix, generateContentExtension, generateKeyphrase, generateImageAltWithKeyphrase, generateIntroFix, detectLanguage } from '../utils/claude-suggestions.js';
+import { normalizeTitle, normalizeText, hasBrandIssue } from '../utils/content-normalizer.js';
 
 function stripHtml(html) {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -8,11 +9,6 @@ function stripHtml(html) {
 
 function countWords(text) {
   return text.split(/\s+/).filter(Boolean).length;
-}
-
-// Normalize title separators: replace space-dash-space variants with " | "
-export function normalizeTitleSeparator(title) {
-  return title.replace(/\s+[-–—]\s+/g, ' | ');
 }
 
 export function detectHeadingFormat(content) {
@@ -165,6 +161,16 @@ export function scoreSeo(post) {
       issues.push('Keyphrase not in subheadings');
       score -= 5;
     }
+  }
+
+  // Brand name check
+  if (hasBrandIssue(effectiveTitle)) {
+    issues.push('Brand name incorrectly spelled in title');
+    score -= 5;
+  }
+  if (hasBrandIssue(text)) {
+    issues.push('Brand name incorrectly spelled in content');
+    score -= 5;
   }
 
   return { score: Math.max(0, score), issues, wordCount, h1Count: h1Matches.length, h2Count: h2Matches.length, _wordCount: wordCount };
@@ -435,7 +441,7 @@ export async function applySeoFixes(changes) {
           ? await getPage(id, { context: 'edit' })
           : await getPost(id, { context: 'edit' });
         const rawContent = post.content?.raw || post.content?.rendered || '';
-        const safeValue = value.replace(/<[^>]+>/g, '').trim();
+        const safeValue = normalizeText(value.replace(/<[^>]+>/g, '').trim());
         const isGutenberg = rawContent.includes('<!-- wp:');
 
         if (field === 'h1') {
@@ -556,7 +562,9 @@ export async function applySeoFixes(changes) {
         }
       } else {
         const yoastKey = YOAST_FIELD_MAP[field];
-        const normalizedValue = field === 'title' ? normalizeTitleSeparator(value) : value;
+        const normalizedValue = field === 'title' ? normalizeTitle(value)
+          : field === 'excerpt' ? normalizeText(value)
+          : value;
         data = yoastKey ? { meta: { [yoastKey]: normalizedValue } } : { [field]: normalizedValue };
       }
 
