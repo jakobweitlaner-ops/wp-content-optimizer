@@ -499,16 +499,22 @@ export async function applySeoFixes(changes) {
             : `<p>${safeValue}</p>`;
           let newContent;
           if (isGutenberg) {
-            // Match any heading close (h1/h2/h3) so intro insertion works regardless
-            // of whether the H1 fix has already been applied or not.
-            const hThenParaRe = /(<\/h[123]>[\s\S]*?-->)(\n+)(<!-- wp:paragraph -->[\s\S]*?<!-- \/wp:paragraph -->)/i;
-            const hBlockCloseRe = /(<\/h[123]>[\s\S]*?-->)/i;
-            if (hThenParaRe.test(rawContent)) {
-              // Paragraph immediately follows heading block — replace it
-              newContent = rawContent.replace(hThenParaRe, `$1$2${newParagraph}`);
-            } else if (hBlockCloseRe.test(rawContent)) {
-              // Insert directly after the heading block's closing comment
-              newContent = rawContent.replace(hBlockCloseRe, `$1\n\n${newParagraph}`);
+            // Anchor on the block-level closing comment, not on HTML tags.
+            // This is reliable even when UAGB headings include large description
+            // paragraphs inside the block (headingDescToggle:true).
+            const headingBlockCloseRe = /<!-- \/wp:(?:heading|uagb\/advanced-heading) -->/i;
+            const headingCloseMatch = rawContent.match(headingBlockCloseRe);
+            if (headingCloseMatch) {
+              const closeEnd = rawContent.indexOf(headingCloseMatch[0]) + headingCloseMatch[0].length;
+              const after = rawContent.slice(closeEnd);
+              const paraMatch = after.match(/^(\n+)(<!-- wp:paragraph -->[\s\S]*?<!-- \/wp:paragraph -->)/i);
+              if (paraMatch) {
+                // Replace the paragraph that immediately follows the heading block
+                newContent = rawContent.slice(0, closeEnd) + paraMatch[1] + newParagraph + rawContent.slice(closeEnd + paraMatch[0].length);
+              } else {
+                // No paragraph immediately follows — insert one right after the heading block
+                newContent = rawContent.slice(0, closeEnd) + '\n\n' + newParagraph + rawContent.slice(closeEnd);
+              }
             } else {
               newContent = newParagraph + '\n\n' + rawContent;
             }
