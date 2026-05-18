@@ -10,6 +10,23 @@ function countWords(text) {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
+export function detectHeadingFormat(content) {
+  const match = content.match(/<(h[123])([^>]*)>([\s\S]*?)<\/h[123]>/i);
+  if (!match) return null;
+  const tag = match[1].toLowerCase();
+  const attrs = match[2];
+  const classMatch = attrs.match(/class="([^"]*)"/i);
+  const styleMatch = attrs.match(/style="([^"]*)"/i);
+  return {
+    tag,
+    classes: classMatch ? classMatch[1].trim() : '',
+    style: styleMatch ? styleMatch[1].trim() : '',
+    text: match[3].replace(/<[^>]+>/g, '').trim(),
+    isH1: tag === 'h1',
+    needsConversion: tag !== 'h1',
+  };
+}
+
 function scoreYoast(post) {
   const yoast = post.yoast_head_json;
   const issues = [];
@@ -154,10 +171,12 @@ export async function auditSeoItems() {
   return content.map((post) => {
     const seo = scoreSeo(post);
     const yoast = post.yoast_head_json || {};
-    const h1Match = post.content?.rendered?.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    const renderedContent = post.content?.rendered || '';
+    const h1Match = renderedContent.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
     const currentH1 = h1Match ? h1Match[1].replace(/<[^>]+>/g, '').trim() : '';
-    const firstParaMatch2 = post.content?.rendered?.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    const firstParaMatch2 = renderedContent.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
     const currentIntro = firstParaMatch2 ? firstParaMatch2[1].replace(/<[^>]+>/g, '').trim().substring(0, 150) : '';
+    const headingFormat = detectHeadingFormat(renderedContent);
     return {
       id: post.id,
       type: post._type,
@@ -168,6 +187,7 @@ export async function auditSeoItems() {
       currentKeyphrase: post.meta?.['_yoast_wpseo_focuskw'] || '',
       currentH1,
       currentIntro,
+      headingFormat,
       isNoindex: yoast.robots?.index === 'noindex' || post.meta?.['_yoast_wpseo_meta-robots-noindex'] == 1,
       ...seo,
     };
@@ -408,16 +428,38 @@ export async function applySeoFixes(changes) {
         const isGutenberg = rawContent.includes('<!-- wp:');
 
         if (field === 'h1') {
+          const headingFormat = detectHeadingFormat(rawContent);
+          const existingClasses = headingFormat?.classes || (isGutenberg ? 'wp-block-heading' : '');
+          const classAttr = existingClasses ? ` class="${existingClasses}"` : '';
+          const newH1Tag = `<h1${classAttr}>${safeValue}</h1>`;
+          const newBlock = `<!-- wp:heading {"level":1} -->\n${newH1Tag}\n<!-- /wp:heading -->`;
+
           let newContent;
-          if (/<h1[^>]*>/i.test(rawContent)) {
-            const replacement = isGutenberg
-              ? `<h1 class="wp-block-heading">${safeValue}</h1>`
-              : `<h1>${safeValue}</h1>`;
-            newContent = rawContent.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, replacement);
+          if (headingFormat?.needsConversion) {
+            // Convert first h2/h3 to h1, preserving its CSS classes
+            const srcTag = headingFormat.tag;
+            const gutenbergBlockRe = new RegExp(
+              `<!-- wp:heading[^>]*-->\\n?<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>\\n?<!-- \\/wp:heading -->`, 'i'
+            );
+            const tagRe = new RegExp(`<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>`, 'i');
+            if (isGutenberg && gutenbergBlockRe.test(rawContent)) {
+              newContent = rawContent.replace(gutenbergBlockRe, newBlock);
+            } else {
+              newContent = rawContent.replace(tagRe, newH1Tag);
+            }
+          } else if (/<h1[^>]*>/i.test(rawContent)) {
+            // Update existing H1 text while keeping its classes
+            const gutenbergBlockRe = /<!-- wp:heading[^>]*-->\n?<h1[^>]*>[\s\S]*?<\/h1>\n?<!-- \/wp:heading -->/i;
+            if (isGutenberg && gutenbergBlockRe.test(rawContent)) {
+              newContent = rawContent.replace(gutenbergBlockRe, newBlock);
+            } else {
+              newContent = rawContent.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, newH1Tag);
+            }
           } else {
+            // No heading at all — prepend new H1
             newContent = isGutenberg
-              ? `<!-- wp:heading {"level":1} -->\n<h1 class="wp-block-heading">${safeValue}</h1>\n<!-- /wp:heading -->\n\n` + rawContent
-              : `<h1>${safeValue}</h1>\n` + rawContent;
+              ? newBlock + '\n\n' + rawContent
+              : newH1Tag + '\n' + rawContent;
           }
           data = { content: newContent };
         } else if (field === 'intro') {
