@@ -102,9 +102,11 @@ app.get('/api/seo-audit', async (req, res) => {
 app.get('/api/h1-overview', async (req, res) => {
   try {
     const items = await auditSeoItems();
-    res.json(items.map(({ id, type, title, url, lang, currentH1, currentKeyphrase }) =>
-      ({ id, type, title, url, lang, currentH1, currentKeyphrase })
-    ));
+    const { hasBrandIssue } = await import('./utils/content-normalizer.js');
+    res.json(items.map(({ id, type, title, url, lang, currentH1, currentKeyphrase }) => ({
+      id, type, title, url, lang, currentH1, currentKeyphrase,
+      hasBrandIssue: hasBrandIssue(title + ' ' + (currentH1 || '')),
+    })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
