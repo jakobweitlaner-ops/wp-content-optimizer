@@ -2464,6 +2464,7 @@
   // ── Seasonal Image Replacement ───────────────────────────────
 
   let seasonalData = [];
+  let _wpBase = '';
 
   // Pending replacement context (set when picker opens)
   let pickerContext = null;
@@ -2493,9 +2494,17 @@
     scroll.innerHTML = '<div class="seasonal-loading">Lade Beiträge und Seiten…</div>';
 
     try {
-      const resp = await fetch('/api/seasonal/posts');
-      if (!resp.ok) throw new Error(await resp.text());
-      seasonalData = await resp.json();
+      // Load WP base URL and posts in parallel
+      const [cfgResp, postsResp] = await Promise.all([
+        fetch('/api/seasonal/config'),
+        fetch('/api/seasonal/posts'),
+      ]);
+      if (cfgResp.ok) {
+        const cfg = await cfgResp.json();
+        _wpBase = cfg.wpBase || '';
+      }
+      if (!postsResp.ok) throw new Error(await postsResp.text());
+      seasonalData = await postsResp.json();
 
       document.getElementById('seasonal-count-label').textContent =
         `${seasonalData.length} Beiträge/Seiten mit Bildern`;
@@ -2511,7 +2520,14 @@
 
   function proxyThumb(src) {
     if (!src) return null;
-    return `/api/seasonal/proxy-image?url=${encodeURIComponent(src)}`;
+    // Only proxy WP-origin images (which may have a self-signed SSL cert).
+    // External images (different domain) load fine directly in the browser.
+    if (_wpBase && src.startsWith(_wpBase)) {
+      return `/api/seasonal/proxy-image?url=${encodeURIComponent(src)}`;
+    }
+    // Fallback: proxy everything if WP base is unknown, direct URL if external
+    if (!_wpBase) return `/api/seasonal/proxy-image?url=${encodeURIComponent(src)}`;
+    return src;
   }
 
   function renderSeasonalList() {

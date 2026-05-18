@@ -264,12 +264,17 @@ app.post('/apply/audit-media', express.json(), async (req, res) => {
 
 const insecureAgent = new https.Agent({ rejectUnauthorized: false });
 
-// Proxy WP image URLs through our server so the browser doesn't hit SSL issues
+// Expose WP base URL to the frontend so it knows which images need proxying
+app.get('/api/seasonal/config', (req, res) => {
+  res.json({ wpBase: (process.env.WP_URL || '').replace(/\/$/, '') });
+});
+
+// Proxy WP image URLs through our server so the browser doesn't hit SSL issues.
+// Only proxies HTTP/HTTPS URLs — no local file paths or other schemes allowed.
 app.get('/api/seasonal/proxy-image', async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).end('url required');
-  const wpBase = (process.env.WP_URL || '').replace(/\/$/, '');
-  if (wpBase && !url.startsWith(wpBase)) return res.status(403).end('forbidden');
+  if (!/^https?:\/\//i.test(url)) return res.status(400).end('invalid url');
   try {
     const upstream = await axios.get(url, {
       responseType: 'arraybuffer',
