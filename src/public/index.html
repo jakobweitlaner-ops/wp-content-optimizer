@@ -1316,7 +1316,7 @@
       });
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
-      let buf = '', success = false;
+      let buf = '', success = false, errMsg = '';
       while (true) {
         const { value: chunk, done } = await reader.read();
         if (done) break;
@@ -1327,6 +1327,7 @@
           if (!line) continue;
           const msg = JSON.parse(line);
           if (msg.type === 'done') success = msg.text === 'success';
+          if (msg.type === 'err') errMsg = msg.text.replace(/^✖ ID \d+: /, '');
         }
       }
       if (success) {
@@ -1353,6 +1354,16 @@
           issueItem.appendChild(hint);
         }
       } else {
+        if (errMsg) {
+          const issueItem = document.getElementById(`seo-item-${id}-${field}`);
+          const existingNote = issueItem?.querySelector('.seo-err-note');
+          if (existingNote) existingNote.remove();
+          const note = document.createElement('div');
+          note.className = 'seo-err-note seo-manual-note';
+          note.style.color = '#ef4444';
+          note.textContent = errMsg;
+          issueItem?.appendChild(note);
+        }
         btnEl.textContent = 'Fehler';
         setTimeout(() => { btnEl.textContent = '✓ Übernehmen'; btnEl.disabled = false; }, 2000);
       }
