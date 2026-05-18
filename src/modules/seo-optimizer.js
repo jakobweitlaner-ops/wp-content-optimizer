@@ -456,10 +456,7 @@ export async function applySeoFixes(changes) {
               newContent = rawContent.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, newH1Tag);
             }
           } else {
-            // No heading at all — prepend new H1
-            newContent = isGutenberg
-              ? newBlock + '\n\n' + rawContent
-              : newH1Tag + '\n' + rawContent;
+            throw new Error('Keine Überschrift (H1/H2/H3) im Content gefunden – H1 bitte manuell im WP-Editor an der gewünschten Position einfügen');
           }
           data = { content: newContent };
         } else if (field === 'intro') {
