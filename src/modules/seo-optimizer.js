@@ -537,7 +537,24 @@ export async function applySeoFixes(changes) {
           const addition = isGutenberg
             ? paragraphs.map(p => `<!-- wp:paragraph -->\n<p>${p.trim()}</p>\n<!-- /wp:paragraph -->`).join('\n\n')
             : paragraphs.map(p => `<p>${p.trim()}</p>`).join('\n');
-          data = { content: rawContent + '\n\n' + addition };
+
+          if (isGutenberg) {
+            // Insert after the last content block so new paragraphs stay inside
+            // any UAGB container rather than being appended after its closing tag.
+            const contentBlockRe = /<!-- \/wp:(?:paragraph|heading|list|uagb\/advanced-heading|quote|preformatted|verse|code|table) -->/gi;
+            let lastEnd = -1;
+            let m;
+            while ((m = contentBlockRe.exec(rawContent)) !== null) {
+              lastEnd = m.index + m[0].length;
+            }
+            data = {
+              content: lastEnd !== -1
+                ? rawContent.slice(0, lastEnd) + '\n\n' + addition + rawContent.slice(lastEnd)
+                : rawContent + '\n\n' + addition,
+            };
+          } else {
+            data = { content: rawContent + '\n\n' + addition };
+          }
         }
       } else {
         const yoastKey = YOAST_FIELD_MAP[field];
