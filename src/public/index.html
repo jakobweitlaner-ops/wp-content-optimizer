@@ -1225,7 +1225,7 @@
         <div class="seo-issue-header">
           <span class="seo-issue-icon">${issue ? '✗' : '✓'}</span>
           <span class="seo-issue-label">${label}</span>
-          <button class="seo-fix-btn" data-id="${item.id}" data-type="${item.type}" data-field="${field}" onclick="requestSeoFix(${item.id},'${item.type}','${field}',this)">Mit KI optimieren</button>
+          <button class="seo-fix-btn" data-id="${item.id}" data-type="${item.type}" data-field="${field}" data-keyphrase="${escapeHtml(item.currentKeyphrase||'')}" onclick="requestSeoFix(${item.id},'${item.type}','${field}',this)">Mit KI optimieren</button>
         </div>
         ${issue ? `<div class="seo-issue-sub">${escapeHtml(issue)}</div>` : ''}
         <div class="seo-current-val" id="seo-cur-${item.id}-${field}">Aktuell: ${current ? escapeHtml(current) : `<em>${emptyHint}</em>`}</div>
@@ -1251,7 +1251,7 @@
         <div class="seo-issue-header">
           <span class="seo-issue-icon">✗</span>
           <span class="seo-issue-label">Inhalt</span>
-          <button class="seo-fix-btn" data-id="${item.id}" data-type="${item.type}" data-field="content" onclick="requestSeoFix(${item.id},'${item.type}','content',this)">Mit KI ausformulieren</button>
+          <button class="seo-fix-btn" data-id="${item.id}" data-type="${item.type}" data-field="content" data-keyphrase="${escapeHtml(item.currentKeyphrase||'')}" onclick="requestSeoFix(${item.id},'${item.type}','content',this)">Mit KI ausformulieren</button>
         </div>
         <div class="seo-issue-sub">${escapeHtml(contentIssue)}</div>
         <div class="seo-current-val" id="seo-cur-${item.id}-content">Aktuell: ${item.wordCount} Wörter</div>
@@ -1334,8 +1334,10 @@
   async function requestSeoFix(id, type, field, btnEl) {
     btnEl.disabled = true;
     btnEl.textContent = 'Generiert…';
+    const keyphrase = btnEl.dataset.keyphrase || '';
     try {
-      const resp = await fetch(`/api/seo-fix?id=${id}&type=${type}&field=${field}`);
+      const kpParam = keyphrase ? `&keyphrase=${encodeURIComponent(keyphrase)}` : '';
+      const resp = await fetch(`/api/seo-fix?id=${id}&type=${type}&field=${field}${kpParam}`);
       const { value, error } = await resp.json();
       if (error) throw new Error(error);
       if (value) {

@@ -200,17 +200,18 @@ export async function auditSeoItems() {
   }).filter(item => !item.isNoindex).sort((a, b) => a.score - b.score);
 }
 
-export async function generateSeoFixForItem(id, type, field) {
+export async function generateSeoFixForItem(id, type, field, keyphrase = '') {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not set');
   const post = type === 'page' ? await getPage(id) : await getPost(id);
   const seo = scoreSeo(post);
+  // Use passed keyphrase (from UI) — fallback to meta for server-side callers
+  const kp = keyphrase || post.meta?.['_yoast_wpseo_focuskw'] || '';
 
   if (field === 'keyphrase') {
     return generateKeyphrase(post);
   }
 
   if (field === 'intro') {
-    const kp = post.meta?.['_yoast_wpseo_focuskw'] || '';
     const firstParaMatch = post.content?.rendered?.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
     const currentIntro = firstParaMatch ? firstParaMatch[1].replace(/<[^>]+>/g, '').trim() : '';
     return generateIntroFix({ ...post, currentIntro }, kp);
@@ -219,11 +220,11 @@ export async function generateSeoFixForItem(id, type, field) {
   if (field === 'h1') {
     const h1Match = post.content?.rendered?.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
     const currentH1 = h1Match ? h1Match[1].replace(/<[^>]+>/g, '').trim() : '';
-    return generateH1Fix({ ...post, currentH1 });
+    return generateH1Fix({ ...post, currentH1 }, kp);
   }
 
   if (field === 'content') {
-    return generateContentExtension({ ...post, _wordCount: seo.wordCount });
+    return generateContentExtension({ ...post, _wordCount: seo.wordCount }, kp);
   }
 
   const issues = field === 'title'
@@ -233,7 +234,6 @@ export async function generateSeoFixForItem(id, type, field) {
     : (seo.issues.filter((i) => /excerpt|meta description/i.test(i)).length
         ? seo.issues.filter((i) => /excerpt|meta description/i.test(i))
         : ['meta description needs improvement']);
-  const kp = post.meta?.['_yoast_wpseo_focuskw'] || '';
   const fixes = await generateSeoFixes(post, issues, kp);
   return field === 'excerpt' ? (fixes.excerpt || null) : (fixes.title || null);
 }
