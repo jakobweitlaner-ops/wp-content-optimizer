@@ -277,12 +277,14 @@ export async function generateContentExtension(post) {
   const wordCount = post._wordCount || 0;
   const lang = langName(detectLanguage(title + ' ' + content));
 
-  // Extract plain <p> blocks (standalone paragraphs, not uagb-desc-text etc.)
+  // Extract standalone paragraph texts — skip UAGB/block-internal paragraphs
   const paraTexts = [];
-  const paraRe = /<p>([\s\S]*?)<\/p>/gi;
+  const paraRe = /<p(\s[^>]*)?>[\s\S]*?<\/p>/gi;
   let m;
   while ((m = paraRe.exec(rendered)) !== null) {
-    const text = m[1].replace(/<[^>]+>/g, '').trim();
+    const attrs = m[1] || '';
+    if (/class="uagb-|class="wp-block-/.test(attrs)) continue;
+    const text = m[0].replace(/<[^>]+>/g, '').trim();
     if (text.length > 30) paraTexts.push(text);
   }
 
@@ -301,10 +303,9 @@ Rules:
 - Rewrite each paragraph to be more detailed and informative (roughly 1.5–2× the original length)
 - Keep the same topic, tone, and information — just add more depth and context
 - Plain text only, no HTML tags
-- Return exactly ${paraTexts.length} expanded paragraphs in the same order
+- Return exactly ${paraTexts.length} expanded paragraphs in the same order as the input
 
-Respond with ONLY this JSON array (no explanation, no markdown):
-["expanded paragraph 1", "expanded paragraph 2", ...]`;
+Respond with a JSON array containing exactly ${paraTexts.length} strings.`;
 
   const message = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
