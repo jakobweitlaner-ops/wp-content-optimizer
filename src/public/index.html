@@ -1302,6 +1302,16 @@
     } catch (err) {
       btnEl.textContent = 'Fehler – Retry';
       btnEl.disabled = false;
+      const issueItem = document.getElementById(`seo-item-${id}-${field}`);
+      if (issueItem) {
+        const existing = issueItem.querySelector('.seo-err-note');
+        if (existing) existing.remove();
+        const note = document.createElement('div');
+        note.className = 'seo-err-note seo-manual-note';
+        note.style.color = '#ef4444';
+        note.textContent = err.message;
+        issueItem.appendChild(note);
+      }
     }
   }
 
