@@ -100,11 +100,11 @@ app.get('/api/seo-audit', async (req, res) => {
 });
 
 app.get('/api/seo-fix', async (req, res) => {
-  const { id, type, field } = req.query;
+  const { id, type, field, keyphrase = '' } = req.query;
   if (!id || !type || !field) return res.status(400).json({ error: 'id, type, field required' });
   if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'ANTHROPIC_API_KEY not set' });
   try {
-    const value = await generateSeoFixForItem(parseInt(id, 10), type, field);
+    const value = await generateSeoFixForItem(parseInt(id, 10), type, field, keyphrase);
     res.json({ value: value || null });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -232,18 +232,19 @@ Respond with ONLY this JSON (no explanation, no markdown):
   }
 }
 
-export async function generateH1Fix(post) {
+export async function generateH1Fix(post, keyphrase = '') {
   const title = post.title?.rendered || '(no title)';
   const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
   const currentH1 = post.currentH1 || '';
   const lang = langName(detectLanguage(title + ' ' + content));
+  const keyphraseHint = keyphrase ? `\nFocus keyphrase: "${keyphrase}" — include it naturally in the heading.` : '';
 
   const prompt = `You are an SEO expert. Create an optimized H1 heading for this WordPress page.
 
 Language: ${lang} — write ONLY in ${lang}.
 Title: "${title}"
 ${currentH1 ? `Current H1: "${currentH1}"` : 'Current H1: (none)'}
-Content snippet: ${content.substring(0, 600)}
+Content snippet: ${content.substring(0, 600)}${keyphraseHint}
 
 Rules:
 - Descriptive and contains the main keyword
@@ -270,7 +271,7 @@ Respond with ONLY this JSON (no explanation, no markdown):
   }
 }
 
-export async function generateContentExtension(post) {
+export async function generateContentExtension(post, keyphrase = '') {
   const title = post.title?.rendered || '(no title)';
   const rendered = post.content?.rendered || '';
   const content = rendered.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -290,11 +291,13 @@ export async function generateContentExtension(post) {
 
   if (paraTexts.length === 0) return null;
 
+  const keyphraseHint = keyphrase ? `\nFocus keyphrase: "${keyphrase}" — include it naturally where appropriate in the expanded text.` : '';
+
   const prompt = `You are a content writer. Expand and enrich each of the following existing paragraphs from a WordPress post to increase the total word count.
 
 Language: ${lang} — write ONLY in ${lang}.
 Post title: "${title}"
-Current word count: ${wordCount} words (target: 300+ words)
+Current word count: ${wordCount} words (target: 300+ words)${keyphraseHint}
 
 Paragraphs to expand (${paraTexts.length} total):
 ${paraTexts.map((p, i) => `${i + 1}. "${p}"`).join('\n')}
