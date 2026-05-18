@@ -10,6 +10,7 @@ import { exec } from 'child_process';
 import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI } from './modules/media-optimizer.js';
 import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals, applyBrandFix } from './modules/seo-optimizer.js';
 import { updatePost, updatePage } from './utils/wp-api.js';
+import { getPostsWithImages, getMediaLibrary, replaceImage } from './modules/seasonal-replacer.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -255,6 +256,40 @@ app.post('/apply/audit-media', express.json(), async (req, res) => {
     send('done', 'error');
   }
   res.end();
+});
+
+// ── Seasonal Image Replacement ────────────────────────────────
+
+app.get('/api/seasonal/posts', async (req, res) => {
+  try {
+    const items = await getPostsWithImages();
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/seasonal/media', async (req, res) => {
+  try {
+    const { page = 1, search = '' } = req.query;
+    const items = await getMediaLibrary({ page: parseInt(page, 10), perPage: 30, search });
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/seasonal/replace', express.json(), async (req, res) => {
+  const { postId, postType, mode, oldSrc, oldMediaId, newMediaId, newSrc } = req.body;
+  if (!postId || !postType || !mode || !newMediaId) {
+    return res.status(400).json({ error: 'postId, postType, mode, newMediaId required' });
+  }
+  try {
+    const result = await replaceImage({ postId, postType, mode, oldSrc, oldMediaId, newMediaId, newSrc });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.listen(PORT, () => {
