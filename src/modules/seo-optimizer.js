@@ -460,20 +460,47 @@ export async function applySeoFixes(changes) {
           }
           data = { content: newContent };
         } else if (field === 'intro') {
+          const newParagraph = isGutenberg
+            ? `<!-- wp:paragraph -->\n<p>${safeValue}</p>\n<!-- /wp:paragraph -->`
+            : `<p>${safeValue}</p>`;
           let newContent;
           if (isGutenberg) {
-            const blockRegex = /<!-- wp:paragraph -->\n?<p[^>]*>[\s\S]*?<\/p>\n?<!-- \/wp:paragraph -->/;
-            if (blockRegex.test(rawContent)) {
-              newContent = rawContent.replace(blockRegex,
-                `<!-- wp:paragraph -->\n<p>${safeValue}</p>\n<!-- /wp:paragraph -->`);
+            // Find the first paragraph block AFTER the H1 block and replace it;
+            // if none exists, insert directly after the H1 block.
+            const afterH1 = rawContent.split(/(<!-- \/wp:heading -->)/i);
+            // afterH1[0] = content before first /wp:heading, afterH1[1] = the tag, afterH1[2+] = rest
+            const h1TagIdx = afterH1.findIndex((s, i) => i > 0 && /<!-- \/wp:heading -->/i.test(s));
+            if (h1TagIdx !== -1) {
+              const rest = afterH1.slice(h1TagIdx + 1).join('');
+              const paraBlockRe = /<!-- wp:paragraph -->\n?<p[^>]*>[\s\S]*?<\/p>\n?<!-- \/wp:paragraph -->/;
+              const before = afterH1.slice(0, h1TagIdx + 1).join('');
+              if (paraBlockRe.test(rest)) {
+                newContent = before + rest.replace(paraBlockRe, newParagraph);
+              } else {
+                newContent = before + '\n\n' + newParagraph + rest;
+              }
             } else {
-              newContent = `<!-- wp:paragraph -->\n<p>${safeValue}</p>\n<!-- /wp:paragraph -->\n\n` + rawContent;
+              // No H1 block found — replace first paragraph or prepend
+              const paraBlockRe = /<!-- wp:paragraph -->\n?<p[^>]*>[\s\S]*?<\/p>\n?<!-- \/wp:paragraph -->/;
+              newContent = paraBlockRe.test(rawContent)
+                ? rawContent.replace(paraBlockRe, newParagraph)
+                : newParagraph + '\n\n' + rawContent;
             }
           } else {
-            if (/<p[^>]*>/.test(rawContent)) {
-              newContent = rawContent.replace(/<p[^>]*>[\s\S]*?<\/p>/, `<p>${safeValue}</p>`);
+            // Classic: insert/replace paragraph right after </h1>
+            if (/<\/h1>/i.test(rawContent)) {
+              const afterH1Re = /(<\/h1>)([\s\S]*?)(<p[^>]*>[\s\S]*?<\/p>)?/i;
+              if (/<\/h1>[\s\S]*?<p/i.test(rawContent)) {
+                // Replace first <p> after H1
+                newContent = rawContent.replace(/(<\/h1>[\s\S]*?)(<p[^>]*>[\s\S]*?<\/p>)/i,
+                  (_, before, _p) => before + newParagraph);
+              } else {
+                newContent = rawContent.replace(/<\/h1>/i, `</h1>\n${newParagraph}`);
+              }
+            } else if (/<p[^>]*>/.test(rawContent)) {
+              newContent = rawContent.replace(/<p[^>]*>[\s\S]*?<\/p>/, newParagraph);
             } else {
-              newContent = `<p>${safeValue}</p>\n` + rawContent;
+              newContent = newParagraph + '\n' + rawContent;
             }
           }
           data = { content: newContent };
