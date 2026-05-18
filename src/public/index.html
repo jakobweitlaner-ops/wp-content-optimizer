@@ -1175,7 +1175,7 @@
         <div class="seo-issue-header">
           <span class="seo-issue-icon">${issue ? '✗' : '✓'}</span>
           <span class="seo-issue-label">${label}</span>
-          <button class="seo-fix-btn" onclick="requestSeoFix(${item.id},'${item.type}','${field}',this)">Mit KI optimieren</button>
+          <button class="seo-fix-btn" data-id="${item.id}" data-type="${item.type}" data-field="${field}" onclick="requestSeoFix(${item.id},'${item.type}','${field}',this)">Mit KI optimieren</button>
         </div>
         ${issue ? `<div class="seo-issue-sub">${escapeHtml(issue)}</div>` : ''}
         <div class="seo-current-val" id="seo-cur-${item.id}-${field}">Aktuell: ${current ? escapeHtml(current) : `<em>${emptyHint}</em>`}</div>
@@ -1201,7 +1201,7 @@
         <div class="seo-issue-header">
           <span class="seo-issue-icon">✗</span>
           <span class="seo-issue-label">Inhalt</span>
-          <button class="seo-fix-btn" onclick="requestSeoFix(${item.id},'${item.type}','content',this)">Mit KI erweitern</button>
+          <button class="seo-fix-btn" data-id="${item.id}" data-type="${item.type}" data-field="content" onclick="requestSeoFix(${item.id},'${item.type}','content',this)">Mit KI erweitern</button>
         </div>
         <div class="seo-issue-sub">${escapeHtml(contentIssue)}</div>
         <div class="seo-current-val" id="seo-cur-${item.id}-content">Aktuell: ${item.wordCount} Wörter</div>
@@ -1492,8 +1492,21 @@
     }
   }
 
-  function generateAllSeoFixes() {
-    document.querySelectorAll('.seo-fix-btn:not([disabled])').forEach(b => b.click());
+  async function generateAllSeoFixes() {
+    const genBtn = document.querySelector('.seo-gen-all-btn');
+    const buttons = [...document.querySelectorAll('.seo-fix-btn[data-field]:not([disabled])')]
+      .filter(b => b.textContent.trim() !== 'Neu generieren');
+    if (buttons.length === 0) return;
+
+    genBtn.disabled = true;
+    const total = buttons.length;
+    for (let i = 0; i < total; i++) {
+      const b = buttons[i];
+      genBtn.textContent = `Generiert… ${i + 1}/${total}`;
+      await requestSeoFix(b.dataset.id, b.dataset.type, b.dataset.field, b);
+    }
+    genBtn.textContent = 'Alle KI-Felder generieren';
+    genBtn.disabled = false;
   }
 
   // ── Media Review Panel ───────────────────────────────────────
