@@ -499,26 +499,26 @@ export async function applySeoFixes(changes) {
             : `<p>${safeValue}</p>`;
           let newContent;
           if (isGutenberg) {
-            // Find the closing comment of whatever block contains </h1> (wp:heading, uagb, etc.)
-            // by matching </h1> then lazily up to the next --> block-comment close.
-            const h1ThenParaRe = /(<\/h1>[\s\S]*?-->)(\n+)(<!-- wp:paragraph -->[\s\S]*?<!-- \/wp:paragraph -->)/i;
-            const h1BlockCloseRe = /(<\/h1>[\s\S]*?-->)/i;
-            if (h1ThenParaRe.test(rawContent)) {
-              // Paragraph immediately follows H1 block — replace it
-              newContent = rawContent.replace(h1ThenParaRe, `$1$2${newParagraph}`);
-            } else if (h1BlockCloseRe.test(rawContent)) {
-              // Insert directly after the H1 block's closing comment
-              newContent = rawContent.replace(h1BlockCloseRe, `$1\n\n${newParagraph}`);
+            // Match any heading close (h1/h2/h3) so intro insertion works regardless
+            // of whether the H1 fix has already been applied or not.
+            const hThenParaRe = /(<\/h[123]>[\s\S]*?-->)(\n+)(<!-- wp:paragraph -->[\s\S]*?<!-- \/wp:paragraph -->)/i;
+            const hBlockCloseRe = /(<\/h[123]>[\s\S]*?-->)/i;
+            if (hThenParaRe.test(rawContent)) {
+              // Paragraph immediately follows heading block — replace it
+              newContent = rawContent.replace(hThenParaRe, `$1$2${newParagraph}`);
+            } else if (hBlockCloseRe.test(rawContent)) {
+              // Insert directly after the heading block's closing comment
+              newContent = rawContent.replace(hBlockCloseRe, `$1\n\n${newParagraph}`);
             } else {
               newContent = newParagraph + '\n\n' + rawContent;
             }
           } else {
-            // Classic: insert/replace paragraph right after </h1>
-            const h1ImmediateParaRe = /(<\/h1>)(\s*)(<p[^>]*>[\s\S]*?<\/p>)/i;
+            // Classic HTML: insert/replace paragraph right after first heading
+            const h1ImmediateParaRe = /(<\/h[123]>)(\s*)(<p[^>]*>[\s\S]*?<\/p>)/i;
             if (h1ImmediateParaRe.test(rawContent)) {
               newContent = rawContent.replace(h1ImmediateParaRe, `$1$2${newParagraph}`);
-            } else if (/<\/h1>/i.test(rawContent)) {
-              newContent = rawContent.replace(/<\/h1>/i, `</h1>\n${newParagraph}`);
+            } else if (/<\/h[123]>/i.test(rawContent)) {
+              newContent = rawContent.replace(/<\/h[123]>/i, (m) => `${m}\n${newParagraph}`);
             } else if (/<p[^>]*>/.test(rawContent)) {
               newContent = rawContent.replace(/<p[^>]*>[\s\S]*?<\/p>/, newParagraph);
             } else {
