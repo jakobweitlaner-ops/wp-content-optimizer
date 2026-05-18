@@ -192,7 +192,13 @@ export async function auditSeoItems() {
     const currentIntro = firstParaMatch2 ? firstParaMatch2[1].replace(/<[^>]+>/g, '').trim().substring(0, 150) : '';
     const headingFormat = detectHeadingFormat(renderedContent);
     const plainText = stripHtml(renderedContent);
-    const lang = detectLanguage((post.title?.rendered || '') + ' ' + plainText);
+    const detectedLang = detectLanguage((post.title?.rendered || '') + ' ' + plainText);
+    // Fall back to WordPress/Yoast locale when text is too short to detect reliably
+    const ogLocale = (yoast.og_locale || '').toLowerCase().substring(0, 2);
+    const KNOWN_LANGS = new Set(['de', 'fr', 'es', 'it', 'en']);
+    const lang = (detectedLang !== 'en' || !ogLocale)
+      ? detectedLang
+      : (KNOWN_LANGS.has(ogLocale) ? ogLocale : 'en');
     return {
       id: post.id,
       type: post._type,
