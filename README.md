@@ -1,6 +1,8 @@
 # wp-content-optimizer
 
-A Node.js CLI tool for optimizing WordPress content: broken link detection, SEO auditing, and media quality checks.
+A Node.js CLI tool for optimizing WordPress content: broken link detection, SEO auditing, media quality checks, and AI-powered fix suggestions.
+
+**Full documentation:** [docs/index.md](docs/index.md)
 
 ## Requirements
 
@@ -75,8 +77,17 @@ Checks:
 - File size > 200 KB
 - Resolution > 2560×2560 px
 
-## Planned Features
+## Documentation
 
-- Claude API integration in `seo-optimizer.js` for AI-powered content suggestions
-- Meta description analysis via Yoast SEO fields
-- `updatePost()` and `updateMedia()` are already implemented in `wp-api.js` and ready to use
+See the [`docs/`](docs/) folder for full documentation:
+
+- [CLI Reference](docs/cli-reference.md)
+- [Web UI & REST API](docs/web-ui.md)
+- [Configuration](docs/configuration.md)
+- [Architecture](docs/architecture.md)
+- [Modules Reference](docs/modules.md)
+- [AI Features](docs/ai-features.md)
+- [Changelog](docs/changelog.md)
+
+Docs are automatically kept in sync with the source code via a GitHub Actions workflow
+that runs on every push to `main`.
