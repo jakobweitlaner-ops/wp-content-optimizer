@@ -52,7 +52,7 @@ Issues: ${issues.join('; ')}${keyphraseHint}
 
 Rules:
 - title: 20-60 characters, descriptive, keep the structural pattern of the current title (e.g. "Page | Brand") but write ALL words in ${lang} — translate any words from other languages
-- excerpt: 100-120 characters, compelling summary
+- excerpt: 120-140 characters, compelling summary
 
 Respond with ONLY this JSON (no explanation, no markdown):
 {"title": "your improved title", "excerpt": "your meta description"}`;
@@ -80,7 +80,7 @@ Content: ${contentSnippet}
 Issue: ${issues.join('; ')}${keyphraseHint}
 
 Rules:
-- Must be 100-120 characters
+- Must be 120-140 characters
 - Compelling summary of the page
 
 Respond with ONLY this JSON (no explanation, no markdown):
@@ -99,8 +99,8 @@ Respond with ONLY this JSON (no explanation, no markdown):
   try {
     const parsed = JSON.parse(cleaned);
     if (typeof parsed !== 'object' || parsed === null) return {};
-    if (parsed.excerpt && parsed.excerpt.length > 120) {
-      parsed.excerpt = parsed.excerpt.substring(0, 120).replace(/\s\S*$/, '').trim();
+    if (parsed.excerpt && parsed.excerpt.length > 140) {
+      parsed.excerpt = parsed.excerpt.substring(0, 140).replace(/\s\S*$/, '').trim();
     }
     return parsed;
   } catch {
