@@ -1218,6 +1218,9 @@
           `CSS-Klassen: <code>${escapeHtml(headingFormat.classes)}</code></div>`;
       }
 
+      const hasSeparatorIssue = field === 'title' && current && /\s[-–—]\s/.test(current);
+      const normalizedTitle = hasSeparatorIssue ? current.replace(/\s+[-–—]\s+/g, ' | ') : '';
+
       const div = document.createElement('div');
       div.className = 'seo-issue-item';
       div.id = `seo-item-${item.id}-${field}`;
@@ -1225,6 +1228,7 @@
         <div class="seo-issue-header">
           <span class="seo-issue-icon">${issue ? '✗' : '✓'}</span>
           <span class="seo-issue-label">${label}</span>
+          ${hasSeparatorIssue ? `<button class="seo-fix-btn" style="background:#6366f1" onclick="prefillSeparatorFix(${item.id},'${item.type}','${escapeHtml(normalizedTitle).replace(/'/g,"\\'")}')">- → |</button>` : ''}
           <button class="seo-fix-btn" data-id="${item.id}" data-type="${item.type}" data-field="${field}" data-keyphrase="${escapeHtml(item.currentKeyphrase||'')}" onclick="requestSeoFix(${item.id},'${item.type}','${field}',this)">Mit KI optimieren</button>
         </div>
         ${issue ? `<div class="seo-issue-sub">${escapeHtml(issue)}</div>` : ''}
@@ -1329,6 +1333,14 @@
           <div class="seo-manual-note">Manuelle Bearbeitung im WordPress-Editor erforderlich</div>`;
         issuesEl.appendChild(div);
       });
+  }
+
+  function prefillSeparatorFix(id, type, normalizedTitle) {
+    const inp = document.getElementById(`seo-inp-${id}-title`);
+    const row = document.getElementById(`seo-row-${id}-title`);
+    if (!inp || !row) return;
+    inp.value = normalizedTitle;
+    row.style.display = 'flex';
   }
 
   async function requestSeoFix(id, type, field, btnEl) {

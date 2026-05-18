@@ -51,7 +51,7 @@ Content: ${contentSnippet}
 Issues: ${issues.join('; ')}${keyphraseHint}
 
 Rules:
-- title: 20-60 characters, descriptive, keep the structural pattern of the current title (e.g. "Page | Brand") but write ALL words in ${lang} — translate any words from other languages
+- title: 20-60 characters, descriptive, keep the structural pattern of the current title (e.g. "Page | Brand") but write ALL words in ${lang} — translate any words from other languages; use " | " (pipe with spaces) as separator between page name and brand/site name
 - excerpt: 120-140 characters, compelling summary
 
 Respond with ONLY this JSON (no explanation, no markdown):
@@ -67,7 +67,7 @@ Issue: ${issues.join('; ')}${keyphraseHint}
 Rules:
 - Must be 20-60 characters
 - Descriptive and specific to the page content
-- Keep the structural pattern of the current title (e.g. "Page | Brand") but write ALL words in ${lang} — translate any words from other languages; do NOT start with the keyphrase
+- Keep the structural pattern of the current title (e.g. "Page | Brand") but write ALL words in ${lang} — translate any words from other languages; do NOT start with the keyphrase; use " | " (pipe with spaces) as separator between page name and brand/site name
 
 Respond with ONLY this JSON (no explanation, no markdown):
 {"title": "your improved title"}`;

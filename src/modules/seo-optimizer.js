@@ -10,6 +10,11 @@ function countWords(text) {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
+// Normalize title separators: replace space-dash-space variants with " | "
+export function normalizeTitleSeparator(title) {
+  return title.replace(/\s+[-–—]\s+/g, ' | ');
+}
+
 export function detectHeadingFormat(content) {
   const match = content.match(/<(h[123])([^>]*)>([\s\S]*?)<\/h[123]>/i);
   if (!match) return null;
@@ -551,7 +556,8 @@ export async function applySeoFixes(changes) {
         }
       } else {
         const yoastKey = YOAST_FIELD_MAP[field];
-        data = yoastKey ? { meta: { [yoastKey]: value } } : { [field]: value };
+        const normalizedValue = field === 'title' ? normalizeTitleSeparator(value) : value;
+        data = yoastKey ? { meta: { [yoastKey]: normalizedValue } } : { [field]: normalizedValue };
       }
 
       if (type === 'page') await updatePage(id, data);
