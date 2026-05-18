@@ -2536,16 +2536,34 @@
     row.id = `seasonal-row-${post.id}-${post.type}-${idx}`;
 
     const thumbSrc = img.src || '';
-    const thumbEl = thumbSrc
-      ? `<img class="seasonal-thumb" src="${escapeHtml(thumbSrc)}" alt="" loading="lazy">`
-      : `<div class="seasonal-thumb-placeholder">🖼</div>`;
+    const filename = thumbSrc ? thumbSrc.split('/').pop().split('?')[0] : '';
+    const srcDisplay = filename || (img.mediaId ? `Media-ID ${img.mediaId}` : '—');
 
-    const srcDisplay = thumbSrc
-      ? thumbSrc.split('/').pop()
-      : img.mediaId ? `Media ID: ${img.mediaId}` : '(unbekannt)';
+    // Build thumb element separately so we can attach event handler
+    const thumbContainer = document.createElement('div');
+    thumbContainer.style.flexShrink = '0';
+    if (thumbSrc) {
+      const imgEl = document.createElement('img');
+      imgEl.className = 'seasonal-thumb';
+      imgEl.src = thumbSrc;
+      imgEl.alt = '';
+      imgEl.loading = 'lazy';
+      imgEl.onerror = () => {
+        const ph = document.createElement('div');
+        ph.className = 'seasonal-thumb-placeholder';
+        ph.textContent = '🖼';
+        imgEl.replaceWith(ph);
+      };
+      thumbContainer.appendChild(imgEl);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'seasonal-thumb-placeholder';
+      ph.textContent = '🖼';
+      thumbContainer.appendChild(ph);
+    }
 
-    row.innerHTML = `
-      ${thumbEl}
+    row.appendChild(thumbContainer);
+    row.insertAdjacentHTML('beforeend', `
       <div class="seasonal-image-info">
         <div class="seasonal-image-label">${escapeHtml(img.label)}</div>
         <div class="seasonal-image-src" title="${escapeHtml(thumbSrc)}">${escapeHtml(srcDisplay)}</div>
@@ -2556,7 +2574,7 @@
         onclick="openMediaPicker(${post.id},'${post.type}',${idx})">
         Ersetzen
       </button>
-    `;
+    `);
     return row;
   }
 
@@ -2612,12 +2630,25 @@
         const el = document.createElement('div');
         el.className = 'media-picker-item';
         el.dataset.id = item.id;
-        el.dataset.src = item.src;
-        el.dataset.title = item.title;
-        el.innerHTML = `
-          <img src="${escapeHtml(item.medium || item.thumbnail)}" alt="${escapeHtml(item.altText)}" loading="lazy">
-          <div class="media-picker-item-title">${escapeHtml(item.title)}</div>
-        `;
+
+        const imgEl = document.createElement('img');
+        imgEl.src = item.medium || item.thumbnail;
+        imgEl.alt = item.altText;
+        imgEl.loading = 'lazy';
+        imgEl.onerror = () => {
+          imgEl.style.display = 'none';
+          const ph = document.createElement('div');
+          ph.style.cssText = 'width:100%;height:80px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;background:#f1f5f9;color:#94a3b8;';
+          ph.textContent = '🖼';
+          el.insertBefore(ph, el.firstChild);
+        };
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'media-picker-item-title';
+        titleEl.textContent = item.title;
+
+        el.appendChild(imgEl);
+        el.appendChild(titleEl);
         el.addEventListener('click', () => selectMediaItem(el, item));
         grid.appendChild(el);
       }

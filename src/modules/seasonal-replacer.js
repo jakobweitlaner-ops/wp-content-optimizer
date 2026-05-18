@@ -1,16 +1,11 @@
-import { getPosts, getPages, getMedia, getMediaPage, updatePost, updatePage } from '../utils/wp-api.js';
+import { getPosts, getPages, getMediaPage, getMediaByIds, updatePost, updatePage } from '../utils/wp-api.js';
 
-/**
- * Extract all image URLs embedded in HTML content.
- * Returns array of { src, mediaId } objects.
- */
 function extractContentImages(html) {
   const images = [];
   const imgRe = /<img[^>]+src="([^"]+)"[^>]*>/gi;
   let match;
   while ((match = imgRe.exec(html)) !== null) {
     const src = match[1];
-    // Try to extract wp media id from class or data attribute
     const classMatch = match[0].match(/wp-image-(\d+)/);
     const dataMatch = match[0].match(/data-id="(\d+)"/);
     const mediaId = classMatch ? parseInt(classMatch[1], 10)
@@ -21,34 +16,38 @@ function extractContentImages(html) {
   return images;
 }
 
-/**
- * Get all posts and pages with their embedded images (content + featured).
- */
 export async function getPostsWithImages() {
   const [posts, pages] = await Promise.all([
-    getPosts({ _fields: 'id,title,link,content,featured_media,status', per_page: 100 }),
-    getPages({ _fields: 'id,title,link,content,featured_media,status', per_page: 100 }),
+    getPosts({ _fields: 'id,title,link,content,featured_media', per_page: 100 }),
+    getPages({ _fields: 'id,title,link,content,featured_media', per_page: 100 }),
   ]);
+
+  // Deduplicate by id — WordPress IDs are globally unique across post types
+  const seen = new Set();
+  const allItems = [];
+  for (const item of [...posts.map(p => ({ ...p, type: 'post' })), ...pages.map(p => ({ ...p, type: 'page' }))]) {
+    if (!seen.has(item.id)) {
+      seen.add(item.id);
+      allItems.push(item);
+    }
+  }
 
   const results = [];
 
-  for (const item of [...posts.map(p => ({ ...p, type: 'post' })), ...pages.map(p => ({ ...p, type: 'page' }))]) {
+  for (const item of allItems) {
     const content = item.content?.rendered || '';
     const contentImages = extractContentImages(content);
-
     const images = [];
 
-    // Featured image
     if (item.featured_media && item.featured_media > 0) {
       images.push({
         slot: 'featured',
         label: 'Beitragsbild',
         mediaId: item.featured_media,
-        src: null, // resolved separately via media endpoint
+        src: null,
       });
     }
 
-    // Content images
     for (const img of contentImages) {
       images.push({
         slot: 'content',
@@ -70,19 +69,34 @@ export async function getPostsWithImages() {
     }
   }
 
+  // Resolve featured image URLs in one batch request
+  const featuredIds = [...new Set(
+    results.flatMap(p => p.images.filter(i => i.slot === 'featured' && i.mediaId).map(i => i.mediaId))
+  )];
+
+  if (featuredIds.length > 0) {
+    try {
+      const mediaItems = await getMediaByIds(featuredIds);
+      const urlMap = {};
+      for (const m of mediaItems) {
+        urlMap[m.id] = m.media_details?.sizes?.medium?.source_url || m.source_url;
+      }
+      for (const post of results) {
+        for (const img of post.images) {
+          if (img.slot === 'featured' && img.mediaId && urlMap[img.mediaId]) {
+            img.src = urlMap[img.mediaId];
+          }
+        }
+      }
+    } catch { /* leave src as null, UI shows placeholder */ }
+  }
+
   return results;
 }
 
-/**
- * Replace an image in a post or page.
- *
- * mode: 'featured' → update featured_media field
- * mode: 'content'  → replace src URL in content HTML
- */
 export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId, newMediaId, newSrc }) {
-  const getItem = postType === 'page'
-    ? (await import('../utils/wp-api.js')).getPage
-    : (await import('../utils/wp-api.js')).getPost;
+  const wpApi = await import('../utils/wp-api.js');
+  const getItem = postType === 'page' ? wpApi.getPage : wpApi.getPost;
   const updateItem = postType === 'page' ? updatePage : updatePost;
 
   if (mode === 'featured') {
@@ -90,21 +104,17 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
     return { success: true };
   }
 
-  // content replacement
   const item = await getItem(postId, { context: 'edit' });
   const rawContent = item.content?.raw || item.content?.rendered || '';
 
   if (!oldSrc) throw new Error('oldSrc required for content image replacement');
 
-  // Replace all occurrences of old URL in content
   const updated = rawContent.split(oldSrc).join(newSrc);
 
   if (updated === rawContent) {
-    // Also try replacing in rendered and re-encode
-    throw new Error(`Bild-URL "${oldSrc}" nicht im Inhalt gefunden`);
+    throw new Error(`Bild-URL nicht im Inhalt gefunden`);
   }
 
-  // Also update wp-image class if we have old media id
   let finalContent = updated;
   if (oldMediaId && newMediaId) {
     finalContent = finalContent.split(`wp-image-${oldMediaId}`).join(`wp-image-${newMediaId}`);
@@ -114,9 +124,6 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
   return { success: true };
 }
 
-/**
- * Get media library items for the image picker (paginated, single page).
- */
 export async function getMediaLibrary({ page = 1, perPage = 30, search = '' } = {}) {
   const params = { media_type: 'image', per_page: perPage, page };
   if (search) params.search = search;

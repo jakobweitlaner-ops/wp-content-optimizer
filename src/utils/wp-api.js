@@ -113,6 +113,14 @@ export async function getMediaPage(params = {}) {
   return response.data;
 }
 
+export async function getMediaByIds(ids) {
+  if (!ids.length) return [];
+  const response = await client.get('/media', {
+    params: { include: ids.join(','), per_page: ids.length },
+  });
+  return response.data;
+}
+
 export async function getPost(id, params = {}) {
   const { data } = await client.get(`/posts/${id}`, { params });
   return data;
