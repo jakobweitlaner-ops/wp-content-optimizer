@@ -1,6 +1,6 @@
 import { getPosts, getPages, getPost, getPage, updatePost, updatePage, updateMedia, getMediaItem } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
-import { getSeoSuggestions, generateSeoFixes, generateH1Fix, generateContentExtension, generateKeyphrase, generateImageAltWithKeyphrase, generateIntroFix } from '../utils/claude-suggestions.js';
+import { getSeoSuggestions, generateSeoFixes, generateH1Fix, generateContentExtension, generateKeyphrase, generateImageAltWithKeyphrase, generateIntroFix, detectLanguage } from '../utils/claude-suggestions.js';
 
 function stripHtml(html) {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -177,9 +177,12 @@ export async function auditSeoItems() {
     const firstParaMatch2 = renderedContent.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
     const currentIntro = firstParaMatch2 ? firstParaMatch2[1].replace(/<[^>]+>/g, '').trim().substring(0, 150) : '';
     const headingFormat = detectHeadingFormat(renderedContent);
+    const plainText = stripHtml(renderedContent);
+    const lang = detectLanguage((post.title?.rendered || '') + ' ' + plainText);
     return {
       id: post.id,
       type: post._type,
+      lang,
       title: post.title?.rendered || '(no title)',
       url: post.link,
       currentYoastTitle: yoast.og_title || yoast.title || '',
