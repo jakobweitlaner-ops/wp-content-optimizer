@@ -445,23 +445,25 @@ export async function applySeoFixes(changes) {
               // Standard wp:heading block → replace whole block with level:1
               newContent = rawContent.replace(gutenbergStandardRe, newBlock);
             } else if (isGutenberg) {
-              // Custom block (UAGB etc.) → update block-comment attributes AND HTML tag
-              // so Gutenberg doesn't revert to the old level on next save
-              let updated = rawContent;
-              updated = updated.replace(
-                new RegExp(`("headingTag"\\s*:\\s*)"${srcTag}"`, 'i'),
-                `$1"h1"`
-              );
-              updated = updated.replace(
-                new RegExp(`("level"\\s*:\\s*)${srcLevel}(?=[,}\\s])`, 'i'),
-                `$11`
-              );
-              // Update the HTML tag, keep existing classes and content
-              updated = updated.replace(
-                new RegExp(`<${srcTag}([^>]*)>[\\s\\S]*?<\\/${srcTag}>`, 'i'),
-                `<h1$1>${safeValue}</h1>`
-              );
-              newContent = updated;
+              // Custom block (UAGB etc.): attribute updates are unreliable because
+              // Gutenberg validates by running the block's save() function — any
+              // mismatch reverts on editor open. Instead, replace the entire custom
+              // block with a standard wp:heading block (keeps CSS classes).
+              const headingPos = rawContent.search(new RegExp(`<${srcTag}[\\s>]`, 'i'));
+              if (headingPos !== -1) {
+                const blockOpenPos = rawContent.lastIndexOf('<!-- wp:', headingPos);
+                const headingClosePos = rawContent.indexOf(`</${srcTag}>`, headingPos) + `</${srcTag}>`.length;
+                const afterClose = rawContent.slice(headingClosePos);
+                const blockCloseMatch = afterClose.match(/<!-- \/wp:[^\n]+-->/i);
+                if (blockOpenPos !== -1 && blockCloseMatch) {
+                  const blockCloseEnd = headingClosePos + afterClose.indexOf(blockCloseMatch[0]) + blockCloseMatch[0].length;
+                  newContent = rawContent.slice(0, blockOpenPos) + newBlock + rawContent.slice(blockCloseEnd);
+                } else {
+                  newContent = rawContent.replace(new RegExp(`<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>`, 'i'), newH1Tag);
+                }
+              } else {
+                newContent = rawContent.replace(new RegExp(`<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>`, 'i'), newH1Tag);
+              }
             } else {
               newContent = rawContent.replace(
                 new RegExp(`<${srcTag}[^>]*>[\\s\\S]*?<\\/${srcTag}>`, 'i'),
