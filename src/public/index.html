@@ -757,6 +757,59 @@
       font-size: 0.8rem;
     }
 
+    /* ── H1 Overview ─────────────────────────────────────────── */
+    .h1-lang-group { margin-bottom: 1.5rem; }
+    .h1-lang-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+      border-bottom: 1px solid #e2e8f0;
+      margin-bottom: 0.4rem;
+    }
+    .h1-card {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 0.4rem 1rem;
+      align-items: start;
+      padding: 0.65rem 0.8rem;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 0.78rem;
+      transition: background 0.1s;
+    }
+    .h1-card:hover { background: #f8fafc; }
+    .h1-card-title {
+      color: #334155;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .h1-card-title a { color: inherit; text-decoration: none; }
+    .h1-card-title a:hover { text-decoration: underline; }
+    .h1-card-h1 {
+      color: #1e293b;
+    }
+    .h1-card-h1.empty { color: #ef4444; font-style: italic; }
+    .h1-card-kp {
+      color: #7c3aed;
+      font-size: 0.72rem;
+      white-space: nowrap;
+    }
+    .h1-type-badge {
+      font-size: 0.65rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 99px;
+      background: #e2e8f0;
+      color: #64748b;
+      white-space: nowrap;
+    }
+
     .review-actions {
       display: flex;
       align-items: center;
@@ -881,6 +934,15 @@
         <span class="nav-state" id="state-audit-seo">Bereit</span>
       </button>
 
+      <button class="nav-item" data-cmd="h1-overview">
+        <span class="nav-item-icon">🔤</span>
+        <div class="nav-item-body">
+          <span class="nav-item-label">H1 Übersicht</span>
+          <span class="nav-item-note">Sortiert nach Sprache</span>
+        </div>
+        <span class="nav-state" id="state-h1-overview">Bereit</span>
+      </button>
+
       <button class="nav-item" data-cmd="audit-media">
         <span class="nav-item-icon">🖼️</span>
         <div class="nav-item-body">
@@ -962,6 +1024,17 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- H1 Overview view -->
+    <div class="seo-view" id="h1-view" style="display:none">
+      <div class="seo-view-toolbar">
+        <span class="seo-view-heading">H1 Übersicht</span>
+        <span class="seo-avg-label" id="h1-count-label"></span>
+      </div>
+      <div class="seo-scroll" id="h1-items-list">
+        <div class="seo-loading">Lade…</div>
+      </div>
     </div>
 
     <div class="output-wrap">
@@ -1098,6 +1171,78 @@
     document.querySelector('.output-wrap').style.display = '';
   }
 
+  function showH1View() {
+    document.getElementById('h1-view').style.display = 'flex';
+    document.getElementById('seo-view').style.display = 'none';
+    document.querySelector('.output-wrap').style.display = 'none';
+    document.getElementById('review-panel').style.display = 'none';
+  }
+
+  function hideH1View() {
+    document.getElementById('h1-view').style.display = 'none';
+    document.querySelector('.output-wrap').style.display = '';
+  }
+
+  async function loadH1Overview() {
+    showH1View();
+    setNavState('h1-overview', 'running', 'Läuft…');
+    document.getElementById('toolbar-label').textContent = 'H1 Übersicht';
+    const listEl = document.getElementById('h1-items-list');
+    listEl.innerHTML = '<div class="seo-loading">Lade H1-Überschriften…</div>';
+    try {
+      const resp = await fetch('/api/h1-overview');
+      if (!resp.ok) throw new Error(await resp.text());
+      const items = await resp.json();
+
+      const LANG_FLAGS = { de: '🇩🇪', fr: '🇫🇷', es: '🇪🇸', it: '🇮🇹', en: '🇬🇧' };
+      const LANG_NAMES = { de: 'Deutsch', fr: 'Französisch', es: 'Spanisch', it: 'Italienisch', en: 'Englisch' };
+
+      // Group by language, keep order: de first, then others alphabetically
+      const grouped = {};
+      for (const item of items) {
+        (grouped[item.lang] = grouped[item.lang] || []).push(item);
+      }
+      const langOrder = ['de', 'fr', 'es', 'it', 'en'];
+      const langs = [...new Set([...langOrder, ...Object.keys(grouped)])].filter(l => grouped[l]);
+
+      document.getElementById('h1-count-label').textContent = `${items.length} Einträge · ${langs.length} Sprachen`;
+
+      listEl.innerHTML = '';
+      for (const lang of langs) {
+        const group = grouped[lang];
+        const flag = LANG_FLAGS[lang] || '🌐';
+        const name = LANG_NAMES[lang] || lang.toUpperCase();
+
+        const groupEl = document.createElement('div');
+        groupEl.className = 'h1-lang-group';
+        groupEl.innerHTML = `<div class="h1-lang-header">${flag} ${name} <span style="font-weight:400;color:#94a3b8">(${group.length})</span></div>`;
+
+        for (const item of group) {
+          const card = document.createElement('div');
+          card.className = 'h1-card';
+          const h1Text = item.currentH1
+            ? escapeHtml(item.currentH1)
+            : '<span class="empty">(keine H1)</span>';
+          card.innerHTML = `
+            <div class="h1-card-title">
+              <a href="${escapeHtml(item.url)}" target="_blank" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</a>
+              <span class="h1-type-badge">${item.type === 'page' ? 'Seite' : 'Beitrag'}</span>
+            </div>
+            <div class="h1-card-h1 ${item.currentH1 ? '' : 'empty'}">${h1Text}</div>
+            <div class="h1-card-kp">${item.currentKeyphrase ? escapeHtml(item.currentKeyphrase) : ''}</div>`;
+          groupEl.appendChild(card);
+        }
+        listEl.appendChild(groupEl);
+      }
+
+      setNavState('h1-overview', 'success', 'Fertig');
+      resetNavState('h1-overview');
+    } catch (err) {
+      listEl.innerHTML = `<div class="seo-loading" style="color:#ef4444">Fehler: ${escapeHtml(err.message)}</div>`;
+      setNavState('h1-overview', 'error', 'Fehler');
+    }
+  }
+
   function showSeoList() {
     document.getElementById('seo-list-view').style.display = '';
     document.getElementById('seo-detail-view').style.display = 'none';
@@ -1118,6 +1263,7 @@
   }
 
   async function loadSeoAudit() {
+    hideH1View();
     showSeoView();
     showSeoList();
     setNavState('audit-seo', 'running', 'Läuft…');
@@ -1732,8 +1878,12 @@
       // SEO Audit → new structured view
       if (cmd === 'audit-seo') { loadSeoAudit(); return; }
 
-      // All other tools → hide SEO view, show terminal
+      // H1 Overview → dedicated view
+      if (cmd === 'h1-overview') { loadH1Overview(); return; }
+
+      // All other tools → hide SEO/H1 views, show terminal
       hideSeoView();
+      hideH1View();
 
       const wantsFix       = cmd === 'audit-media' && document.getElementById('opt-fix')?.checked;
       const wantsAiQuality = cmd === 'audit-media' && document.getElementById('opt-media-ai')?.checked;

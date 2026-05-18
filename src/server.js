@@ -99,6 +99,17 @@ app.get('/api/seo-audit', async (req, res) => {
   }
 });
 
+app.get('/api/h1-overview', async (req, res) => {
+  try {
+    const items = await auditSeoItems();
+    res.json(items.map(({ id, type, title, url, lang, currentH1, currentKeyphrase }) =>
+      ({ id, type, title, url, lang, currentH1, currentKeyphrase })
+    ));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/seo-fix', async (req, res) => {
   const { id, type, field, keyphrase = '' } = req.query;
   if (!id || !type || !field) return res.status(400).json({ error: 'id, type, field required' });
