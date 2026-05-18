@@ -549,6 +549,30 @@
     }
     .seo-type-tag   { font-size: 0.64rem; color: #94a3b8; flex-shrink: 0; }
     .seo-chevron    { color: #cbd5e1; font-size: 0.78rem; flex-shrink: 0; }
+    .seo-lang-flag  { font-size: 0.88rem; flex-shrink: 0; line-height: 1; }
+
+    .seo-issue-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.22rem;
+      margin-top: 0.22rem;
+    }
+    .issue-badge {
+      font-size: 0.59rem;
+      font-weight: 700;
+      padding: 0.1rem 0.32rem;
+      border-radius: 3px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .badge-red    { background: rgba(239,68,68,0.1);   color: #dc2626; }
+    .badge-orange { background: rgba(245,158,11,0.12); color: #b45309; }
+    .badge-purple { background: rgba(139,92,246,0.1);  color: #7c3aed; }
+    .badge-yellow { background: rgba(234,179,8,0.1);   color: #a16207; }
+    .badge-blue   { background: rgba(59,130,246,0.1);  color: #1d4ed8; }
+    .seo-list-ok  { font-size: 0.68rem; color: #86efac; margin-top: 0.18rem; }
+
     .seo-noindex-tag {
       font-size: 0.62rem;
       font-weight: 700;
@@ -1107,20 +1131,45 @@
       const avg = items.length ? Math.round(items.reduce((s, i) => s + i.score, 0) / items.length) : 0;
       document.getElementById('seo-avg-label').textContent = `Ø ${avg}/100 · ${items.length} Einträge`;
       listEl.innerHTML = '';
+      const LANG_FLAGS = { de: '🇩🇪', fr: '🇫🇷', es: '🇪🇸', it: '🇮🇹', en: '🇬🇧' };
+      const BADGE_DEFS = [
+        { label: 'H1',     re: /h1|heading/i,                       cls: 'badge-red'    },
+        { label: 'Titel',  re: /title/i,                            cls: 'badge-orange' },
+        { label: 'Meta',   re: /excerpt|meta description/i,         cls: 'badge-orange' },
+        { label: 'Inhalt', re: /content too short/i,                cls: 'badge-yellow' },
+        { label: 'Einltg', re: /first paragraph|einleitung/i,       cls: 'badge-blue'   },
+      ];
+
       items.forEach(item => {
         const div = document.createElement('div');
         div.className = 'seo-list-item';
         div.dataset.id = item.id;
-        const issueText = item.issues.length
-          ? item.issues.slice(0, 2).join(' · ') + (item.issues.length > 2 ? ` +${item.issues.length - 2}` : '')
-          : 'Keine kritischen Probleme';
+
+        const shown = new Set();
+        const badges = [];
+        if (!item.currentKeyphrase) {
+          badges.push('<span class="issue-badge badge-purple">KP</span>');
+          shown.add('KP');
+        }
+        for (const { label, re, cls } of BADGE_DEFS) {
+          if (!shown.has(label) && item.issues.some(i => re.test(i))) {
+            badges.push(`<span class="issue-badge ${cls}">${label}</span>`);
+            shown.add(label);
+          }
+        }
+        const badgesHtml = badges.length
+          ? `<div class="seo-issue-badges">${badges.join('')}</div>`
+          : `<div class="seo-list-ok">✓ Keine Probleme</div>`;
+
+        const flag = LANG_FLAGS[item.lang] || '';
         div.innerHTML = `
           <span class="score-pill ${scoreClass(item.score)}">${item.score}</span>
           <div class="seo-list-body">
             <div class="seo-list-title">${escapeHtml(item.title)}</div>
-            <div class="seo-list-issues">${escapeHtml(issueText)}</div>
+            ${badgesHtml}
           </div>
           ${item.isNoindex ? '<span class="seo-noindex-tag">noindex</span>' : ''}
+          ${flag ? `<span class="seo-lang-flag" title="${item.lang}">${flag}</span>` : ''}
           <span class="seo-type-tag">${item.type}</span>
           <span class="seo-chevron">›</span>`;
         div.addEventListener('click', () => showSeoDetail(item));

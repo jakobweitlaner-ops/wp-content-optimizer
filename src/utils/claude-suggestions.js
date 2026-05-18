@@ -5,7 +5,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 // Heuristic language detection — returns ISO 639-1 code ('de', 'fr', 'es', 'it', 'en', …)
 // Requires BOTH common-word matches AND special-char matches so that place names
 // (e.g. "Außervillgraten" with ü) in otherwise-English text don't trigger a false positive.
-function detectLanguage(text) {
+export function detectLanguage(text) {
   const sample = text.substring(0, 800).toLowerCase();
   const checks = [
     { lang: 'de', re: /\b(der|die|das|und|ist|nicht|mit|auf|für|von|zu|auch|als|bei|aus|nach|über|haben|sind|wird|kann|werden|sein|keine|dieser|unsere|wir|sie|ihr)\b/g, chars: /[äöüß]/g, wordThreshold: 4, charThreshold: 3 },
