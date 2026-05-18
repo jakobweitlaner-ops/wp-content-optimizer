@@ -499,22 +499,16 @@ export async function applySeoFixes(changes) {
             : `<p>${safeValue}</p>`;
           let newContent;
           if (isGutenberg) {
-            // Anchor on the block-level closing comment, not on HTML tags.
-            // This is reliable even when UAGB headings include large description
-            // paragraphs inside the block (headingDescToggle:true).
-            const headingBlockCloseRe = /<!-- \/wp:(?:heading|uagb\/advanced-heading) -->/i;
-            const headingCloseMatch = rawContent.match(headingBlockCloseRe);
-            if (headingCloseMatch) {
-              const closeEnd = rawContent.indexOf(headingCloseMatch[0]) + headingCloseMatch[0].length;
-              const after = rawContent.slice(closeEnd);
-              const paraMatch = after.match(/^(\n+)(<!-- wp:paragraph -->[\s\S]*?<!-- \/wp:paragraph -->)/i);
-              if (paraMatch) {
-                // Replace the paragraph that immediately follows the heading block
-                newContent = rawContent.slice(0, closeEnd) + paraMatch[1] + newParagraph + rawContent.slice(closeEnd + paraMatch[0].length);
-              } else {
-                // No paragraph immediately follows — insert one right after the heading block
-                newContent = rawContent.slice(0, closeEnd) + '\n\n' + newParagraph + rawContent.slice(closeEnd);
-              }
+            // Single-pass regex: find heading block close + any following paragraph block.
+            // Using one regex avoids indexOf offset bugs and handles optional whitespace.
+            const headingThenParaRe = /(<!-- \/wp:(?:heading|uagb\/advanced-heading) -->)(\n+)(<!-- wp:paragraph -->[\s\S]*?<!-- \/wp:paragraph -->)/i;
+            const headingOnlyRe = /(<!-- \/wp:(?:heading|uagb\/advanced-heading) -->)/i;
+            if (headingThenParaRe.test(rawContent)) {
+              // Replace the paragraph immediately following the heading block
+              newContent = rawContent.replace(headingThenParaRe, `$1$2${newParagraph}`);
+            } else if (headingOnlyRe.test(rawContent)) {
+              // No paragraph after heading — insert one right after it
+              newContent = rawContent.replace(headingOnlyRe, `$1\n\n${newParagraph}`);
             } else {
               newContent = newParagraph + '\n\n' + rawContent;
             }
