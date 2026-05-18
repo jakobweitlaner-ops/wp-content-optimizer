@@ -1133,11 +1133,11 @@
       listEl.innerHTML = '';
       const LANG_FLAGS = { de: '🇩🇪', fr: '🇫🇷', es: '🇪🇸', it: '🇮🇹', en: '🇬🇧' };
       const BADGE_DEFS = [
-        { label: 'H1',     re: /h1|heading/i,                       cls: 'badge-red'    },
-        { label: 'Titel',  re: /title/i,                            cls: 'badge-orange' },
-        { label: 'Meta',   re: /excerpt|meta description/i,         cls: 'badge-orange' },
-        { label: 'Inhalt', re: /content too short/i,                cls: 'badge-yellow' },
-        { label: 'Einltg', re: /first paragraph|einleitung/i,       cls: 'badge-blue'   },
+        { label: 'H1',     re: /\bh1\b/i,                                          cls: 'badge-red'    },
+        { label: 'Titel',  re: i => /\btitle\b/i.test(i) && !/subheading/i.test(i), cls: 'badge-orange' },
+        { label: 'Meta',   re: /excerpt|meta description/i,                         cls: 'badge-orange' },
+        { label: 'Inhalt', re: /content too short/i,                                cls: 'badge-yellow' },
+        { label: 'Einltg', re: /first paragraph|einleitung/i,                       cls: 'badge-blue'   },
       ];
 
       items.forEach(item => {
@@ -1152,7 +1152,8 @@
           shown.add('KP');
         }
         for (const { label, re, cls } of BADGE_DEFS) {
-          if (!shown.has(label) && item.issues.some(i => re.test(i))) {
+          const match = typeof re === 'function' ? re : (i) => re.test(i);
+          if (!shown.has(label) && item.issues.some(match)) {
             badges.push(`<span class="issue-badge ${cls}">${label}</span>`);
             shown.add(label);
           }
