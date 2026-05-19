@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import axios from 'axios';
 import sharp from 'sharp';
 import path from 'path';
-import { getMedia, updateMedia, uploadMedia, getSiteContext } from '../utils/wp-api.js';
+import { getMedia, updateMedia, uploadMedia, replaceMedia, getSiteContext } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
 
 const insecureAgent = new https.Agent({ rejectUnauthorized: false });
@@ -112,11 +112,22 @@ export async function compressMediaItem(item, { targetSizeKb = null, quality = 8
     throw new Error('Komprimiertes Bild ist nicht kleiner als das Original');
   }
 
-  const origFilename = path.basename(item.source_url.split('?')[0]);
-  const uploaded = await uploadMedia(compressedBuffer, outMimeType, origFilename, {
-    title: item.title?.rendered || item.slug,
-    alt_text: item.alt_text || '',
-  });
+  // Try in-place replacement via the custom plugin endpoint.
+  // Falls back to uploading a new media item when the endpoint returns 404
+  // (plugin not installed or outdated).
+  let result;
+  let replacedInPlace = false;
+  try {
+    result = await replaceMedia(item.id, compressedBuffer, outMimeType);
+    replacedInPlace = true;
+  } catch (err) {
+    if (err.response?.status !== 404) throw err;
+    const origFilename = path.basename(item.source_url.split('?')[0]);
+    result = await uploadMedia(compressedBuffer, outMimeType, origFilename, {
+      title: item.title?.rendered || item.slug,
+      alt_text: item.alt_text || '',
+    });
+  }
 
   return {
     originalId: item.id,
@@ -125,8 +136,9 @@ export async function compressMediaItem(item, { targetSizeKb = null, quality = 8
     compressedSize: compressedBuffer.length,
     savings: originalBuffer.length - compressedBuffer.length,
     savingsPercent: Math.round((1 - compressedBuffer.length / originalBuffer.length) * 100),
-    newId: uploaded.id,
-    newUrl: uploaded.source_url,
+    newId: result.id,
+    newUrl: result.source_url,
+    replacedInPlace,
   };
 }
 

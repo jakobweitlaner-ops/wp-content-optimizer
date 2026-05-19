@@ -151,6 +151,24 @@ export async function getMediaItem(id) {
   return data;
 }
 
+export async function replaceMedia(id, buffer, mimeType) {
+  const response = await axios.post(
+    `${BASE_URL}/wp-json/wp-optimizer/v1/media/${id}/replace`,
+    buffer,
+    {
+      headers: {
+        Authorization: getAuthHeader(),
+        'Content-Type': mimeType,
+      },
+      httpsAgent: new https.Agent({ rejectUnauthorized: !INSECURE }),
+      timeout: TIMEOUT,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    },
+  );
+  return response.data;
+}
+
 export async function uploadMedia(buffer, mimeType, filename, meta = {}) {
   const uploadResponse = await client.post('/media', buffer, {
     headers: {
