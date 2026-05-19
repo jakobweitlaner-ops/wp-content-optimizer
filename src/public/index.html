@@ -1582,17 +1582,17 @@
       </div>
     </div>
 
-    <div class="review-panel" id="rename-panel">
-      <div class="review-panel-header">
-        <h3>Dateinamen überprüfen</h3>
-        <button class="close-btn" onclick="document.getElementById('rename-panel').style.display='none'" title="Schließen">✕</button>
+    <div class="compress-view" id="rename-view">
+      <div class="compress-toolbar">
+        <span class="compress-heading">✏️ Dateinamen umbenennen</span>
+        <span class="compress-count-label" id="rename-count-label"></span>
       </div>
-      <p>Claude hat diese Dateinamen als SEO-schwach bewertet. Vorschläge können bearbeitet werden.</p>
-      <div class="review-list" id="rename-list"></div>
-      <div class="review-actions">
-        <button class="select-all-btn" id="rename-select-all-btn" onclick="toggleRenameSelectAll()">Alle abwählen</button>
-        <button class="apply-btn" id="rename-apply-btn" onclick="applySelectedRenames()">Umbenennen</button>
-        <span class="review-count" id="rename-count"></span>
+      <div class="compress-scroll" id="rename-scroll">
+        <div class="compress-loading">KI analysiert Mediathek…</div>
+      </div>
+      <div class="compress-footer" id="rename-footer" style="display:none">
+        <button class="compress-apply-btn" id="rename-all-btn" onclick="renameAllPending()">Alle ausstehenden umbenennen</button>
+        <span class="compress-status" id="rename-status"></span>
       </div>
     </div>
 
@@ -1778,6 +1778,7 @@
 
     hideSeoView();
     hideSeasonalView();
+    hideRenameView();
     setNavState(cmd, 'running', 'Läuft…');
     document.getElementById('toolbar-label').textContent = 'Ausgabe: Site Status';
     const reportBox = document.getElementById('report-box');
@@ -1996,6 +1997,7 @@
 
   async function loadSeoAudit() {
     hideH1View();
+    hideRenameView();
     showSeoView();
     showSeoList();
     setNavState('audit-seo', 'running', 'Läuft…');
@@ -2601,101 +2603,128 @@
 
   // ── Rename Images ────────────────────────────────────────────
 
-  function updateRenameCount() {
-    const total = document.querySelectorAll('#rename-list .review-item').length;
-    const selected = document.querySelectorAll('#rename-list .review-item input:checked').length;
-    document.getElementById('rename-count').textContent = `${selected} von ${total} ausgewählt`;
-    document.getElementById('rename-apply-btn').disabled = selected === 0;
-    document.getElementById('rename-select-all-btn').textContent =
-      selected === total ? 'Alle abwählen' : 'Alle auswählen';
+  function showRenameView() {
+    document.getElementById('rename-view').style.display = 'flex';
+    document.getElementById('seo-view').style.display = 'none';
+    document.getElementById('h1-view').style.display = 'none';
+    document.getElementById('compress-view').style.display = 'none';
+    document.getElementById('seasonal-view').style.display = 'none';
+    document.querySelector('.output-wrap').style.display = 'none';
+    document.getElementById('review-panel').style.display = 'none';
   }
 
-  function toggleRenameSelectAll() {
-    const items = document.querySelectorAll('#rename-list .review-item input');
-    const allChecked = [...items].every(cb => cb.checked);
-    items.forEach(cb => {
-      cb.checked = !allChecked;
-      cb.closest('.review-item').classList.toggle('deselected', allChecked);
-    });
-    updateRenameCount();
+  function hideRenameView() {
+    document.getElementById('rename-view').style.display = 'none';
+    document.querySelector('.output-wrap').style.display = '';
   }
 
-  function showRenamePanel(proposals) {
-    const list = document.getElementById('rename-list');
-    list.innerHTML = '';
-    proposals.forEach(p => {
-      const item = document.createElement('div');
-      item.className = 'review-item';
-      item.dataset.id = p.id;
-      const proxyUrl = `/api/seasonal/proxy-image?url=${encodeURIComponent(p.url)}`;
-      item.innerHTML = `
-        <input type="checkbox" checked onchange="this.closest('.review-item').classList.toggle('deselected', !this.checked); updateRenameCount()">
-        <img src="${proxyUrl}" style="width:44px;height:44px;object-fit:cover;border-radius:4px;flex-shrink:0" alt="" onerror="this.style.display='none'">
-        <div class="review-item-body">
-          <div class="review-item-filename">${escapeHtml(p.filename)}</div>
-          <div class="review-item-change">
-            <span class="from">${escapeHtml(p.currentFilename)}</span>
-            <span class="arrow">→</span>
-            <span class="to">${escapeHtml(p.proposedFilename)}</span>
-          </div>
-          <div style="font-size:0.67rem;color:#94a3b8;margin-top:0.1rem">${escapeHtml(p.reason)}</div>
-          <div class="review-item-edit">
-            <input type="text" class="edit-input" value="${escapeHtml(p.proposedFilename)}" placeholder="Dateiname (ohne Endung)…">
-          </div>
-        </div>`;
-      item.querySelector('.edit-input').addEventListener('click', e => e.stopPropagation());
-      item.addEventListener('click', (e) => {
-        if (e.target.matches('input[type="checkbox"], .edit-input')) return;
-        const cb = item.querySelector('input[type="checkbox"]');
-        cb.checked = !cb.checked;
-        item.classList.toggle('deselected', !cb.checked);
-        updateRenameCount();
+  async function renameSingle(id, newFilename, card) {
+    const btn = card.querySelector('.rename-card-btn');
+    const statusEl = card.querySelector('.rename-card-status');
+    const input = card.querySelector('.rename-card-input');
+    btn.disabled = true;
+    btn.textContent = 'Umbenennen…';
+    statusEl.textContent = '';
+
+    try {
+      const resp = await fetch('/api/rename-image', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, newFilename: input.value.trim() || newFilename }),
       });
-      list.appendChild(item);
-    });
-    document.getElementById('rename-panel').style.display = 'block';
-    updateRenameCount();
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || resp.statusText);
+
+      card.classList.add('done');
+      input.disabled = true;
+      btn.textContent = '✓ Umbenannt';
+      btn.style.background = '#16a34a';
+
+      const parts = [];
+      if (data.refsUpdated > 0) parts.push(`${data.refsUpdated} Beitrag/Seite`);
+      if (data.featuredUpdated > 0) parts.push(`${data.featuredUpdated} Titelbild`);
+      statusEl.textContent = parts.length > 0 ? `URLs aktualisiert in: ${parts.join(', ')}` : 'Keine Referenzen gefunden';
+      statusEl.style.color = '#16a34a';
+
+      document.getElementById('rename-status').textContent = updateRenameStats();
+    } catch (err) {
+      card.classList.add('error');
+      btn.disabled = false;
+      btn.textContent = 'Erneut versuchen';
+      statusEl.textContent = `Fehler: ${err.message}`;
+      statusEl.style.color = '#ef4444';
+    }
   }
 
-  async function applySelectedRenames() {
-    const changes = [...document.querySelectorAll('#rename-list .review-item input[type="checkbox"]:checked')]
-      .map(cb => {
-        const item = cb.closest('.review-item');
-        const editInput = item.querySelector('.edit-input');
-        return { id: parseInt(item.dataset.id, 10), newFilename: editInput ? editInput.value.trim() : '' };
-      })
-      .filter(c => c.newFilename);
+  function updateRenameStats() {
+    const total = document.querySelectorAll('#rename-scroll .compress-img-card').length;
+    const done  = document.querySelectorAll('#rename-scroll .compress-img-card.done').length;
+    const label = `${done} von ${total} umbenannt`;
+    document.getElementById('rename-count-label').textContent = `${total - done} ausstehend`;
+    return label;
+  }
 
-    const btn = document.getElementById('rename-apply-btn');
-    btn.disabled = true; btn.textContent = 'Wird umbenannt…';
-    document.getElementById('toolbar-label').textContent = 'Ausgabe: rename-images (Apply)';
-    setNavState('rename-images', 'running', 'Läuft...');
-
-    const response = await fetch('/apply/audit-filenames', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ changes }),
-    });
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split('\n\n'); buffer = parts.pop();
-      for (const part of parts) {
-        const line = part.replace(/^data: /, '').trim();
-        if (!line) continue;
-        const { type, text } = JSON.parse(line);
-        if (type === 'done') {
-          document.getElementById('rename-panel').style.display = 'none';
-          setNavState('rename-images', text === 'success' ? 'success' : 'error', text === 'success' ? 'Fertig' : 'Fehler');
-          resetNavState('rename-images');
-        } else if (type !== 'progress') { appendLine(text, type); }
-      }
+  async function renameAllPending() {
+    const pending = [...document.querySelectorAll('#rename-scroll .compress-img-card:not(.done):not(.error)')];
+    if (pending.length === 0) return;
+    const allBtn = document.getElementById('rename-all-btn');
+    allBtn.disabled = true;
+    for (const card of pending) {
+      const id = parseInt(card.dataset.id, 10);
+      const input = card.querySelector('.rename-card-input');
+      await renameSingle(id, input.value.trim(), card);
     }
-    btn.textContent = 'Umbenennen';
-    btn.disabled = false;
+    allBtn.disabled = false;
+    setNavState('rename-images', 'success', 'Fertig');
+    resetNavState('rename-images');
+  }
+
+  function buildRenameCards(proposals) {
+    const scroll = document.getElementById('rename-scroll');
+    const footer = document.getElementById('rename-footer');
+    scroll.innerHTML = '';
+
+    if (proposals.length === 0) {
+      scroll.innerHTML = '<div class="compress-loading">Alle Dateinamen sind SEO-optimiert ✓</div>';
+      footer.style.display = 'none';
+      document.getElementById('rename-count-label').textContent = '';
+      return;
+    }
+
+    document.getElementById('rename-count-label').textContent = `${proposals.length} ausstehend`;
+
+    for (const p of proposals) {
+      const card = document.createElement('div');
+      card.className = 'compress-img-card';
+      card.dataset.id = p.id;
+      card.style.flexDirection = 'column';
+      card.style.alignItems = 'stretch';
+      card.style.gap = '0.5rem';
+
+      const proxyUrl = `/api/seasonal/proxy-image?url=${encodeURIComponent(p.url)}`;
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:0.75rem">
+          <img src="${proxyUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:4px;flex-shrink:0;background:#f1f5f9" alt="" onerror="this.style.display='none'">
+          <div style="flex:1;min-width:0">
+            <div class="compress-img-name">${escapeHtml(p.currentFilename)}</div>
+            <div class="compress-img-meta" style="color:#94a3b8;font-style:italic">${escapeHtml(p.reason)}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem">
+          <span style="font-size:0.75rem;color:#94a3b8;flex-shrink:0">Neuer Name:</span>
+          <input class="rename-card-input" type="text" value="${escapeHtml(p.proposedFilename)}"
+            style="flex:1;padding:0.28rem 0.5rem;border:1px solid #cbd5e1;border-radius:5px;font-size:0.78rem;font-family:inherit;min-width:0"
+            placeholder="Dateiname ohne Endung…">
+          <button class="rename-card-btn compress-apply-btn" style="flex-shrink:0;white-space:nowrap"
+            onclick="renameSingle(${p.id}, ${JSON.stringify(p.proposedFilename)}, this.closest('.compress-img-card'))">
+            Umbenennen
+          </button>
+        </div>
+        <div class="rename-card-status" style="font-size:0.72rem;color:#94a3b8;min-height:1em"></div>`;
+
+      scroll.appendChild(card);
+    }
+
+    footer.style.display = 'flex';
   }
 
   function loadRenameView() {
@@ -2704,33 +2733,35 @@
     hideH1View();
     hideSeasonalView();
     hideCompressView();
-    document.getElementById('rename-panel').style.display = 'none';
+    showRenameView();
 
     setNavState('rename-images', 'running', 'KI analysiert…');
     document.getElementById('toolbar-label').textContent = 'Dateinamen – KI-Analyse';
-    clearOutput();
+    document.getElementById('rename-scroll').innerHTML = '<div class="compress-loading">KI analysiert Mediathek…</div>';
+    document.getElementById('rename-footer').style.display = 'none';
+    document.getElementById('rename-status').textContent = '';
 
     const es = new EventSource('/preview/audit-filenames');
     setActiveEs(es);
     es.onmessage = (e) => {
       const msg = JSON.parse(e.data);
       if (msg.type === 'progress') {
-        document.getElementById('toolbar-label').textContent = msg.text;
+        document.getElementById('rename-scroll').innerHTML =
+          `<div class="compress-loading">${escapeHtml(msg.text)}</div>`;
       } else if (msg.type === 'proposals') {
         es.close(); clearActiveEs();
         const proposals = msg.data || [];
-        document.getElementById('toolbar-label').textContent = 'Dateinamen – KI-Analyse';
-        if (proposals.length === 0) {
-          appendLine('Alle Dateinamen sind SEO-optimiert — kein Handlungsbedarf.', 'out');
-          setNavState('rename-images', 'success', 'Fertig'); resetNavState('rename-images');
-        } else {
-          appendLine(`${proposals.length} Bild(er) mit verbesserungswürdigen Dateinamen gefunden.`, 'out');
-          showRenamePanel(proposals);
-          setNavState('rename-images', '', 'Bereit');
-        }
+        buildRenameCards(proposals);
+        setNavState('rename-images', proposals.length > 0 ? '' : 'success', 'Bereit');
+        if (proposals.length === 0) resetNavState('rename-images');
       } else if (msg.type === 'done' && msg.text === 'error') {
         es.close(); clearActiveEs(); setNavState('rename-images', 'error', 'Fehler');
-      } else if (msg.type === 'err') { appendLine(msg.text, 'err'); }
+        document.getElementById('rename-scroll').innerHTML =
+          '<div class="compress-loading" style="color:#ef4444">Analyse fehlgeschlagen.</div>';
+      } else if (msg.type === 'err') {
+        document.getElementById('rename-scroll').innerHTML =
+          `<div class="compress-loading" style="color:#ef4444">${escapeHtml(msg.text)}</div>`;
+      }
     };
     es.onerror = () => { es.close(); clearActiveEs(); setNavState('rename-images', 'error', 'Fehler'); };
   }
@@ -2758,11 +2789,12 @@
       // Rename images → dedicated flow (handled via onclick, skip here)
       if (cmd === 'rename-images') return;
 
-      // All other tools → hide SEO/H1/seasonal/compress views, show terminal
+      // All other tools → hide SEO/H1/seasonal/compress/rename views, show terminal
       hideSeoView();
       hideH1View();
       hideSeasonalView();
       hideCompressView();
+      hideRenameView();
 
       const wantsFix       = cmd === 'audit-media' && document.getElementById('opt-fix')?.checked;
       const wantsAiQuality = cmd === 'audit-media' && document.getElementById('opt-media-ai')?.checked;
@@ -2854,6 +2886,7 @@
     document.getElementById('seo-view').style.display = 'none';
     document.getElementById('h1-view').style.display = 'none';
     document.getElementById('seasonal-view').style.display = 'none';
+    document.getElementById('rename-view').style.display = 'none';
     document.querySelector('.output-wrap').style.display = 'none';
     document.getElementById('review-panel').style.display = 'none';
   }
@@ -3041,6 +3074,7 @@
     document.getElementById('seo-view').style.display = 'none';
     document.getElementById('h1-view').style.display = 'none';
     document.getElementById('compress-view').style.display = 'none';
+    document.getElementById('rename-view').style.display = 'none';
     document.querySelector('.output-wrap').style.display = 'none';
     document.getElementById('review-panel').style.display = 'none';
   }

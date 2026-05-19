@@ -329,6 +329,21 @@ app.post('/apply/audit-filenames', express.json(), (req, res) => {
     });
 });
 
+app.post('/api/rename-image', express.json(), async (req, res) => {
+  const { id, newFilename } = req.body || {};
+  if (!id || !newFilename) return res.status(400).json({ error: 'id and newFilename required' });
+  try {
+    const { results, refsUpdated, featuredUpdated } = await applyFilenameRenames(
+      [{ id, newFilename }],
+    );
+    const result = results[0];
+    if (!result.success) return res.status(500).json({ error: result.error });
+    res.json({ ...result, refsUpdated, featuredUpdated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Image Compression ──────────────────────────────────────────
 
 app.get('/api/compress-images/detect', async (req, res) => {
