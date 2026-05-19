@@ -187,10 +187,11 @@ function _wp_optimizer_replace_media(WP_REST_Request $request) {
     wp_update_attachment_metadata($attachment_id, $new_meta);
 
     // Fix extension mismatches in regenerated thumbnails.
-    // WordPress derives the thumbnail extension from the source file (e.g. .jpg), but posts
-    // may have hardcoded URLs to the old thumbnails with a different extension (e.g. .jpeg).
-    // When old and new thumbnail filenames differ only by extension, rename the new file back
-    // to the old filename so that all existing references in post content keep working.
+    // After regeneration, thumbnails may have different filenames than before — either because
+    // the extension changed (e.g. .jpeg → .jpg) or because WordPress names them after the
+    // scaled file (e.g. photo-scaled-768x1024.jpg) while posts still reference the original
+    // name (e.g. photo-768x1024.jpeg). The size_name key guarantees the same dimensions, so
+    // any renamed thumbnail for the same size can safely be moved back to the old filename.
     if (!empty($old_meta['sizes']) && !empty($new_meta['sizes'])) {
         $meta_changed = false;
         foreach ($new_meta['sizes'] as $size_name => $new_size_data) {
@@ -200,16 +201,13 @@ function _wp_optimizer_replace_media(WP_REST_Request $request) {
             $new_filename = $new_size_data['file'];
             if ($old_filename === $new_filename) continue;
 
-            // Only act when basenames match (same dimensions) and only the extension differs
-            if (pathinfo($old_filename, PATHINFO_FILENAME) === pathinfo($new_filename, PATHINFO_FILENAME)) {
-                $new_thumb = $upload_dir . '/' . $new_filename;
-                $old_thumb = $upload_dir . '/' . $old_filename;
-                if (file_exists($new_thumb)) {
-                    rename($new_thumb, $old_thumb);
-                    $new_meta['sizes'][$size_name]['file']      = $old_filename;
-                    $new_meta['sizes'][$size_name]['mime-type']  = $old_meta['sizes'][$size_name]['mime-type'];
-                    $meta_changed = true;
-                }
+            $new_thumb = $upload_dir . '/' . $new_filename;
+            $old_thumb = $upload_dir . '/' . $old_filename;
+            if (file_exists($new_thumb)) {
+                rename($new_thumb, $old_thumb);
+                $new_meta['sizes'][$size_name]['file']      = $old_filename;
+                $new_meta['sizes'][$size_name]['mime-type']  = $old_meta['sizes'][$size_name]['mime-type'];
+                $meta_changed = true;
             }
         }
         if ($meta_changed) {
