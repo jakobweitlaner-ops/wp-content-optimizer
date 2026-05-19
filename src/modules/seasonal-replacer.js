@@ -144,12 +144,25 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
 
   if (!oldSrc) throw new Error('oldSrc required for content image replacement');
 
-  const updated = rawContent.split(oldSrc).join(newSrc);
-  if (updated === rawContent) throw new Error(`Bild-URL nicht im Inhalt gefunden`);
+  // Replace the primary src URL
+  let finalContent = rawContent.split(oldSrc).join(newSrc);
+  if (finalContent === rawContent) throw new Error(`Bild-URL nicht im Inhalt gefunden`);
 
-  let finalContent = updated;
+  // Replace all srcset size URLs (old filename → new filename pattern)
   if (oldMediaId && newMediaId) {
-    finalContent = finalContent.split(`wp-image-${oldMediaId}`).join(`wp-image-${newMediaId}`);
+    // Replace wp-image-ID class and Gutenberg block "id" attribute
+    finalContent = finalContent
+      .split(`wp-image-${oldMediaId}`).join(`wp-image-${newMediaId}`)
+      .split(`"id":${oldMediaId}`).join(`"id":${newMediaId}`)
+      .split(`"id": ${oldMediaId}`).join(`"id": ${newMediaId}`);
+  }
+
+  // Replace remaining srcset URLs that share the same filename base as oldSrc
+  // (e.g. old-name-300x200.jpg → new-name-300x200.jpg)
+  const oldBase = oldSrc.replace(/\.[^.]+$/, '');
+  const newBase = newSrc.replace(/\.[^.]+$/, '');
+  if (oldBase && newBase && oldBase !== newBase) {
+    finalContent = finalContent.split(oldBase).join(newBase);
   }
 
   await updateItem(postId, { content: finalContent });
