@@ -186,6 +186,37 @@ function _wp_optimizer_replace_media(WP_REST_Request $request) {
 
     wp_update_attachment_metadata($attachment_id, $new_meta);
 
+    // Fix extension mismatches in regenerated thumbnails.
+    // WordPress derives the thumbnail extension from the source file (e.g. .jpg), but posts
+    // may have hardcoded URLs to the old thumbnails with a different extension (e.g. .jpeg).
+    // When old and new thumbnail filenames differ only by extension, rename the new file back
+    // to the old filename so that all existing references in post content keep working.
+    if (!empty($old_meta['sizes']) && !empty($new_meta['sizes'])) {
+        $meta_changed = false;
+        foreach ($new_meta['sizes'] as $size_name => $new_size_data) {
+            if (empty($old_meta['sizes'][$size_name])) continue;
+
+            $old_filename = $old_meta['sizes'][$size_name]['file'];
+            $new_filename = $new_size_data['file'];
+            if ($old_filename === $new_filename) continue;
+
+            // Only act when basenames match (same dimensions) and only the extension differs
+            if (pathinfo($old_filename, PATHINFO_FILENAME) === pathinfo($new_filename, PATHINFO_FILENAME)) {
+                $new_thumb = $upload_dir . '/' . $new_filename;
+                $old_thumb = $upload_dir . '/' . $old_filename;
+                if (file_exists($new_thumb)) {
+                    rename($new_thumb, $old_thumb);
+                    $new_meta['sizes'][$size_name]['file']      = $old_filename;
+                    $new_meta['sizes'][$size_name]['mime-type']  = $old_meta['sizes'][$size_name]['mime-type'];
+                    $meta_changed = true;
+                }
+            }
+        }
+        if ($meta_changed) {
+            wp_update_attachment_metadata($attachment_id, $new_meta);
+        }
+    }
+
     // Clear all caches for this attachment
     clean_attachment_cache($attachment_id);
     wp_cache_delete($attachment_id, 'posts');
