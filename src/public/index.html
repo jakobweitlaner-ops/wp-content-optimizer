@@ -1532,8 +1532,8 @@
       <button class="nav-item" data-cmd="seasonal-images" onclick="loadSeasonalView()">
         <span class="nav-item-icon">🌸</span>
         <div class="nav-item-body">
-          <span class="nav-item-label">Saisonale Bilder</span>
-          <span class="nav-item-note">Winter- durch Sommerbilder ersetzen</span>
+          <span class="nav-item-label">Bild Management</span>
+          <span class="nav-item-note">Bilder in Beiträgen &amp; Seiten ersetzen</span>
         </div>
         <span class="nav-state" id="state-seasonal-images">Bereit</span>
       </button>
@@ -1638,7 +1638,7 @@
 
     <div class="seasonal-view" id="seasonal-view">
       <div class="seasonal-toolbar">
-        <span class="seasonal-heading">🌸 Saisonale Bilder</span>
+        <span class="seasonal-heading">🖼️ Bild Management</span>
         <span class="seasonal-count-label" id="seasonal-count-label"></span>
       </div>
       <div class="seasonal-scroll" id="seasonal-scroll">
@@ -2890,7 +2890,7 @@
   async function loadSeasonalView() {
     showSeasonalView();
     setNavState('seasonal-images', 'running', 'Läuft…');
-    document.getElementById('toolbar-label').textContent = 'Saisonale Bilder';
+    document.getElementById('toolbar-label').textContent = 'Bild Management';
     const scroll = document.getElementById('seasonal-scroll');
     scroll.innerHTML = '<div class="seasonal-loading">Lade Beiträge und Seiten…</div>';
 

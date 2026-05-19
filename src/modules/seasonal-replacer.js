@@ -16,25 +16,54 @@ function extractContentImages(html) {
   return images;
 }
 
+// Group items so that pages/posts with shared translation IDs appear consecutively.
+function groupByTranslations(items) {
+  const byId = new Map(items.map(i => [i.id, i]));
+  const visited = new Set();
+  const grouped = [];
+
+  for (const item of items) {
+    if (visited.has(item.id)) continue;
+    visited.add(item.id);
+    const group = [item];
+
+    if (item.translations && typeof item.translations === 'object') {
+      for (const translatedId of Object.values(item.translations)) {
+        if (translatedId !== item.id && byId.has(translatedId) && !visited.has(translatedId)) {
+          visited.add(translatedId);
+          group.push(byId.get(translatedId));
+        }
+      }
+    }
+
+    grouped.push(...group);
+  }
+
+  return grouped;
+}
+
 export async function getPostsWithImages() {
   const [posts, pages] = await Promise.all([
-    getPosts({ _fields: 'id,title,link,content,featured_media', per_page: 100 }),
-    getPages({ _fields: 'id,title,link,content,featured_media', per_page: 100 }),
+    getPosts({ _fields: 'id,title,link,content,featured_media,translations', per_page: 100 }),
+    getPages({ _fields: 'id,title,link,content,featured_media,translations', per_page: 100 }),
   ]);
 
   // Deduplicate by id across posts+pages and within each list
   const seen = new Set();
   const allItems = [];
-  for (const item of [...posts.map(p => ({ ...p, type: 'post' })), ...pages.map(p => ({ ...p, type: 'page' }))]) {
+  for (const item of [...pages.map(p => ({ ...p, type: 'page' })), ...posts.map(p => ({ ...p, type: 'post' }))]) {
     if (!seen.has(item.id)) {
       seen.add(item.id);
       allItems.push(item);
     }
   }
 
+  // Group translated pages/posts so they appear consecutively
+  const sortedItems = groupByTranslations(allItems);
+
   const results = [];
 
-  for (const item of allItems) {
+  for (const item of sortedItems) {
     const content = item.content?.rendered || '';
     const contentImages = extractContentImages(content);
     const images = [];
