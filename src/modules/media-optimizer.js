@@ -119,7 +119,7 @@ function buildUrlMappings(oldItem, newItem) {
   return mappings;
 }
 
-export async function updateMediaReferences(urlMappings) {
+export async function updateMediaReferences(urlMappings, idMappings = {}) {
   if (!urlMappings || Object.keys(urlMappings).length === 0) return 0;
 
   // lang=all fetches posts in every Polylang language; ignored on non-Polylang sites
@@ -129,9 +129,20 @@ export async function updateMediaReferences(urlMappings) {
   for (const item of [...posts, ...pages]) {
     const raw = item.content?.raw || '';
     let updated = raw;
+
     for (const [oldUrl, newUrl] of Object.entries(urlMappings)) {
       updated = updated.split(oldUrl).join(newUrl);
     }
+
+    // Update Gutenberg block comments {"id":OLD} and CSS classes wp-image-OLD
+    // so WordPress regenerates correct srcset for responsive/mobile images
+    for (const [oldId, newId] of Object.entries(idMappings)) {
+      updated = updated
+        .split(`"id":${oldId}`).join(`"id":${newId}`)
+        .split(`"id": ${oldId}`).join(`"id": ${newId}`)
+        .split(`wp-image-${oldId}`).join(`wp-image-${newId}`);
+    }
+
     if (updated !== raw) {
       const fn = item.type === 'page' ? updatePage : updatePost;
       await fn(item.id, { content: updated });
@@ -547,7 +558,7 @@ export async function applyFilenameRenames(changes, { onProgress, onResult, onEr
   }
 
   const [refsUpdated, featuredUpdated] = await Promise.all([
-    Object.keys(allUrlMappings).length > 0 ? updateMediaReferences(allUrlMappings) : Promise.resolve(0),
+    Object.keys(allUrlMappings).length > 0 ? updateMediaReferences(allUrlMappings, idMap) : Promise.resolve(0),
     Object.keys(idMap).length > 0 ? updateFeaturedImageReferences(idMap) : Promise.resolve(0),
   ]);
 
