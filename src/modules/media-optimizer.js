@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import axios from 'axios';
 import sharp from 'sharp';
 import path from 'path';
-import { getMedia, updateMedia, uploadMedia, replaceMedia, getSiteContext } from '../utils/wp-api.js';
+import { getMedia, updateMedia, uploadMedia, replaceMedia, getMediaItem, getPosts, getPages, updatePost, updatePage, getSiteContext } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
 
 const insecureAgent = new https.Agent({ rejectUnauthorized: false });
@@ -86,6 +86,61 @@ export async function compressImageBuffer(buffer, mimeType, { targetSizeBytes = 
   return { buffer: await pipeline.toBuffer(), mimeType: outMimeType };
 }
 
+function collectUrls(item) {
+  const urls = new Set();
+  if (item.source_url) urls.add(item.source_url);
+  const sizes = item.media_details?.sizes || {};
+  for (const sizeData of Object.values(sizes)) {
+    if (sizeData.source_url) urls.add(sizeData.source_url);
+  }
+  return urls;
+}
+
+function buildUrlMappings(oldItem, newItem) {
+  const mappings = {};
+  const oldUrls = collectUrls(oldItem);
+  const newUrls = collectUrls(newItem);
+  for (const oldUrl of oldUrls) {
+    if (!newUrls.has(oldUrl)) {
+      // Find the corresponding new URL by size name
+      const oldSizes = oldItem.media_details?.sizes || {};
+      const newSizes = newItem.media_details?.sizes || {};
+      for (const [sizeName, sizeData] of Object.entries(oldSizes)) {
+        if (sizeData.source_url === oldUrl && newSizes[sizeName]) {
+          mappings[oldUrl] = newSizes[sizeName].source_url;
+        }
+      }
+      // Handle source_url change
+      if (oldItem.source_url === oldUrl && newItem.source_url !== oldUrl) {
+        mappings[oldUrl] = newItem.source_url;
+      }
+    }
+  }
+  return mappings;
+}
+
+export async function updateMediaReferences(urlMappings) {
+  if (!urlMappings || Object.keys(urlMappings).length === 0) return 0;
+
+  const [posts, pages] = await Promise.all([getPosts(), getPages()]);
+  let updatedCount = 0;
+
+  for (const item of [...posts, ...pages]) {
+    const raw = item.content?.raw || '';
+    let updated = raw;
+    for (const [oldUrl, newUrl] of Object.entries(urlMappings)) {
+      updated = updated.split(oldUrl).join(newUrl);
+    }
+    if (updated !== raw) {
+      const fn = item.type === 'page' ? updatePage : updatePost;
+      await fn(item.id, { content: updated });
+      updatedCount++;
+    }
+  }
+
+  return updatedCount;
+}
+
 export async function detectOversizedImages({ threshold = MAX_FILE_SIZE_BYTES } = {}) {
   const media = await getMedia({ media_type: 'image' });
   return media.filter((item) => {
@@ -129,6 +184,10 @@ export async function compressMediaItem(item, { targetSizeKb = null, quality = 8
     });
   }
 
+  // Fetch updated media item to detect any URL changes (e.g. thumbnail extension mismatch)
+  const updatedItem = await getMediaItem(result.id);
+  const urlMappings = buildUrlMappings(item, updatedItem);
+
   return {
     originalId: item.id,
     originalUrl: item.source_url,
@@ -136,9 +195,10 @@ export async function compressMediaItem(item, { targetSizeKb = null, quality = 8
     compressedSize: compressedBuffer.length,
     savings: originalBuffer.length - compressedBuffer.length,
     savingsPercent: Math.round((1 - compressedBuffer.length / originalBuffer.length) * 100),
-    newId: result.id,
-    newUrl: result.source_url,
+    newId: updatedItem.id,
+    newUrl: updatedItem.source_url,
     replacedInPlace,
+    urlMappings,
   };
 }
 
@@ -153,6 +213,7 @@ export async function compressOversizedImages({
   onProgress,
   onResult,
   onError,
+  onRefsUpdated,
 } = {}) {
   let oversized = await detectOversizedImages({ threshold });
   if (ids && ids.length > 0) {
@@ -160,6 +221,7 @@ export async function compressOversizedImages({
     oversized = oversized.filter((item) => idSet.has(item.id));
   }
   const results = [];
+  const allUrlMappings = {};
   let done = 0;
 
   for (const item of oversized) {
@@ -176,6 +238,7 @@ export async function compressOversizedImages({
 
     try {
       const result = await compressMediaItem(item, { targetSizeKb, quality, maxWidth, maxHeight });
+      Object.assign(allUrlMappings, result.urlMappings);
       results.push({ ...result, filename: item.slug, success: true });
       if (onResult) onResult({ ...result, filename: item.slug, success: true });
     } catch (err) {
@@ -183,6 +246,12 @@ export async function compressOversizedImages({
       results.push(failure);
       if (onError) onError(item.slug, err.message);
     }
+  }
+
+  // Update all changed URLs in post/page content in a single pass
+  if (!dryRun && Object.keys(allUrlMappings).length > 0) {
+    const refsUpdated = await updateMediaReferences(allUrlMappings);
+    if (onRefsUpdated) onRefsUpdated(refsUpdated, allUrlMappings);
   }
 
   return results;

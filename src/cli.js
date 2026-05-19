@@ -122,6 +122,9 @@ program
             log.row('', `New URL: ${r.newUrl}`, 'dim');
           }
         },
+        onRefsUpdated: (count) => {
+          if (count > 0) log.info(`Updated ${count} post/page(s) with changed image URLs.`);
+        },
         onError: (slug, msg) => {
           process.stdout.write('\r' + ' '.repeat(50) + '\r');
           log.row(slug.substring(0, 35), `Error: ${msg}`, 'red');
