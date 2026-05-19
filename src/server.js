@@ -313,6 +313,11 @@ app.post('/api/compress-images/apply', express.json(), (req, res) => {
       }
     },
     onError: (slug, msg) => send('err', `✖ ${slug}: ${msg}`),
+    onRefsUpdated: (count, mappings) => {
+      if (count > 0) {
+        send('out', `🔗 ${count} Seite(n) mit geänderten Bild-URLs aktualisiert.`);
+      }
+    },
   })
     .then((results) => {
       const ok = results.filter((r) => r.success).length;
