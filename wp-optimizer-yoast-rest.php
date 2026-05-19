@@ -145,6 +145,20 @@ function _wp_optimizer_replace_media(WP_REST_Request $request) {
         }
     }
 
+    // WordPress "big image" handling:
+    // When a large image is uploaded, WP keeps the original (e.g. image.jpg) and creates a
+    // scaled version (image-scaled.jpg). If the uncompressed original still exists on disk,
+    // wp_generate_attachment_metadata() will re-scale from it and overwrite our compressed file.
+    // Fix: also write the compressed buffer to the original file so WP has nothing large to
+    // re-scale from. Preserve the original_image metadata key so references stay intact.
+    $original_image_filename = !empty($old_meta['original_image']) ? $old_meta['original_image'] : null;
+    if ($original_image_filename && $current_ext === $new_ext) {
+        $original_path = $upload_dir . '/' . $original_image_filename;
+        if (file_exists($original_path)) {
+            file_put_contents($original_path, $body);
+        }
+    }
+
     // Write the new binary to disk
     $bytes = file_put_contents($new_path, $body);
     if ($bytes === false) {
@@ -164,6 +178,12 @@ function _wp_optimizer_replace_media(WP_REST_Request $request) {
     // Regenerate attachment metadata (dimensions, thumbnails)
     require_once ABSPATH . 'wp-admin/includes/image.php';
     $new_meta = wp_generate_attachment_metadata($attachment_id, $new_path);
+
+    // Preserve the original_image reference so WP's big-image APIs keep working
+    if ($original_image_filename && $current_ext === $new_ext) {
+        $new_meta['original_image'] = $original_image_filename;
+    }
+
     wp_update_attachment_metadata($attachment_id, $new_meta);
 
     // Clear all caches for this attachment
