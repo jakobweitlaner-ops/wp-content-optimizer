@@ -2520,14 +2520,7 @@
 
   function proxyThumb(src) {
     if (!src) return null;
-    // Only proxy WP-origin images (which may have a self-signed SSL cert).
-    // External images (different domain) load fine directly in the browser.
-    if (_wpBase && src.startsWith(_wpBase)) {
-      return `/api/seasonal/proxy-image?url=${encodeURIComponent(src)}`;
-    }
-    // Fallback: proxy everything if WP base is unknown, direct URL if external
-    if (!_wpBase) return `/api/seasonal/proxy-image?url=${encodeURIComponent(src)}`;
-    return src;
+    return `/api/seasonal/proxy-image?url=${encodeURIComponent(src)}`;
   }
 
   function renderSeasonalList() {
@@ -2639,7 +2632,22 @@
     const srcEl = document.createElement('div');
     srcEl.className = 'seasonal-image-src';
     srcEl.title = img.src || '';
-    srcEl.textContent = srcDisplay;
+    if (img.src) {
+      const linkEl = document.createElement('a');
+      linkEl.href = img.src;
+      linkEl.target = '_blank';
+      linkEl.rel = 'noopener noreferrer';
+      linkEl.title = img.src;
+      linkEl.style.cssText = 'color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px;';
+      linkEl.textContent = srcDisplay;
+      const icon = document.createElement('span');
+      icon.textContent = '↗';
+      icon.style.cssText = 'font-size:0.75rem;opacity:0.5;flex-shrink:0;';
+      linkEl.appendChild(icon);
+      srcEl.appendChild(linkEl);
+    } else {
+      srcEl.textContent = srcDisplay;
+    }
     info.appendChild(labelEl);
     info.appendChild(srcEl);
     row.appendChild(info);
