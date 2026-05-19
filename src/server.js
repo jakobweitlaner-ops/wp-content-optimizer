@@ -7,7 +7,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { exec } from 'child_process';
-import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI, detectOversizedImages, compressOversizedImages, repairPostReferences } from './modules/media-optimizer.js';
+import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI, auditFilenamesWithAI, applyFilenameRenames, detectOversizedImages, compressOversizedImages, repairPostReferences } from './modules/media-optimizer.js';
 import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals, applyBrandFix } from './modules/seo-optimizer.js';
 import { updatePost, updatePage } from './utils/wp-api.js';
 import { getPostsWithImages, getMediaLibrary, replaceImage } from './modules/seasonal-replacer.js';
@@ -258,6 +258,75 @@ app.post('/apply/audit-media', express.json(), async (req, res) => {
     send('done', 'error');
   }
   res.end();
+});
+
+// ── Filename Rename ────────────────────────────────────────────
+
+app.get('/preview/audit-filenames', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (type, text, data) =>
+    res.write(`data: ${JSON.stringify({ type, text, ...(data ? { data } : {}) })}\n\n`);
+
+  auditFilenamesWithAI({
+    onProgress: (done, total, slug) =>
+      send('progress', `Analysiere ${done}/${total}: ${slug}`),
+    onProposal: (p) =>
+      send('out', `⚠ ${p.filename} → ${p.proposedFilename}  (${p.reason})`),
+    onError: (slug, msg) =>
+      send('err', `Fehler bei ${slug}: ${msg}`),
+  })
+    .then((proposals) => {
+      send('proposals', `${proposals.length} Vorschläge gefunden.`, proposals);
+      send('done', 'success');
+      res.end();
+    })
+    .catch((err) => {
+      send('err', `KI-Analyse fehlgeschlagen: ${err.message}`);
+      send('done', 'error');
+      res.end();
+    });
+});
+
+app.post('/apply/audit-filenames', express.json(), (req, res) => {
+  const changes = req.body?.changes;
+  if (!Array.isArray(changes) || changes.length === 0) {
+    res.status(400).json({ error: 'changes array required' });
+    return;
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (type, text, data) =>
+    res.write(`data: ${JSON.stringify({ type, text, ...(data ? { data } : {}) })}\n\n`);
+
+  send('out', `Benenne ${changes.length} Bild(er) um…`);
+
+  applyFilenameRenames(changes, {
+    onProgress: (done, total, slug) =>
+      send('progress', `Verarbeite ${done}/${total}: ${slug}`),
+    onResult: (r) =>
+      send('out', `✔ ${r.originalFilename} → ${r.newFilename}`),
+    onError: (slug, msg) =>
+      send('err', `✖ ${slug}: ${msg}`),
+  })
+    .then(({ results, refsUpdated, featuredUpdated }) => {
+      const ok = results.filter((r) => r.success).length;
+      if (refsUpdated > 0) send('out', `🔗 ${refsUpdated} Beitrag/Seite(n) mit aktualisierten Bild-URLs.`);
+      if (featuredUpdated > 0) send('out', `🖼️ ${featuredUpdated} Beitrag/Seite(n) mit aktualisiertem Titelbild.`);
+      send('out', `Fertig. ${ok}/${results.length} Bild(er) umbenannt.`);
+      send('done', ok > 0 ? 'success' : 'error');
+      res.end();
+    })
+    .catch((err) => {
+      send('err', `Fehler: ${err.message}`);
+      send('done', 'error');
+      res.end();
+    });
 });
 
 // ── Image Compression ──────────────────────────────────────────

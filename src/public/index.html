@@ -1518,6 +1518,16 @@
         </label>
       </div>
 
+      <button class="nav-item" data-cmd="rename-images" onclick="loadRenameView()">
+        <span class="nav-item-icon">✏️</span>
+        <div class="nav-item-body">
+          <span class="nav-item-label">Dateinamen</span>
+          <span class="nav-item-note">SEO-Dateinamen per KI vorschlagen</span>
+        </div>
+        <span class="ai-badge">AI</span>
+        <span class="nav-state" id="state-rename-images">Bereit</span>
+      </button>
+
       <button class="nav-item" data-cmd="compress-images" onclick="loadCompressView()">
         <span class="nav-item-icon">🗜️</span>
         <div class="nav-item-body">
@@ -1569,6 +1579,20 @@
         <button class="select-all-btn" id="select-all-btn" onclick="toggleSelectAll()">Alle abwählen</button>
         <button class="apply-btn" id="apply-btn" onclick="applySelectedFixes()">Fixes anwenden</button>
         <span class="review-count" id="review-count"></span>
+      </div>
+    </div>
+
+    <div class="review-panel" id="rename-panel">
+      <div class="review-panel-header">
+        <h3>Dateinamen überprüfen</h3>
+        <button class="close-btn" onclick="document.getElementById('rename-panel').style.display='none'" title="Schließen">✕</button>
+      </div>
+      <p>Claude hat diese Dateinamen als SEO-schwach bewertet. Vorschläge können bearbeitet werden.</p>
+      <div class="review-list" id="rename-list"></div>
+      <div class="review-actions">
+        <button class="select-all-btn" id="rename-select-all-btn" onclick="toggleRenameSelectAll()">Alle abwählen</button>
+        <button class="apply-btn" id="rename-apply-btn" onclick="applySelectedRenames()">Umbenennen</button>
+        <span class="review-count" id="rename-count"></span>
       </div>
     </div>
 
@@ -2575,6 +2599,142 @@
     btn.textContent = 'Fixes anwenden';
   }
 
+  // ── Rename Images ────────────────────────────────────────────
+
+  function updateRenameCount() {
+    const total = document.querySelectorAll('#rename-list .review-item').length;
+    const selected = document.querySelectorAll('#rename-list .review-item input:checked').length;
+    document.getElementById('rename-count').textContent = `${selected} von ${total} ausgewählt`;
+    document.getElementById('rename-apply-btn').disabled = selected === 0;
+    document.getElementById('rename-select-all-btn').textContent =
+      selected === total ? 'Alle abwählen' : 'Alle auswählen';
+  }
+
+  function toggleRenameSelectAll() {
+    const items = document.querySelectorAll('#rename-list .review-item input');
+    const allChecked = [...items].every(cb => cb.checked);
+    items.forEach(cb => {
+      cb.checked = !allChecked;
+      cb.closest('.review-item').classList.toggle('deselected', allChecked);
+    });
+    updateRenameCount();
+  }
+
+  function showRenamePanel(proposals) {
+    const list = document.getElementById('rename-list');
+    list.innerHTML = '';
+    proposals.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'review-item';
+      item.dataset.id = p.id;
+      const proxyUrl = `/api/seasonal/proxy-image?url=${encodeURIComponent(p.url)}`;
+      item.innerHTML = `
+        <input type="checkbox" checked onchange="this.closest('.review-item').classList.toggle('deselected', !this.checked); updateRenameCount()">
+        <img src="${proxyUrl}" style="width:44px;height:44px;object-fit:cover;border-radius:4px;flex-shrink:0" alt="" onerror="this.style.display='none'">
+        <div class="review-item-body">
+          <div class="review-item-filename">${escapeHtml(p.filename)}</div>
+          <div class="review-item-change">
+            <span class="from">${escapeHtml(p.currentFilename)}</span>
+            <span class="arrow">→</span>
+            <span class="to">${escapeHtml(p.proposedFilename)}</span>
+          </div>
+          <div style="font-size:0.67rem;color:#94a3b8;margin-top:0.1rem">${escapeHtml(p.reason)}</div>
+          <div class="review-item-edit">
+            <input type="text" class="edit-input" value="${escapeHtml(p.proposedFilename)}" placeholder="Dateiname (ohne Endung)…">
+          </div>
+        </div>`;
+      item.querySelector('.edit-input').addEventListener('click', e => e.stopPropagation());
+      item.addEventListener('click', (e) => {
+        if (e.target.matches('input[type="checkbox"], .edit-input')) return;
+        const cb = item.querySelector('input[type="checkbox"]');
+        cb.checked = !cb.checked;
+        item.classList.toggle('deselected', !cb.checked);
+        updateRenameCount();
+      });
+      list.appendChild(item);
+    });
+    document.getElementById('rename-panel').style.display = 'block';
+    updateRenameCount();
+  }
+
+  async function applySelectedRenames() {
+    const changes = [...document.querySelectorAll('#rename-list .review-item input[type="checkbox"]:checked')]
+      .map(cb => {
+        const item = cb.closest('.review-item');
+        const editInput = item.querySelector('.edit-input');
+        return { id: parseInt(item.dataset.id, 10), newFilename: editInput ? editInput.value.trim() : '' };
+      })
+      .filter(c => c.newFilename);
+
+    const btn = document.getElementById('rename-apply-btn');
+    btn.disabled = true; btn.textContent = 'Wird umbenannt…';
+    document.getElementById('toolbar-label').textContent = 'Ausgabe: rename-images (Apply)';
+    setNavState('rename-images', 'running', 'Läuft...');
+
+    const response = await fetch('/apply/audit-filenames', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ changes }),
+    });
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n'); buffer = parts.pop();
+      for (const part of parts) {
+        const line = part.replace(/^data: /, '').trim();
+        if (!line) continue;
+        const { type, text } = JSON.parse(line);
+        if (type === 'done') {
+          document.getElementById('rename-panel').style.display = 'none';
+          setNavState('rename-images', text === 'success' ? 'success' : 'error', text === 'success' ? 'Fertig' : 'Fehler');
+          resetNavState('rename-images');
+        } else if (type !== 'progress') { appendLine(text, type); }
+      }
+    }
+    btn.textContent = 'Umbenennen';
+    btn.disabled = false;
+  }
+
+  function loadRenameView() {
+    if (document.querySelector('.nav-item[data-cmd="rename-images"]').dataset.state === 'running') return;
+    hideSeoView();
+    hideH1View();
+    hideSeasonalView();
+    hideCompressView();
+    document.getElementById('rename-panel').style.display = 'none';
+
+    setNavState('rename-images', 'running', 'KI analysiert…');
+    document.getElementById('toolbar-label').textContent = 'Dateinamen – KI-Analyse';
+    clearOutput();
+
+    const es = new EventSource('/preview/audit-filenames');
+    setActiveEs(es);
+    es.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'progress') {
+        document.getElementById('toolbar-label').textContent = msg.text;
+      } else if (msg.type === 'proposals') {
+        es.close(); clearActiveEs();
+        const proposals = msg.data || [];
+        document.getElementById('toolbar-label').textContent = 'Dateinamen – KI-Analyse';
+        if (proposals.length === 0) {
+          appendLine('Alle Dateinamen sind SEO-optimiert — kein Handlungsbedarf.', 'out');
+          setNavState('rename-images', 'success', 'Fertig'); resetNavState('rename-images');
+        } else {
+          appendLine(`${proposals.length} Bild(er) mit verbesserungswürdigen Dateinamen gefunden.`, 'out');
+          showRenamePanel(proposals);
+          setNavState('rename-images', '', 'Bereit');
+        }
+      } else if (msg.type === 'done' && msg.text === 'error') {
+        es.close(); clearActiveEs(); setNavState('rename-images', 'error', 'Fehler');
+      } else if (msg.type === 'err') { appendLine(msg.text, 'err'); }
+    };
+    es.onerror = () => { es.close(); clearActiveEs(); setNavState('rename-images', 'error', 'Fehler'); };
+  }
+
   // ── Nav item click handler ───────────────────────────────────
 
   document.querySelectorAll('.nav-item[data-cmd]:not(.nav-status)').forEach(navItem => {
@@ -2594,6 +2754,9 @@
 
       // Compress images → dedicated view (handled via onclick, skip here)
       if (cmd === 'compress-images') return;
+
+      // Rename images → dedicated flow (handled via onclick, skip here)
+      if (cmd === 'rename-images') return;
 
       // All other tools → hide SEO/H1/seasonal/compress views, show terminal
       hideSeoView();
