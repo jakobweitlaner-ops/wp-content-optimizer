@@ -279,12 +279,19 @@ app.get('/api/seasonal/proxy-image', async (req, res) => {
     const upstream = await axios.get(url, {
       responseType: 'arraybuffer',
       httpsAgent: insecureAgent,
-      timeout: 10000,
+      timeout: 15000,
+      maxRedirects: 5,
     });
-    res.set('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
+    const ct = upstream.headers['content-type'] || 'image/jpeg';
+    if (!ct.startsWith('image/')) {
+      console.warn(`[proxy] non-image response for ${url}: ${ct} (${upstream.status})`);
+      return res.status(502).end('not an image');
+    }
+    res.set('Content-Type', ct);
     res.set('Cache-Control', 'public, max-age=86400');
     res.send(Buffer.from(upstream.data));
-  } catch {
+  } catch (err) {
+    console.error(`[proxy] failed to fetch ${url}: ${err.message}`);
     res.status(502).end('image fetch failed');
   }
 });

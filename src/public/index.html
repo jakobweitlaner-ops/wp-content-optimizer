@@ -2613,8 +2613,14 @@
       imgEl.alt = '';
       imgEl.loading = 'lazy';
       imgEl.addEventListener('error', () => {
-        imgEl.replaceWith(makePlaceholder());
-      });
+        // Proxy failed — try loading the original URL directly as fallback
+        if (img.src && imgEl.src !== img.src) {
+          imgEl.src = img.src;
+          imgEl.addEventListener('error', () => imgEl.replaceWith(makePlaceholder()), { once: true });
+        } else {
+          imgEl.replaceWith(makePlaceholder());
+        }
+      }, { once: true });
       row.appendChild(imgEl);
     } else {
       row.appendChild(makePlaceholder());
