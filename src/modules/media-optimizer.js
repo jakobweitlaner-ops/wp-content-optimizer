@@ -100,11 +100,16 @@ export async function compressOversizedImages({
   maxWidth = MAX_WIDTH,
   maxHeight = MAX_HEIGHT,
   dryRun = false,
+  ids = null,
   onProgress,
   onResult,
   onError,
 } = {}) {
-  const oversized = await detectOversizedImages({ threshold });
+  let oversized = await detectOversizedImages({ threshold });
+  if (ids && ids.length > 0) {
+    const idSet = new Set(ids.map(Number));
+    oversized = oversized.filter((item) => idSet.has(item.id));
+  }
   const results = [];
   let done = 0;
 

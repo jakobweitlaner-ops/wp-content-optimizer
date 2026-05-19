@@ -2768,7 +2768,13 @@
       const resp = await fetch('/api/compress-images/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quality, threshold, maxWidth: 2560, maxHeight: 2560 }),
+        body: JSON.stringify({
+          quality,
+          threshold,
+          maxWidth: 2560,
+          maxHeight: 2560,
+          ids: [...document.querySelectorAll('#compress-scroll input[type="checkbox"]:checked')].map(cb => Number(cb.dataset.id)),
+        }),
       });
 
       const reader  = resp.body.getReader();

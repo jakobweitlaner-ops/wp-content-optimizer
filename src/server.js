@@ -299,6 +299,7 @@ app.post('/api/compress-images/apply', express.json(), (req, res) => {
     maxWidth,
     maxHeight,
     dryRun: false,
+    ids: Array.isArray(ids) && ids.length > 0 ? ids : null,
     onProgress: (done, total, slug) =>
       send('progress', `Komprimiere ${done}/${total}: ${slug}`),
     onResult: (r) => {
