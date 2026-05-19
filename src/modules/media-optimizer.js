@@ -122,7 +122,8 @@ function buildUrlMappings(oldItem, newItem) {
 export async function updateMediaReferences(urlMappings) {
   if (!urlMappings || Object.keys(urlMappings).length === 0) return 0;
 
-  const [posts, pages] = await Promise.all([getPosts(), getPages()]);
+  // lang=all fetches posts in every Polylang language; ignored on non-Polylang sites
+  const [posts, pages] = await Promise.all([getPosts({ lang: 'all' }), getPages({ lang: 'all' })]);
   let updatedCount = 0;
 
   for (const item of [...posts, ...pages]) {
