@@ -2518,9 +2518,18 @@
     }
   }
 
-  function proxyThumb(src) {
+  function resolveUrl(src) {
     if (!src) return null;
-    return `/api/seasonal/proxy-image?url=${encodeURIComponent(src)}`;
+    if (/^https?:\/\//i.test(src)) return src;
+    if (src.startsWith('//')) return 'https:' + src;
+    if (_wpBase) return _wpBase.replace(/\/$/, '') + (src.startsWith('/') ? src : '/' + src);
+    return src;
+  }
+
+  function proxyThumb(src) {
+    const abs = resolveUrl(src);
+    if (!abs) return null;
+    return `/api/seasonal/proxy-image?url=${encodeURIComponent(abs)}`;
   }
 
   function renderSeasonalList() {
@@ -2597,6 +2606,8 @@
     row.className = 'seasonal-image-row';
     row.id = `seasonal-row-${post.id}-${post.type}-${idx}`;
 
+    const absUrl = resolveUrl(img.src);
+
     // Thumbnail — loaded via server proxy to bypass SSL cert issues
     const proxySrc = proxyThumb(img.src);
     if (proxySrc) {
@@ -2607,8 +2618,8 @@
       imgEl.loading = 'lazy';
       imgEl.addEventListener('error', () => {
         // Proxy failed — try loading the original URL directly as fallback
-        if (img.src && imgEl.src !== img.src) {
-          imgEl.src = img.src;
+        if (absUrl && imgEl.src !== absUrl) {
+          imgEl.src = absUrl;
           imgEl.addEventListener('error', () => imgEl.replaceWith(makePlaceholder()), { once: true });
         } else {
           imgEl.replaceWith(makePlaceholder());
@@ -2631,13 +2642,13 @@
     labelEl.textContent = img.label;
     const srcEl = document.createElement('div');
     srcEl.className = 'seasonal-image-src';
-    srcEl.title = img.src || '';
-    if (img.src) {
+    srcEl.title = absUrl || '';
+    if (absUrl) {
       const linkEl = document.createElement('a');
-      linkEl.href = img.src;
+      linkEl.href = absUrl;
       linkEl.target = '_blank';
       linkEl.rel = 'noopener noreferrer';
-      linkEl.title = img.src;
+      linkEl.title = absUrl;
       linkEl.style.cssText = 'color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px;';
       linkEl.textContent = srcDisplay;
       const icon = document.createElement('span');
