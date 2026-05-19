@@ -30,24 +30,60 @@ async function fetchImageBuffer(url) {
 
 const COMPRESSIBLE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
 
-export async function compressImageBuffer(buffer, mimeType, { quality = 82, maxWidth = 2560, maxHeight = 2560 } = {}) {
+async function _compressToTargetSize(resized, mimeType, targetBytes) {
+  // PNG: try lossless first, then fall back to WebP lossy
+  if (mimeType === 'image/png') {
+    const lossless = await sharp(resized).png({ compressionLevel: 9, adaptiveFiltering: true }).toBuffer();
+    if (lossless.length <= targetBytes) return { buffer: lossless, mimeType: 'image/png' };
+  }
+
+  // Binary search for highest quality that stays within targetBytes
+  const format = mimeType === 'image/webp' ? 'webp' : 'jpeg';
+  const outMimeType = format === 'webp' ? 'image/webp' : 'image/jpeg';
+  let lo = 20, hi = 90, best = null;
+
+  for (let i = 0; i < 9 && hi - lo > 2; i++) {
+    const mid = Math.floor((lo + hi) / 2);
+    const candidate = await sharp(resized)[format]({ quality: mid }).toBuffer();
+    if (candidate.length <= targetBytes) {
+      best = candidate;
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  // Best-effort: nothing fit within target → use lowest quality
+  if (!best) best = await sharp(resized)[format]({ quality: lo }).toBuffer();
+  return { buffer: best, mimeType: outMimeType };
+}
+
+export async function compressImageBuffer(buffer, mimeType, { targetSizeBytes = null, quality = 82, maxWidth = 2560, maxHeight = 2560 } = {}) {
   if (!COMPRESSIBLE_TYPES.has(mimeType)) {
     throw new Error(`Unsupported format for compression: ${mimeType}`);
   }
 
-  let pipeline = sharp(buffer).resize(maxWidth, maxHeight, { fit: 'inside', withoutEnlargement: true });
+  const resized = await sharp(buffer)
+    .resize(maxWidth, maxHeight, { fit: 'inside', withoutEnlargement: true })
+    .toBuffer();
 
+  if (targetSizeBytes) {
+    return _compressToTargetSize(resized, mimeType, targetSizeBytes);
+  }
+
+  // Fixed-quality path (kept for CLI --quality flag and tests)
+  let outMimeType = mimeType;
+  let pipeline = sharp(resized);
   if (mimeType === 'image/png') {
     pipeline = pipeline.png({ compressionLevel: 9, adaptiveFiltering: true });
   } else if (mimeType === 'image/webp') {
     pipeline = pipeline.webp({ quality });
   } else {
     pipeline = pipeline.jpeg({ quality, mozjpeg: true });
-    mimeType = 'image/jpeg';
+    outMimeType = 'image/jpeg';
   }
 
-  const compressed = await pipeline.toBuffer();
-  return { buffer: compressed, mimeType };
+  return { buffer: await pipeline.toBuffer(), mimeType: outMimeType };
 }
 
 export async function detectOversizedImages({ threshold = MAX_FILE_SIZE_BYTES } = {}) {
@@ -59,7 +95,7 @@ export async function detectOversizedImages({ threshold = MAX_FILE_SIZE_BYTES } 
   });
 }
 
-export async function compressMediaItem(item, { quality = 82, maxWidth = MAX_WIDTH, maxHeight = MAX_HEIGHT } = {}) {
+export async function compressMediaItem(item, { targetSizeKb = null, quality = 82, maxWidth = MAX_WIDTH, maxHeight = MAX_HEIGHT } = {}) {
   const { buffer: originalBuffer, mimeType } = await fetchImageBuffer(item.source_url);
 
   if (!COMPRESSIBLE_TYPES.has(mimeType)) {
@@ -69,7 +105,7 @@ export async function compressMediaItem(item, { quality = 82, maxWidth = MAX_WID
   const { buffer: compressedBuffer, mimeType: outMimeType } = await compressImageBuffer(
     originalBuffer,
     mimeType,
-    { quality, maxWidth, maxHeight },
+    { targetSizeBytes: targetSizeKb ? targetSizeKb * 1024 : null, quality, maxWidth, maxHeight },
   );
 
   if (compressedBuffer.length >= originalBuffer.length) {
@@ -96,6 +132,7 @@ export async function compressMediaItem(item, { quality = 82, maxWidth = MAX_WID
 
 export async function compressOversizedImages({
   threshold = MAX_FILE_SIZE_BYTES,
+  targetSizeKb = null,
   quality = 82,
   maxWidth = MAX_WIDTH,
   maxHeight = MAX_HEIGHT,
@@ -126,7 +163,7 @@ export async function compressOversizedImages({
     }
 
     try {
-      const result = await compressMediaItem(item, { quality, maxWidth, maxHeight });
+      const result = await compressMediaItem(item, { targetSizeKb, quality, maxWidth, maxHeight });
       results.push({ ...result, filename: item.slug, success: true });
       if (onResult) onResult({ ...result, filename: item.slug, success: true });
     } catch (err) {

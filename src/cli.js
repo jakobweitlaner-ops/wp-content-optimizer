@@ -75,28 +75,32 @@ program
 program
   .command('compress-images')
   .description('Detect and compress oversized images in the media library')
-  .option('--threshold <kb>', 'File size threshold in KB (default: 200)', '200')
-  .option('--quality <number>', 'JPEG/WebP compression quality 1-100 (default: 82)', '82')
+  .option('--threshold <kb>', 'File size threshold in KB – images above this are compressed (default: 200)', '200')
+  .option('--target-size <kb>', 'Compress each image to at most this size in KB (e.g. 200); takes precedence over --quality')
+  .option('--quality <number>', 'Fallback JPEG/WebP quality 1-100 when --target-size is not set (default: 82)', '82')
   .option('--max-width <px>', 'Maximum image width in pixels (default: 2560)', '2560')
   .option('--max-height <px>', 'Maximum image height in pixels (default: 2560)', '2560')
   .option('--dry-run', 'Only list oversized images without compressing')
   .option('-o, --output <file>', 'Save report to file')
   .action(async (options) => {
     try {
-      const threshold = parseInt(options.threshold, 10) * 1024;
-      const quality = parseInt(options.quality, 10);
-      const maxWidth = parseInt(options.maxWidth, 10);
-      const maxHeight = parseInt(options.maxHeight, 10);
-      const dryRun = !!options.dryRun;
+      const threshold   = parseInt(options.threshold, 10) * 1024;
+      const targetSizeKb = options.targetSize ? parseInt(options.targetSize, 10) : null;
+      const quality     = parseInt(options.quality, 10);
+      const maxWidth    = parseInt(options.maxWidth, 10);
+      const maxHeight   = parseInt(options.maxHeight, 10);
+      const dryRun      = !!options.dryRun;
 
       log.header('Image Compression');
       if (dryRun) log.info('Dry run – no images will be changed.');
-      log.info(`Threshold: ${options.threshold} KB | Quality: ${quality} | Max: ${maxWidth}x${maxHeight}px`);
+      const modeLabel = targetSizeKb ? `Target: ≤${targetSizeKb} KB` : `Quality: ${quality}`;
+      log.info(`Threshold: ${options.threshold} KB | ${modeLabel} | Max: ${maxWidth}x${maxHeight}px`);
       log.info('Scanning media library...');
 
       let totalSaved = 0;
       const results = await compressOversizedImages({
         threshold,
+        targetSizeKb,
         quality,
         maxWidth,
         maxHeight,

@@ -284,7 +284,7 @@ app.get('/api/compress-images/detect', async (req, res) => {
 });
 
 app.post('/api/compress-images/apply', express.json(), (req, res) => {
-  const { ids, quality = 82, maxWidth = 2560, maxHeight = 2560, threshold = 204800 } = req.body || {};
+  const { ids, targetSizeKb = null, quality = 82, maxWidth = 2560, maxHeight = 2560, threshold = 204800 } = req.body || {};
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -295,6 +295,7 @@ app.post('/api/compress-images/apply', express.json(), (req, res) => {
 
   compressOversizedImages({
     threshold,
+    targetSizeKb,
     quality,
     maxWidth,
     maxHeight,
