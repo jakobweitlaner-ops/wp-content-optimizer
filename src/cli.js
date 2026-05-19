@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { Command } from 'commander';
 import { checkLinks } from './modules/link-checker.js';
 import { auditSeo } from './modules/seo-optimizer.js';
-import { auditMedia, compressOversizedImages } from './modules/media-optimizer.js';
+import { auditMedia, compressOversizedImages, repairPostReferences } from './modules/media-optimizer.js';
 import { testConnection } from './utils/wp-api.js';
 import { log } from './utils/logger.js';
 import { getSiteStatus } from './utils/claude-status.js';
@@ -191,6 +191,32 @@ program
       if (err.cause) log.error(`Cause: ${err.cause.message || String(err.cause)}`);
       if (err.cause?.cause) log.error(`Cause2: ${err.cause.cause.message || err.cause.cause.code || String(err.cause.cause)}`);
       log.error(`Error type: ${err.constructor?.name}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('repair-references')
+  .description('Scan all posts/pages (all Polylang languages) and normalize image URLs against the current media library')
+  .action(async () => {
+    try {
+      log.header('Repair Post References');
+      log.info('Scanning media library and all posts/pages...');
+      let last = '';
+      const count = await repairPostReferences({
+        onProgress: (done, total, slug) => {
+          last = `\r  Checking ${done}/${total}: ${slug.substring(0, 40)}...`;
+          process.stdout.write(last + ' '.repeat(Math.max(0, 60 - last.length)));
+        },
+      });
+      process.stdout.write('\r' + ' '.repeat(70) + '\r');
+      if (count === 0) {
+        log.success('No posts needed updating.');
+      } else {
+        log.success(`Updated ${count} post/page(s) with corrected image URLs.`);
+      }
+    } catch (err) {
+      log.error(`Repair failed: ${err.message}`);
       process.exit(1);
     }
   });
