@@ -2520,7 +2520,14 @@
 
   function resolveUrl(src) {
     if (!src) return null;
-    if (/^https?:\/\//i.test(src)) return src;
+    if (/^https?:\/\//i.test(src)) {
+      // WP uploads URLs sometimes have a garbled domain — normalize to _wpBase
+      if (_wpBase) {
+        const uploadPath = src.match(/(\/wp-content\/uploads\/.+)/);
+        if (uploadPath) return _wpBase.replace(/\/$/, '') + uploadPath[1];
+      }
+      return src;
+    }
     if (src.startsWith('//')) return 'https:' + src;
     if (_wpBase) return _wpBase.replace(/\/$/, '') + (src.startsWith('/') ? src : '/' + src);
     return src;
