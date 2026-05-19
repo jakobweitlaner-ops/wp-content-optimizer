@@ -2520,14 +2520,7 @@
 
   function proxyThumb(src) {
     if (!src) return null;
-    // Only proxy WP-origin images (which may have a self-signed SSL cert).
-    // External images (different domain) load fine directly in the browser.
-    if (_wpBase && src.startsWith(_wpBase)) {
-      return `/api/seasonal/proxy-image?url=${encodeURIComponent(src)}`;
-    }
-    // Fallback: proxy everything if WP base is unknown, direct URL if external
-    if (!_wpBase) return `/api/seasonal/proxy-image?url=${encodeURIComponent(src)}`;
-    return src;
+    return `/api/seasonal/proxy-image?url=${encodeURIComponent(src)}`;
   }
 
   function renderSeasonalList() {
