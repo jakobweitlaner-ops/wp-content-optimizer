@@ -150,3 +150,23 @@ export async function getMediaItem(id) {
   const { data } = await client.get(`/media/${id}`);
   return data;
 }
+
+export async function uploadMedia(buffer, mimeType, filename, meta = {}) {
+  const uploadResponse = await client.post('/media', buffer, {
+    headers: {
+      'Content-Type': mimeType,
+      'Content-Disposition': `attachment; filename="${filename.replace(/"/g, '')}"`,
+    },
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+  });
+
+  const id = uploadResponse.data.id;
+
+  if (Object.keys(meta).length > 0) {
+    const updateResponse = await client.put(`/media/${id}`, meta);
+    return updateResponse.data;
+  }
+
+  return uploadResponse.data;
+}

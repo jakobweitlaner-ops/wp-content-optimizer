@@ -7,7 +7,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { exec } from 'child_process';
-import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI } from './modules/media-optimizer.js';
+import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI, detectOversizedImages, compressOversizedImages } from './modules/media-optimizer.js';
 import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals, applyBrandFix } from './modules/seo-optimizer.js';
 import { updatePost, updatePage } from './utils/wp-api.js';
 import { getPostsWithImages, getMediaLibrary, replaceImage } from './modules/seasonal-replacer.js';
@@ -258,6 +258,74 @@ app.post('/apply/audit-media', express.json(), async (req, res) => {
     send('done', 'error');
   }
   res.end();
+});
+
+// ── Image Compression ──────────────────────────────────────────
+
+app.get('/api/compress-images/detect', async (req, res) => {
+  try {
+    const threshold = parseInt(req.query.threshold || '204800', 10);
+    const items = await detectOversizedImages({ threshold });
+    res.json(
+      items.map((item) => ({
+        id: item.id,
+        filename: item.slug,
+        url: item.source_url,
+        sizeKb: Math.round((item.media_details?.filesize || 0) / 1024),
+        width: item.media_details?.width || null,
+        height: item.media_details?.height || null,
+        mimeType: item.mime_type,
+        altText: item.alt_text || '',
+      })),
+    );
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/compress-images/apply', express.json(), (req, res) => {
+  const { ids, quality = 82, maxWidth = 2560, maxHeight = 2560, threshold = 204800 } = req.body || {};
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (type, text, data) =>
+    res.write(`data: ${JSON.stringify({ type, text, ...(data ? { data } : {}) })}\n\n`);
+
+  compressOversizedImages({
+    threshold,
+    quality,
+    maxWidth,
+    maxHeight,
+    dryRun: false,
+    onProgress: (done, total, slug) =>
+      send('progress', `Komprimiere ${done}/${total}: ${slug}`),
+    onResult: (r) => {
+      if (r.success) {
+        send(
+          'out',
+          `✔ ${r.filename}: ${Math.round(r.originalSize / 1024)} KB → ${Math.round(r.compressedSize / 1024)} KB (−${r.savingsPercent}%)`,
+          r,
+        );
+      }
+    },
+    onError: (slug, msg) => send('err', `✖ ${slug}: ${msg}`),
+  })
+    .then((results) => {
+      const ok = results.filter((r) => r.success).length;
+      const totalSavedKb = Math.round(
+        results.filter((r) => r.success).reduce((sum, r) => sum + r.savings, 0) / 1024,
+      );
+      send('done-data', `${ok}/${results.length} komprimiert. Gespart: ${totalSavedKb} KB.`, results);
+      send('done', 'success');
+      res.end();
+    })
+    .catch((err) => {
+      send('err', `Fehler: ${err.message}`);
+      send('done', 'error');
+      res.end();
+    });
 });
 
 // ── Seasonal Image Replacement ────────────────────────────────

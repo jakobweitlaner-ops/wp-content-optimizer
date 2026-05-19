@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { Command } from 'commander';
 import { checkLinks } from './modules/link-checker.js';
 import { auditSeo } from './modules/seo-optimizer.js';
-import { auditMedia } from './modules/media-optimizer.js';
+import { auditMedia, compressOversizedImages } from './modules/media-optimizer.js';
 import { testConnection } from './utils/wp-api.js';
 import { log } from './utils/logger.js';
 import { getSiteStatus } from './utils/claude-status.js';
@@ -68,6 +68,79 @@ program
       await auditMedia({ fix: !!options.fix, output: options.output });
     } catch (err) {
       log.error(`Media audit failed: ${err.message}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('compress-images')
+  .description('Detect and compress oversized images in the media library')
+  .option('--threshold <kb>', 'File size threshold in KB (default: 200)', '200')
+  .option('--quality <number>', 'JPEG/WebP compression quality 1-100 (default: 82)', '82')
+  .option('--max-width <px>', 'Maximum image width in pixels (default: 2560)', '2560')
+  .option('--max-height <px>', 'Maximum image height in pixels (default: 2560)', '2560')
+  .option('--dry-run', 'Only list oversized images without compressing')
+  .option('-o, --output <file>', 'Save report to file')
+  .action(async (options) => {
+    try {
+      const threshold = parseInt(options.threshold, 10) * 1024;
+      const quality = parseInt(options.quality, 10);
+      const maxWidth = parseInt(options.maxWidth, 10);
+      const maxHeight = parseInt(options.maxHeight, 10);
+      const dryRun = !!options.dryRun;
+
+      log.header('Image Compression');
+      if (dryRun) log.info('Dry run – no images will be changed.');
+      log.info(`Threshold: ${options.threshold} KB | Quality: ${quality} | Max: ${maxWidth}x${maxHeight}px`);
+      log.info('Scanning media library...');
+
+      let totalSaved = 0;
+      const results = await compressOversizedImages({
+        threshold,
+        quality,
+        maxWidth,
+        maxHeight,
+        dryRun,
+        onProgress: (done, total, slug) =>
+          process.stdout.write(`\r  Processing ${done}/${total}: ${slug.substring(0, 30)}...`),
+        onResult: (r) => {
+          process.stdout.write('\r' + ' '.repeat(50) + '\r');
+          if (r.dryRun) {
+            log.row(r.filename.substring(0, 35), `${r.sizeKb} KB – would compress`, 'yellow');
+          } else {
+            const saved = Math.round(r.savings / 1024);
+            totalSaved += r.savings;
+            log.row(
+              r.filename.substring(0, 35),
+              `${Math.round(r.originalSize / 1024)} KB → ${Math.round(r.compressedSize / 1024)} KB (−${r.savingsPercent}%)`,
+              'green',
+            );
+            log.row('', `New URL: ${r.newUrl}`, 'dim');
+          }
+        },
+        onError: (slug, msg) => {
+          process.stdout.write('\r' + ' '.repeat(50) + '\r');
+          log.row(slug.substring(0, 35), `Error: ${msg}`, 'red');
+        },
+      });
+
+      process.stdout.write('\r' + ' '.repeat(50) + '\r');
+
+      if (results.length === 0) {
+        log.success(`No oversized images found (threshold: ${options.threshold} KB).`);
+      } else if (dryRun) {
+        log.warn(`Found ${results.length} oversized image(s). Run without --dry-run to compress.`);
+      } else {
+        const ok = results.filter((r) => r.success).length;
+        log.success(`Compressed ${ok}/${results.length} image(s). Total saved: ${Math.round(totalSaved / 1024)} KB.`);
+      }
+
+      if (options.output) {
+        const { saveReport } = await import('./utils/logger.js');
+        saveReport(options.output, { threshold: options.threshold, quality, dryRun, results });
+      }
+    } catch (err) {
+      log.error(`Image compression failed: ${err.message}`);
       process.exit(1);
     }
   });
