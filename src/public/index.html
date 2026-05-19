@@ -1081,6 +1081,13 @@
     .compress-apply-btn:hover { background: #15803d; }
     .compress-apply-btn:disabled { opacity: 0.5; cursor: default; }
 
+    .compress-repair-btn {
+      padding: 8px 14px; background: #1e40af; color: #fff;
+      border: none; border-radius: 6px; font-size: 0.82rem; cursor: pointer;
+    }
+    .compress-repair-btn:hover { background: #1d4ed8; }
+    .compress-repair-btn:disabled { opacity: 0.5; cursor: default; }
+
     .compress-status {
       font-size: 0.78rem;
       color: #64748b;
@@ -1624,6 +1631,7 @@
       <div class="compress-footer" id="compress-footer" style="display:none">
         <button class="compress-select-all-btn" id="compress-select-all-btn" onclick="compressToggleAll()">Alle abwählen</button>
         <button class="compress-apply-btn" id="compress-apply-btn" onclick="applyCompression()">Ausgewählte komprimieren</button>
+        <button class="compress-repair-btn" id="compress-repair-btn" onclick="repairReferences()" title="Scannt alle Beiträge/Seiten (alle Sprachen) und korrigiert Bild-URLs anhand der aktuellen Mediathek">🔗 Referenzen reparieren</button>
         <span class="compress-status" id="compress-status"></span>
       </div>
     </div>
@@ -2818,6 +2826,38 @@
       setNavState('compress-images', 'error', 'Fehler');
     } finally {
       applyBtn.disabled = false;
+    }
+  }
+
+  async function repairReferences() {
+    const btn = document.getElementById('compress-repair-btn');
+    const statusEl = document.getElementById('compress-status');
+    btn.disabled = true;
+    statusEl.textContent = 'Scanne Beiträge…';
+
+    try {
+      const resp = await fetch('/api/repair-references', { method: 'POST' });
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          const msg = JSON.parse(line.slice(5).trim());
+          if (msg.type === 'progress') statusEl.textContent = msg.text;
+          if (msg.type === 'out') statusEl.textContent = msg.text;
+          if (msg.type === 'err') statusEl.textContent = '⚠ ' + msg.text;
+        }
+      }
+    } catch (err) {
+      statusEl.textContent = `Fehler: ${escapeHtml(err.message)}`;
+    } finally {
+      btn.disabled = false;
     }
   }
 

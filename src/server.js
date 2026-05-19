@@ -7,7 +7,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { exec } from 'child_process';
-import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI, detectOversizedImages, compressOversizedImages } from './modules/media-optimizer.js';
+import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI, detectOversizedImages, compressOversizedImages, repairPostReferences } from './modules/media-optimizer.js';
 import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals, applyBrandFix } from './modules/seo-optimizer.js';
 import { updatePost, updatePage } from './utils/wp-api.js';
 import { getPostsWithImages, getMediaLibrary, replaceImage } from './modules/seasonal-replacer.js';
@@ -325,6 +325,28 @@ app.post('/api/compress-images/apply', express.json(), (req, res) => {
         results.filter((r) => r.success).reduce((sum, r) => sum + r.savings, 0) / 1024,
       );
       send('done-data', `${ok}/${results.length} komprimiert. Gespart: ${totalSavedKb} KB.`, results);
+      send('done', 'success');
+      res.end();
+    })
+    .catch((err) => {
+      send('err', `Fehler: ${err.message}`);
+      send('done', 'error');
+      res.end();
+    });
+});
+
+app.post('/api/repair-references', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (type, text) => res.write(`data: ${JSON.stringify({ type, text })}\n\n`);
+
+  repairPostReferences({
+    onProgress: (done, total, slug) => send('progress', `${done}/${total}: ${slug}`),
+  })
+    .then((count) => {
+      send('out', `${count} Beitrag/Seite(n) aktualisiert.`);
       send('done', 'success');
       res.end();
     })

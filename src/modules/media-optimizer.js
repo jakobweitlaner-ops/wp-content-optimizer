@@ -122,7 +122,8 @@ function buildUrlMappings(oldItem, newItem) {
 export async function updateMediaReferences(urlMappings) {
   if (!urlMappings || Object.keys(urlMappings).length === 0) return 0;
 
-  const [posts, pages] = await Promise.all([getPosts(), getPages()]);
+  // lang=all fetches posts in every Polylang language; ignored on non-Polylang sites
+  const [posts, pages] = await Promise.all([getPosts({ lang: 'all' }), getPages({ lang: 'all' })]);
   let updatedCount = 0;
 
   for (const item of [...posts, ...pages]) {
@@ -131,6 +132,47 @@ export async function updateMediaReferences(urlMappings) {
     for (const [oldUrl, newUrl] of Object.entries(urlMappings)) {
       updated = updated.split(oldUrl).join(newUrl);
     }
+    if (updated !== raw) {
+      const fn = item.type === 'page' ? updatePage : updatePost;
+      await fn(item.id, { content: updated });
+      updatedCount++;
+    }
+  }
+
+  return updatedCount;
+}
+
+export async function repairPostReferences({ onProgress } = {}) {
+  // Build pathname → canonical URL map from entire media library
+  const allMedia = await getMedia({ media_type: 'image' });
+  const pathToUrl = new Map();
+  for (const item of allMedia) {
+    for (const url of collectUrls(item)) {
+      try {
+        pathToUrl.set(new URL(url).pathname, url);
+      } catch {}
+    }
+  }
+  if (pathToUrl.size === 0) return 0;
+
+  const [posts, pages] = await Promise.all([getPosts({ lang: 'all' }), getPages({ lang: 'all' })]);
+  const all = [...posts, ...pages];
+  let updatedCount = 0;
+
+  for (let i = 0; i < all.length; i++) {
+    const item = all[i];
+    if (onProgress) onProgress(i + 1, all.length, item.slug || String(item.id));
+
+    const raw = item.content?.raw || '';
+    const updated = raw.replace(/https?:\/\/[^\s"'>]+\/wp-content\/uploads\/[^\s"'>]+/g, (url) => {
+      try {
+        const canonical = pathToUrl.get(new URL(url).pathname);
+        return canonical || url;
+      } catch {
+        return url;
+      }
+    });
+
     if (updated !== raw) {
       const fn = item.type === 'page' ? updatePage : updatePost;
       await fn(item.id, { content: updated });
