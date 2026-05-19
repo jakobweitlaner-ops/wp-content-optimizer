@@ -1,7 +1,9 @@
 import https from 'https';
 import Anthropic from '@anthropic-ai/sdk';
 import axios from 'axios';
-import { getMedia, updateMedia, getSiteContext } from '../utils/wp-api.js';
+import sharp from 'sharp';
+import path from 'path';
+import { getMedia, updateMedia, uploadMedia, getSiteContext } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
 
 const insecureAgent = new https.Agent({ rejectUnauthorized: false });
@@ -14,6 +16,122 @@ async function fetchImageAsBase64(url) {
   });
   const mimeType = (response.headers['content-type'] || 'image/jpeg').split(';')[0];
   return { base64: Buffer.from(response.data).toString('base64'), mimeType };
+}
+
+async function fetchImageBuffer(url) {
+  const response = await axios.get(url, {
+    responseType: 'arraybuffer',
+    httpsAgent: insecureAgent,
+    timeout: 30000,
+  });
+  const mimeType = (response.headers['content-type'] || 'image/jpeg').split(';')[0];
+  return { buffer: Buffer.from(response.data), mimeType };
+}
+
+const COMPRESSIBLE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+
+export async function compressImageBuffer(buffer, mimeType, { quality = 82, maxWidth = 2560, maxHeight = 2560 } = {}) {
+  if (!COMPRESSIBLE_TYPES.has(mimeType)) {
+    throw new Error(`Unsupported format for compression: ${mimeType}`);
+  }
+
+  let pipeline = sharp(buffer).resize(maxWidth, maxHeight, { fit: 'inside', withoutEnlargement: true });
+
+  if (mimeType === 'image/png') {
+    pipeline = pipeline.png({ compressionLevel: 9, adaptiveFiltering: true });
+  } else if (mimeType === 'image/webp') {
+    pipeline = pipeline.webp({ quality });
+  } else {
+    pipeline = pipeline.jpeg({ quality, mozjpeg: true });
+    mimeType = 'image/jpeg';
+  }
+
+  const compressed = await pipeline.toBuffer();
+  return { buffer: compressed, mimeType };
+}
+
+export async function detectOversizedImages({ threshold = MAX_FILE_SIZE_BYTES } = {}) {
+  const media = await getMedia({ media_type: 'image' });
+  return media.filter((item) => {
+    const fileSize = item.media_details?.filesize;
+    const mimeType = item.mime_type || '';
+    return fileSize && fileSize > threshold && COMPRESSIBLE_TYPES.has(mimeType);
+  });
+}
+
+export async function compressMediaItem(item, { quality = 82, maxWidth = MAX_WIDTH, maxHeight = MAX_HEIGHT } = {}) {
+  const { buffer: originalBuffer, mimeType } = await fetchImageBuffer(item.source_url);
+
+  if (!COMPRESSIBLE_TYPES.has(mimeType)) {
+    throw new Error(`Format nicht unterstützt: ${mimeType}`);
+  }
+
+  const { buffer: compressedBuffer, mimeType: outMimeType } = await compressImageBuffer(
+    originalBuffer,
+    mimeType,
+    { quality, maxWidth, maxHeight },
+  );
+
+  if (compressedBuffer.length >= originalBuffer.length) {
+    throw new Error('Komprimiertes Bild ist nicht kleiner als das Original');
+  }
+
+  const origFilename = path.basename(item.source_url.split('?')[0]);
+  const uploaded = await uploadMedia(compressedBuffer, outMimeType, origFilename, {
+    title: item.title?.rendered || item.slug,
+    alt_text: item.alt_text || '',
+  });
+
+  return {
+    originalId: item.id,
+    originalUrl: item.source_url,
+    originalSize: originalBuffer.length,
+    compressedSize: compressedBuffer.length,
+    savings: originalBuffer.length - compressedBuffer.length,
+    savingsPercent: Math.round((1 - compressedBuffer.length / originalBuffer.length) * 100),
+    newId: uploaded.id,
+    newUrl: uploaded.source_url,
+  };
+}
+
+export async function compressOversizedImages({
+  threshold = MAX_FILE_SIZE_BYTES,
+  quality = 82,
+  maxWidth = MAX_WIDTH,
+  maxHeight = MAX_HEIGHT,
+  dryRun = false,
+  onProgress,
+  onResult,
+  onError,
+} = {}) {
+  const oversized = await detectOversizedImages({ threshold });
+  const results = [];
+  let done = 0;
+
+  for (const item of oversized) {
+    done++;
+    if (onProgress) onProgress(done, oversized.length, item.slug);
+
+    if (dryRun) {
+      const sizKb = Math.round((item.media_details?.filesize || 0) / 1024);
+      const preview = { id: item.id, filename: item.slug, url: item.source_url, sizeKb: sizKb, dryRun: true };
+      results.push(preview);
+      if (onResult) onResult(preview);
+      continue;
+    }
+
+    try {
+      const result = await compressMediaItem(item, { quality, maxWidth, maxHeight });
+      results.push({ ...result, filename: item.slug, success: true });
+      if (onResult) onResult({ ...result, filename: item.slug, success: true });
+    } catch (err) {
+      const failure = { id: item.id, filename: item.slug, success: false, error: err.message };
+      results.push(failure);
+      if (onError) onError(item.slug, err.message);
+    }
+  }
+
+  return results;
 }
 
 const MAX_FILE_SIZE_BYTES = 200 * 1024; // 200 KB
