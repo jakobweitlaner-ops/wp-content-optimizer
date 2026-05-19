@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import axios from 'axios';
 import sharp from 'sharp';
 import path from 'path';
-import { getMedia, updateMedia, uploadMedia, replaceMedia, getMediaItem, getPosts, getPages, updatePost, updatePage, getSiteContext } from '../utils/wp-api.js';
+import { getMedia, updateMedia, uploadMedia, deleteMedia, replaceMedia, getMediaItem, getPosts, getPages, updatePost, updatePage, getSiteContext } from '../utils/wp-api.js';
 import { log, saveReport } from '../utils/logger.js';
 
 const insecureAgent = new https.Agent({ rejectUnauthorized: false });
@@ -449,6 +449,165 @@ export async function auditAltTextWithAI({ onProgress, onProposal, onError } = {
       }
     } catch (err) {
       if (onError) onError(item.slug, err.message);
+    }
+  });
+
+  await promisePool(tasks, 3);
+  return proposals;
+}
+
+function sanitizeFilename(name) {
+  return name
+    .toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 80);
+}
+
+function buildRenameUrlMappings(oldItem, newItem) {
+  const mappings = {};
+  if (oldItem.source_url && newItem.source_url && oldItem.source_url !== newItem.source_url) {
+    mappings[oldItem.source_url] = newItem.source_url;
+  }
+  const oldSizes = oldItem.media_details?.sizes || {};
+  const newSizes = newItem.media_details?.sizes || {};
+  for (const [sizeName, oldSizeData] of Object.entries(oldSizes)) {
+    if (newSizes[sizeName] && oldSizeData.source_url && oldSizeData.source_url !== newSizes[sizeName].source_url) {
+      mappings[oldSizeData.source_url] = newSizes[sizeName].source_url;
+    }
+  }
+  return mappings;
+}
+
+async function updateFeaturedImageReferences(idMap) {
+  if (Object.keys(idMap).length === 0) return 0;
+  const [posts, pages] = await Promise.all([getPosts({ lang: 'all' }), getPages({ lang: 'all' })]);
+  let count = 0;
+  for (const item of [...posts, ...pages]) {
+    const featuredId = item.featured_media;
+    if (featuredId && idMap[featuredId] != null) {
+      const fn = item.type === 'page' ? updatePage : updatePost;
+      await fn(item.id, { featured_media: idMap[featuredId] });
+      count++;
+    }
+  }
+  return count;
+}
+
+export async function renameMediaItem(item, newBasename) {
+  const sanitized = sanitizeFilename(newBasename);
+  const origPath = item.source_url.split('?')[0];
+  const ext = path.extname(origPath) || '.jpg';
+  const newFilename = sanitized + ext;
+
+  const { buffer, mimeType } = await fetchImageBuffer(item.source_url);
+  const newItem = await uploadMedia(buffer, mimeType, newFilename, {
+    title: item.title?.rendered || sanitized,
+    alt_text: item.alt_text || '',
+  });
+
+  const updatedNewItem = await getMediaItem(newItem.id);
+  const urlMappings = buildRenameUrlMappings(item, updatedNewItem);
+
+  return {
+    originalId: item.id,
+    originalUrl: item.source_url,
+    originalFilename: item.slug,
+    newId: updatedNewItem.id,
+    newUrl: updatedNewItem.source_url,
+    newFilename: sanitized,
+    urlMappings,
+  };
+}
+
+export async function applyFilenameRenames(changes, { onProgress, onResult, onError } = {}) {
+  const allUrlMappings = {};
+  const idMap = {};
+  const results = [];
+  let done = 0;
+
+  for (const { id, newFilename } of changes) {
+    done++;
+    let item;
+    try {
+      item = await getMediaItem(id);
+      if (onProgress) onProgress(done, changes.length, item.slug);
+      const result = await renameMediaItem(item, newFilename);
+      Object.assign(allUrlMappings, result.urlMappings);
+      idMap[result.originalId] = result.newId;
+      results.push({ ...result, success: true });
+      if (onResult) onResult({ ...result, success: true });
+      await deleteMedia(result.originalId);
+    } catch (err) {
+      const slug = item?.slug || String(id);
+      results.push({ id, success: false, error: err.message });
+      if (onError) onError(slug, err.message);
+    }
+  }
+
+  const [refsUpdated, featuredUpdated] = await Promise.all([
+    Object.keys(allUrlMappings).length > 0 ? updateMediaReferences(allUrlMappings) : Promise.resolve(0),
+    Object.keys(idMap).length > 0 ? updateFeaturedImageReferences(idMap) : Promise.resolve(0),
+  ]);
+
+  return { results, refsUpdated, featuredUpdated };
+}
+
+export async function auditFilenamesWithAI({ onProgress, onProposal, onError } = {}) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
+
+  const client = new Anthropic({ apiKey });
+  const [media, siteContext] = await Promise.all([
+    getMedia({ media_type: 'image' }),
+    getSiteContext().catch(() => ''),
+  ]);
+  const proposals = [];
+  let done = 0;
+
+  const tasks = media.map((item) => async () => {
+    const currentSlug = item.slug || '';
+    done++;
+    if (onProgress) onProgress(done, media.length, currentSlug);
+
+    try {
+      const { base64, mimeType } = await fetchImageAsBase64(item.source_url);
+
+      const response = await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 150,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+            {
+              type: 'text',
+              text: `${siteContext ? `Kontext der Webseite:\n${siteContext}\n\n` : ''}Aktueller Dateiname: "${currentSlug}"\n\nBewerte diesen Dateinamen für SEO. Ist er beschreibend und keyword-reich? Generiere bei Bedarf einen besseren Dateinamen (nur Kleinbuchstaben a-z und Ziffern, Bindestriche statt Leerzeichen, keine Umlaute, ohne Dateiformat-Endung). Antworte ausschließlich mit JSON:\n{"quality":"good"|"poor","suggestion":"neuer-dateiname oder null","reason":"ein Satz auf Deutsch"}`,
+            },
+          ],
+        }],
+      });
+
+      const text = response.content[0]?.text || '';
+      const match = text.match(/\{[\s\S]*?\}/);
+      if (!match) return;
+      const json = JSON.parse(match[0]);
+
+      if (json.quality === 'poor' && json.suggestion) {
+        const proposal = {
+          id: item.id,
+          filename: currentSlug,
+          url: item.source_url,
+          currentFilename: currentSlug,
+          proposedFilename: sanitizeFilename(json.suggestion),
+          reason: json.reason || '',
+        };
+        proposals.push(proposal);
+        if (onProposal) onProposal(proposal);
+      }
+    } catch (err) {
+      if (onError) onError(currentSlug, err.message);
     }
   });
 

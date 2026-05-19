@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { Command } from 'commander';
 import { checkLinks } from './modules/link-checker.js';
 import { auditSeo } from './modules/seo-optimizer.js';
-import { auditMedia, compressOversizedImages, repairPostReferences } from './modules/media-optimizer.js';
+import { auditMedia, compressOversizedImages, repairPostReferences, auditFilenamesWithAI, applyFilenameRenames } from './modules/media-optimizer.js';
 import { testConnection } from './utils/wp-api.js';
 import { log } from './utils/logger.js';
 import { getSiteStatus } from './utils/claude-status.js';
@@ -148,6 +148,82 @@ program
       }
     } catch (err) {
       log.error(`Image compression failed: ${err.message}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('rename-images')
+  .description('KI-gestützte Analyse und Umbenennung von Bilddateinamen (erfordert ANTHROPIC_API_KEY)')
+  .option('--dry-run', 'Nur Vorschläge anzeigen, nichts umbenennen')
+  .option('-o, --output <file>', 'Bericht als JSON speichern')
+  .action(async (options) => {
+    try {
+      if (!process.env.ANTHROPIC_API_KEY) {
+        log.error('ANTHROPIC_API_KEY ist erforderlich für rename-images');
+        process.exit(1);
+      }
+
+      log.header('Bilddateinamen Umbenennen');
+      if (options.dryRun) log.info('Dry run – keine Bilder werden geändert.');
+      log.info('Scanne Mediathek mit KI-Analyse…');
+
+      const proposals = await auditFilenamesWithAI({
+        onProgress: (done, total, slug) =>
+          process.stdout.write(`\r  Analysiere ${done}/${total}: ${slug.substring(0, 30)}...`),
+        onError: (slug, msg) => log.row(slug, `Fehler: ${msg}`, 'red'),
+      });
+      process.stdout.write('\r' + ' '.repeat(60) + '\r');
+
+      if (proposals.length === 0) {
+        log.success('Alle Dateinamen sehen gut aus — kein Handlungsbedarf.');
+        return;
+      }
+
+      log.warn(`${proposals.length} Bild(er) mit verbesserungswürdigen Dateinamen:`);
+      for (const p of proposals) {
+        log.row(p.currentFilename.substring(0, 35), `→ ${p.proposedFilename}`, 'yellow');
+        log.row('', p.reason, 'dim');
+      }
+
+      if (options.dryRun) {
+        log.info('Dry run abgeschlossen. Ohne --dry-run werden die Umbenennungen angewendet.');
+        if (options.output) {
+          const { saveReport } = await import('./utils/logger.js');
+          saveReport(options.output, { dryRun: true, proposals });
+        }
+        return;
+      }
+
+      log.info('Wende Umbenennungen an…');
+      const changes = proposals.map((p) => ({ id: p.id, newFilename: p.proposedFilename }));
+      let totalOk = 0;
+
+      const { results, refsUpdated, featuredUpdated } = await applyFilenameRenames(changes, {
+        onProgress: (done, total, slug) =>
+          process.stdout.write(`\r  Verarbeite ${done}/${total}: ${slug.substring(0, 30)}...`),
+        onResult: (r) => {
+          process.stdout.write('\r' + ' '.repeat(60) + '\r');
+          log.row(r.originalFilename.substring(0, 35), `→ ${r.newFilename}`, 'green');
+          totalOk++;
+        },
+        onError: (slug, msg) => {
+          process.stdout.write('\r' + ' '.repeat(60) + '\r');
+          log.row(slug.substring(0, 35), `Fehler: ${msg}`, 'red');
+        },
+      });
+      process.stdout.write('\r' + ' '.repeat(60) + '\r');
+
+      if (refsUpdated > 0) log.info(`Bild-URLs in ${refsUpdated} Beitrag/Seite(n) aktualisiert.`);
+      if (featuredUpdated > 0) log.info(`Titelbild in ${featuredUpdated} Beitrag/Seite(n) aktualisiert.`);
+      log.success(`${totalOk}/${proposals.length} Bild(er) erfolgreich umbenannt.`);
+
+      if (options.output) {
+        const { saveReport } = await import('./utils/logger.js');
+        saveReport(options.output, { results, refsUpdated, featuredUpdated });
+      }
+    } catch (err) {
+      log.error(`Umbenennung fehlgeschlagen: ${err.message}`);
       process.exit(1);
     }
   });

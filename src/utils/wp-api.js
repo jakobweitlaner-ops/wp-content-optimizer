@@ -169,6 +169,11 @@ export async function replaceMedia(id, buffer, mimeType) {
   return response.data;
 }
 
+export async function deleteMedia(id) {
+  const { data } = await client.delete(`/media/${id}`, { params: { force: true } });
+  return data;
+}
+
 export async function uploadMedia(buffer, mimeType, filename, meta = {}) {
   const uploadResponse = await client.post('/media', buffer, {
     headers: {

@@ -1518,6 +1518,16 @@
         </label>
       </div>
 
+      <button class="nav-item" data-cmd="rename-images" onclick="loadRenameView()">
+        <span class="nav-item-icon">✏️</span>
+        <div class="nav-item-body">
+          <span class="nav-item-label">Dateinamen</span>
+          <span class="nav-item-note">SEO-Dateinamen per KI vorschlagen</span>
+        </div>
+        <span class="ai-badge">AI</span>
+        <span class="nav-state" id="state-rename-images">Bereit</span>
+      </button>
+
       <button class="nav-item" data-cmd="compress-images" onclick="loadCompressView()">
         <span class="nav-item-icon">🗜️</span>
         <div class="nav-item-body">
@@ -1569,6 +1579,20 @@
         <button class="select-all-btn" id="select-all-btn" onclick="toggleSelectAll()">Alle abwählen</button>
         <button class="apply-btn" id="apply-btn" onclick="applySelectedFixes()">Fixes anwenden</button>
         <span class="review-count" id="review-count"></span>
+      </div>
+    </div>
+
+    <div class="compress-view" id="rename-view">
+      <div class="compress-toolbar">
+        <span class="compress-heading">✏️ Dateinamen umbenennen</span>
+        <span class="compress-count-label" id="rename-count-label"></span>
+      </div>
+      <div class="compress-scroll" id="rename-scroll">
+        <div class="compress-loading">KI analysiert Mediathek…</div>
+      </div>
+      <div class="compress-footer" id="rename-footer" style="display:none">
+        <button class="compress-apply-btn" id="rename-all-btn" onclick="renameAllPending()">Alle ausstehenden umbenennen</button>
+        <span class="compress-status" id="rename-status"></span>
       </div>
     </div>
 
@@ -1754,6 +1778,7 @@
 
     hideSeoView();
     hideSeasonalView();
+    hideRenameView();
     setNavState(cmd, 'running', 'Läuft…');
     document.getElementById('toolbar-label').textContent = 'Ausgabe: Site Status';
     const reportBox = document.getElementById('report-box');
@@ -1972,6 +1997,7 @@
 
   async function loadSeoAudit() {
     hideH1View();
+    hideRenameView();
     showSeoView();
     showSeoList();
     setNavState('audit-seo', 'running', 'Läuft…');
@@ -2575,6 +2601,171 @@
     btn.textContent = 'Fixes anwenden';
   }
 
+  // ── Rename Images ────────────────────────────────────────────
+
+  function showRenameView() {
+    document.getElementById('rename-view').style.display = 'flex';
+    document.getElementById('seo-view').style.display = 'none';
+    document.getElementById('h1-view').style.display = 'none';
+    document.getElementById('compress-view').style.display = 'none';
+    document.getElementById('seasonal-view').style.display = 'none';
+    document.querySelector('.output-wrap').style.display = 'none';
+    document.getElementById('review-panel').style.display = 'none';
+  }
+
+  function hideRenameView() {
+    document.getElementById('rename-view').style.display = 'none';
+    document.querySelector('.output-wrap').style.display = '';
+  }
+
+  async function renameSingle(id, newFilename, card) {
+    const btn = card.querySelector('.rename-card-btn');
+    const statusEl = card.querySelector('.rename-card-status');
+    const input = card.querySelector('.rename-card-input');
+    btn.disabled = true;
+    btn.textContent = 'Umbenennen…';
+    statusEl.textContent = '';
+
+    try {
+      const resp = await fetch('/api/rename-image', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, newFilename: input.value.trim() || newFilename }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || resp.statusText);
+
+      card.classList.add('done');
+      input.disabled = true;
+      btn.textContent = '✓ Umbenannt';
+      btn.style.background = '#16a34a';
+
+      const parts = [];
+      if (data.refsUpdated > 0) parts.push(`${data.refsUpdated} Beitrag/Seite`);
+      if (data.featuredUpdated > 0) parts.push(`${data.featuredUpdated} Titelbild`);
+      statusEl.textContent = parts.length > 0 ? `URLs aktualisiert in: ${parts.join(', ')}` : 'Keine Referenzen gefunden';
+      statusEl.style.color = '#16a34a';
+
+      document.getElementById('rename-status').textContent = updateRenameStats();
+    } catch (err) {
+      card.classList.add('error');
+      btn.disabled = false;
+      btn.textContent = 'Erneut versuchen';
+      statusEl.textContent = `Fehler: ${err.message}`;
+      statusEl.style.color = '#ef4444';
+    }
+  }
+
+  function updateRenameStats() {
+    const total = document.querySelectorAll('#rename-scroll .compress-img-card').length;
+    const done  = document.querySelectorAll('#rename-scroll .compress-img-card.done').length;
+    const label = `${done} von ${total} umbenannt`;
+    document.getElementById('rename-count-label').textContent = `${total - done} ausstehend`;
+    return label;
+  }
+
+  async function renameAllPending() {
+    const pending = [...document.querySelectorAll('#rename-scroll .compress-img-card:not(.done):not(.error)')];
+    if (pending.length === 0) return;
+    const allBtn = document.getElementById('rename-all-btn');
+    allBtn.disabled = true;
+    for (const card of pending) {
+      const id = parseInt(card.dataset.id, 10);
+      const input = card.querySelector('.rename-card-input');
+      await renameSingle(id, input.value.trim(), card);
+    }
+    allBtn.disabled = false;
+    setNavState('rename-images', 'success', 'Fertig');
+    resetNavState('rename-images');
+  }
+
+  function buildRenameCards(proposals) {
+    const scroll = document.getElementById('rename-scroll');
+    const footer = document.getElementById('rename-footer');
+    scroll.innerHTML = '';
+
+    if (proposals.length === 0) {
+      scroll.innerHTML = '<div class="compress-loading">Alle Dateinamen sind SEO-optimiert ✓</div>';
+      footer.style.display = 'none';
+      document.getElementById('rename-count-label').textContent = '';
+      return;
+    }
+
+    document.getElementById('rename-count-label').textContent = `${proposals.length} ausstehend`;
+
+    for (const p of proposals) {
+      const card = document.createElement('div');
+      card.className = 'compress-img-card';
+      card.dataset.id = p.id;
+      card.style.flexDirection = 'column';
+      card.style.alignItems = 'stretch';
+      card.style.gap = '0.5rem';
+
+      const proxyUrl = `/api/seasonal/proxy-image?url=${encodeURIComponent(p.url)}`;
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:0.75rem">
+          <img src="${proxyUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:4px;flex-shrink:0;background:#f1f5f9" alt="" onerror="this.style.display='none'">
+          <div style="flex:1;min-width:0">
+            <div class="compress-img-name">${escapeHtml(p.currentFilename)}</div>
+            <div class="compress-img-meta" style="color:#94a3b8;font-style:italic">${escapeHtml(p.reason)}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem">
+          <span style="font-size:0.75rem;color:#94a3b8;flex-shrink:0">Neuer Name:</span>
+          <input class="rename-card-input" type="text" value="${escapeHtml(p.proposedFilename)}"
+            style="flex:1;padding:0.28rem 0.5rem;border:1px solid #cbd5e1;border-radius:5px;font-size:0.78rem;font-family:inherit;min-width:0"
+            placeholder="Dateiname ohne Endung…">
+          <button class="rename-card-btn compress-apply-btn" style="flex-shrink:0;white-space:nowrap"
+            onclick="renameSingle(${p.id}, ${JSON.stringify(p.proposedFilename)}, this.closest('.compress-img-card'))">
+            Umbenennen
+          </button>
+        </div>
+        <div class="rename-card-status" style="font-size:0.72rem;color:#94a3b8;min-height:1em"></div>`;
+
+      scroll.appendChild(card);
+    }
+
+    footer.style.display = 'flex';
+  }
+
+  function loadRenameView() {
+    if (document.querySelector('.nav-item[data-cmd="rename-images"]').dataset.state === 'running') return;
+    hideSeoView();
+    hideH1View();
+    hideSeasonalView();
+    hideCompressView();
+    showRenameView();
+
+    setNavState('rename-images', 'running', 'KI analysiert…');
+    document.getElementById('toolbar-label').textContent = 'Dateinamen – KI-Analyse';
+    document.getElementById('rename-scroll').innerHTML = '<div class="compress-loading">KI analysiert Mediathek…</div>';
+    document.getElementById('rename-footer').style.display = 'none';
+    document.getElementById('rename-status').textContent = '';
+
+    const es = new EventSource('/preview/audit-filenames');
+    setActiveEs(es);
+    es.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'progress') {
+        document.getElementById('rename-scroll').innerHTML =
+          `<div class="compress-loading">${escapeHtml(msg.text)}</div>`;
+      } else if (msg.type === 'proposals') {
+        es.close(); clearActiveEs();
+        const proposals = msg.data || [];
+        buildRenameCards(proposals);
+        setNavState('rename-images', proposals.length > 0 ? '' : 'success', 'Bereit');
+        if (proposals.length === 0) resetNavState('rename-images');
+      } else if (msg.type === 'done' && msg.text === 'error') {
+        es.close(); clearActiveEs(); setNavState('rename-images', 'error', 'Fehler');
+        document.getElementById('rename-scroll').innerHTML =
+          '<div class="compress-loading" style="color:#ef4444">Analyse fehlgeschlagen.</div>';
+      } else if (msg.type === 'err') {
+        document.getElementById('rename-scroll').innerHTML =
+          `<div class="compress-loading" style="color:#ef4444">${escapeHtml(msg.text)}</div>`;
+      }
+    };
+    es.onerror = () => { es.close(); clearActiveEs(); setNavState('rename-images', 'error', 'Fehler'); };
+  }
+
   // ── Nav item click handler ───────────────────────────────────
 
   document.querySelectorAll('.nav-item[data-cmd]:not(.nav-status)').forEach(navItem => {
@@ -2595,11 +2786,15 @@
       // Compress images → dedicated view (handled via onclick, skip here)
       if (cmd === 'compress-images') return;
 
-      // All other tools → hide SEO/H1/seasonal/compress views, show terminal
+      // Rename images → dedicated flow (handled via onclick, skip here)
+      if (cmd === 'rename-images') return;
+
+      // All other tools → hide SEO/H1/seasonal/compress/rename views, show terminal
       hideSeoView();
       hideH1View();
       hideSeasonalView();
       hideCompressView();
+      hideRenameView();
 
       const wantsFix       = cmd === 'audit-media' && document.getElementById('opt-fix')?.checked;
       const wantsAiQuality = cmd === 'audit-media' && document.getElementById('opt-media-ai')?.checked;
@@ -2691,6 +2886,7 @@
     document.getElementById('seo-view').style.display = 'none';
     document.getElementById('h1-view').style.display = 'none';
     document.getElementById('seasonal-view').style.display = 'none';
+    document.getElementById('rename-view').style.display = 'none';
     document.querySelector('.output-wrap').style.display = 'none';
     document.getElementById('review-panel').style.display = 'none';
   }
@@ -2878,6 +3074,7 @@
     document.getElementById('seo-view').style.display = 'none';
     document.getElementById('h1-view').style.display = 'none';
     document.getElementById('compress-view').style.display = 'none';
+    document.getElementById('rename-view').style.display = 'none';
     document.querySelector('.output-wrap').style.display = 'none';
     document.getElementById('review-panel').style.display = 'none';
   }
