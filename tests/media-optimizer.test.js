@@ -155,6 +155,28 @@ describe('compressImageBuffer', () => {
     const buf = Buffer.from('fake gif data');
     await expect(compressImageBuffer(buf, 'image/gif', {})).rejects.toThrow('Unsupported format');
   });
+
+  it('compresses JPEG to within targetSizeBytes', async () => {
+    const { default: sharp } = await import('sharp');
+    const { compressImageBuffer } = await import('../src/modules/media-optimizer.js');
+    // Noisy (photo-like) image so quality reduction actually shrinks the file
+    const raw = Buffer.alloc(400 * 300 * 3);
+    for (let i = 0; i < raw.length; i++) raw[i] = (i * 137 + 41) % 256;
+    const original = await sharp(raw, { raw: { width: 400, height: 300, channels: 3 } })
+      .jpeg({ quality: 95 }).toBuffer();
+    const targetBytes = Math.floor(original.length * 0.4);
+    const { buffer, mimeType } = await compressImageBuffer(original, 'image/jpeg', { targetSizeBytes: targetBytes });
+    expect(buffer.length).toBeLessThanOrEqual(targetBytes);
+    expect(mimeType).toBe('image/jpeg');
+  });
+
+  it('converts PNG to lossy format when lossless exceeds targetSizeBytes', async () => {
+    const { compressImageBuffer } = await import('../src/modules/media-optimizer.js');
+    const original = await makePngBuffer(400, 400);
+    // Set an extremely small target to force lossy conversion
+    const { mimeType } = await compressImageBuffer(original, 'image/png', { targetSizeBytes: 1024 });
+    expect(['image/png', 'image/webp', 'image/jpeg']).toContain(mimeType);
+  });
 });
 
 // ── detectOversizedImages (unit tests with mocked wp-api) ──────

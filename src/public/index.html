@@ -1613,7 +1613,7 @@
         <span class="compress-heading">🗜️ Bildkomprimierung</span>
         <div class="compress-controls">
           <label>Schwelle: <input type="number" id="compress-threshold" value="200" min="50" max="5000"> KB</label>
-          <label>Qualität: <input type="range" id="compress-quality" min="50" max="95" value="82" oninput="document.getElementById('compress-quality-val').textContent=this.value"> <span id="compress-quality-val">82</span></label>
+          <label>Zielgröße: <input type="number" id="compress-target-size" value="200" min="50" max="5000"> KB</label>
         </div>
         <button class="compress-scan-btn" onclick="loadCompressView()">Neu scannen</button>
         <span class="compress-count-label" id="compress-count-label"></span>
@@ -2757,7 +2757,7 @@
   async function applyCompression() {
     const applyBtn  = document.getElementById('compress-apply-btn');
     const statusEl  = document.getElementById('compress-status');
-    const quality   = parseInt(document.getElementById('compress-quality').value || '82', 10);
+    const targetSizeKb = parseInt(document.getElementById('compress-target-size').value || '200', 10);
     const threshold = parseInt(document.getElementById('compress-threshold').value || '200', 10) * 1024;
 
     applyBtn.disabled = true;
@@ -2769,7 +2769,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          quality,
+          targetSizeKb,
           threshold,
           maxWidth: 2560,
           maxHeight: 2560,
