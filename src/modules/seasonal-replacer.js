@@ -132,7 +132,7 @@ export async function getPostsWithImages({ onPost } = {}) {
   return results;
 }
 
-export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId, newMediaId, newSrc }) {
+export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId, newMediaId, newSrc, urlMappings = {} }) {
   const wpApi = await import('../utils/wp-api.js');
   const getItem = postType === 'page' ? wpApi.getPage : wpApi.getPost;
   const updateItem = postType === 'page' ? updatePage : updatePost;
@@ -176,21 +176,42 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
       .replace(new RegExp(`"id": ${oldMediaId}(?!\\d)`, 'g'), `"id": ${newMediaId}`);
   }
 
-  // Replace remaining srcset size URLs that share the same filename base as oldSrc
-  // (e.g. old-name-300x200.jpg → new-name-300x200.jpg).
-  // Strip dimension suffix (e.g. -1024x683) AND extension from the URL path so that
-  // all size variants are matched, not just the exact size passed as oldSrc.
-  // Use URL parsing to avoid accidentally stripping dots from the domain (e.g. example.com).
-  const stripSizeAndExt = (url) => {
-    try {
-      const { origin, pathname } = new URL(url);
-      return origin + pathname.replace(/(-\d+x\d+)?\.[^./]+$/, '');
-    } catch { return url; }
-  };
-  const oldBase = stripSizeAndExt(oldSrc);
-  const newBase = stripSizeAndExt(newSrc);
-  if (oldBase && newBase && oldBase !== newBase) {
-    finalContent = finalContent.split(oldBase).join(newBase);
+  // Replace all remaining upload URLs (srcset size variants etc.) using path-based lookup.
+  // urlMappings contains old→new URL pairs for all size variants of the replaced image,
+  // enabling domain-independent replacement of every mobile/responsive srcset URL.
+  const pathToNewUrl = {};
+  for (const [oldUrl, newUrl] of Object.entries(urlMappings)) {
+    try { pathToNewUrl[new URL(oldUrl).pathname] = newUrl; } catch {}
+  }
+  // Always ensure oldSrc → newSrc is covered even if not in urlMappings
+  try {
+    const oldPath = new URL(oldSrc).pathname;
+    if (!pathToNewUrl[oldPath]) pathToNewUrl[oldPath] = newSrc;
+  } catch {}
+
+  // Compute base path of oldSrc (strip dimension suffix e.g. -1024x683 and extension)
+  // so that size variants not listed in urlMappings are still caught (srcset fallback)
+  let oldBasePath = null;
+  try {
+    oldBasePath = new URL(oldSrc).pathname.replace(/(-\d+x\d+)?\.[^./]+$/, '');
+  } catch {}
+
+  if (Object.keys(pathToNewUrl).length > 0 || oldBasePath) {
+    finalContent = finalContent.replace(
+      /https?:\/\/[^\s"'>]+\/wp-content\/uploads\/[^\s"'>]+/g,
+      (url) => {
+        try {
+          const urlObj = new URL(url);
+          const mapped = pathToNewUrl[urlObj.pathname];
+          if (mapped) return mapped;
+          // Fall back: replace any size variant sharing the same base filename
+          if (oldBasePath && urlObj.pathname.replace(/(-\d+x\d+)?\.[^./]+$/, '') === oldBasePath) {
+            return newSrc;
+          }
+          return url;
+        } catch { return url; }
+      },
+    );
   }
 
   await updateItem(postId, { content: finalContent });

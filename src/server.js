@@ -514,14 +514,11 @@ app.post('/api/seasonal/replace', express.json(), async (req, res) => {
     return res.status(400).json({ error: 'postId, postType, mode, newMediaId required' });
   }
   try {
-    await replaceImage({ postId, postType, mode, oldSrc, oldMediaId, newMediaId, newSrc });
-
-    // Also update every other post/page that references the same old image
-    // (replaceImage only touches the one target post)
+    // Build complete size-variant URL mappings BEFORE calling replaceImage so that
+    // replaceImage can update all srcset URLs (mobile variants) in one pass.
     const urlMappings = {};
     if (oldSrc && newSrc && oldSrc !== newSrc) urlMappings[oldSrc] = newSrc;
 
-    // Fetch old+new media items to include all size-variant URLs in the mapping
     if (oldMediaId) {
       try {
         const [oldItem, newItem] = await Promise.all([
@@ -543,6 +540,10 @@ app.post('/api/seasonal/replace', express.json(), async (req, res) => {
 
     const idMap = (oldMediaId && newMediaId) ? { [oldMediaId]: newMediaId } : {};
 
+    // Pass urlMappings so replaceImage updates all size-variant URLs (incl. srcset) at once
+    await replaceImage({ postId, postType, mode, oldSrc, oldMediaId, newMediaId, newSrc, urlMappings });
+
+    // Also update every other post/page that references the same old image
     await Promise.all([
       Object.keys(urlMappings).length > 0 ? updateMediaReferences(urlMappings, idMap) : Promise.resolve(),
       Object.keys(idMap).length > 0 ? updateFeaturedImageReferences(idMap) : Promise.resolve(),

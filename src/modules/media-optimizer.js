@@ -625,6 +625,16 @@ export async function uploadFromPC({ buffer, mimeType, originalFilename, postId,
     try { oldMediaItem = await getMediaItem(oldMediaId); } catch {}
   }
 
+  // Build full URL mappings (all size variants) BEFORE calling replaceImage
+  // so all srcset/mobile variants are updated in the same pass
+  const urlMappings = buildRenameUrlMappings(
+    oldMediaItem || { source_url: oldSrc, media_details: {} },
+    updatedNewItem,
+  );
+  if (oldSrc && updatedNewItem.source_url && !urlMappings[oldSrc]) {
+    urlMappings[oldSrc] = updatedNewItem.source_url;
+  }
+
   const { replaceImage } = await import('./seasonal-replacer.js');
   await replaceImage({
     postId,
@@ -634,17 +644,8 @@ export async function uploadFromPC({ buffer, mimeType, originalFilename, postId,
     oldMediaId: oldMediaId || null,
     newMediaId: updatedNewItem.id,
     newSrc: updatedNewItem.source_url,
+    urlMappings,
   });
-
-  // Build full URL mappings (all size variants) so other posts referencing
-  // the same image also get updated — replaceImage only touches the one post
-  const urlMappings = buildRenameUrlMappings(
-    oldMediaItem || { source_url: oldSrc, media_details: {} },
-    updatedNewItem,
-  );
-  if (oldSrc && updatedNewItem.source_url && !urlMappings[oldSrc]) {
-    urlMappings[oldSrc] = updatedNewItem.source_url;
-  }
   const idMap = oldMediaId ? { [oldMediaId]: updatedNewItem.id } : {};
 
   if (Object.keys(urlMappings).length > 0) {
