@@ -3490,6 +3490,7 @@
         oldMediaId: img.mediaId,
         newMediaId: newMedia.id,
         newSrc: newMedia.src,
+        postUrl: post?.url || null,
       };
       const resp = await fetch('/api/seasonal/replace', {
         method: 'POST',
