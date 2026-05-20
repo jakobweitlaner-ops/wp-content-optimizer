@@ -18,6 +18,40 @@ function extractContentImages(html) {
   return images;
 }
 
+// Deduplicate content images extracted from a post:
+// - Same mediaId → keep first occurrence
+// - Same base filename (different size variant) → keep the full-size (non-variant) URL
+function deduplicateContentImages(images) {
+  const seenMediaIds = new Set();
+  const seenBases = new Map(); // srcKey → { idx, isVariant }
+  const result = [];
+
+  for (const img of images) {
+    if (img.mediaId !== null) {
+      if (seenMediaIds.has(img.mediaId)) continue;
+      seenMediaIds.add(img.mediaId);
+    }
+
+    // Strip -scaled and -NNNxMMM suffixes to get a canonical key
+    const srcKey = img.src.replace(/(-scaled)?(-\d+x\d+)?\.[^./]+$/, '');
+    const filename = img.src.split('?')[0].split('/').pop();
+    const isVariant = /(-scaled|-\d+x\d+)\.[^./]+$/.test(filename);
+
+    if (seenBases.has(srcKey)) {
+      const prev = seenBases.get(srcKey);
+      // Upgrade: replace a size-variant entry with the full-size version
+      if (prev.isVariant && !isVariant) {
+        result[prev.idx] = img;
+        prev.isVariant = false;
+      }
+      continue;
+    }
+    seenBases.set(srcKey, { idx: result.length, isVariant });
+    result.push(img);
+  }
+  return result;
+}
+
 // Group items so that pages/posts with shared translation IDs appear consecutively.
 function groupByTranslations(items) {
   const byId = new Map(items.map(i => [i.id, i]));
@@ -107,7 +141,9 @@ export async function getPostsWithImages({ onPost } = {}) {
       try {
         const getFn = item.type === 'page' ? getPage : getPost;
         const full = await getFn(item.id, { _fields: 'content', context: 'edit' });
-        contentImages = extractContentImages(full.content?.rendered || full.content?.raw || '');
+        contentImages = deduplicateContentImages(
+          extractContentImages(full.content?.rendered || full.content?.raw || '')
+        );
         for (const img of contentImages) {
           images.push({ slot: 'content', label: 'Inhaltsbild', mediaId: img.mediaId, src: img.src, raw: img.raw });
         }
