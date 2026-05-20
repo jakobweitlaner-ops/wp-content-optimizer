@@ -85,9 +85,10 @@ async function fetchAllPages(endpoint, params = {}) {
   let totalPages = 1;
 
   do {
-    const response = await client.get(endpoint, {
-      params: { ...params, per_page: 100, page },
-    });
+    const response = await withRetry(
+      () => client.get(endpoint, { params: { ...params, per_page: 100, page } }),
+      3, 1000,
+    );
     results.push(...response.data);
     totalPages = parseInt(response.headers['x-wp-totalpages'] || '1', 10);
     page++;
@@ -115,19 +116,28 @@ export async function getMediaPage(params = {}) {
 
 export async function getMediaByIds(ids) {
   if (!ids.length) return [];
-  // WordPress REST API accepts repeated include[] params more reliably than comma-separated
-  const qs = ids.map(id => `include[]=${encodeURIComponent(id)}`).join('&');
-  const response = await client.get(`/media?per_page=${ids.length}&${qs}`);
-  return response.data;
+  // WordPress caps per_page at 100 — chunk requests to handle larger sets
+  const CHUNK = 100;
+  const results = [];
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const qs = chunk.map(id => `include[]=${encodeURIComponent(id)}`).join('&');
+    const response = await withRetry(
+      () => client.get(`/media?per_page=${chunk.length}&${qs}`),
+      3, 1000,
+    );
+    results.push(...response.data);
+  }
+  return results;
 }
 
 export async function getPost(id, params = {}) {
-  const { data } = await client.get(`/posts/${id}`, { params });
+  const { data } = await withRetry(() => client.get(`/posts/${id}`, { params }), 3, 1000);
   return data;
 }
 
 export async function getPage(id, params = {}) {
-  const { data } = await client.get(`/pages/${id}`, { params });
+  const { data } = await withRetry(() => client.get(`/pages/${id}`, { params }), 3, 1000);
   return data;
 }
 
@@ -169,7 +179,7 @@ export async function replaceMedia(id, buffer, mimeType) {
   return response.data;
 }
 
-const RETRYABLE = new Set([502, 503, 504]);
+const RETRYABLE = new Set([429, 502, 503, 504]);
 
 async function withRetry(fn, retries = 4, delay = 2000) {
   for (let attempt = 0; ; attempt++) {
