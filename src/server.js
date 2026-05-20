@@ -484,15 +484,20 @@ app.get('/api/seasonal/posts', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
 
   const send = (type, data) => res.write(`data: ${JSON.stringify({ type, data })}\n\n`);
+  // Keep-alive ping every 20 s to prevent proxy/load-balancer timeouts during
+  // long content-fetching phases where no post events are emitted.
+  const heartbeat = setInterval(() => res.write(':\n\n'), 20_000);
 
   getPostsWithImages({
     onPost: (post) => send('post', post),
   })
     .then((items) => {
+      clearInterval(heartbeat);
       send('done', { total: items.length });
       res.end();
     })
     .catch((err) => {
+      clearInterval(heartbeat);
       send('error', { message: err.message });
       res.end();
     });
