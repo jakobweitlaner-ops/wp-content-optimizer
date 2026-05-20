@@ -217,6 +217,33 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
     );
   }
 
+  // Final pass: clean up orphaned upload URLs inside the same <img> tag as newSrc.
+  // These are stale entries left by a previous partial replacement (e.g. IMG_0073-scaled.jpeg
+  // remaining as 780w/360w srcset entries after the src was already updated to the new image).
+  // Any upload URL in the updated img tag whose base path differs from newSrc is replaced with newSrc.
+  let newBasePath = null;
+  try { newBasePath = new URL(newSrc).pathname.replace(/(-\d+x\d+)?\.[^./]+$/, ''); } catch {}
+
+  if (newBasePath) {
+    const newSrcPath = (() => { try { return new URL(newSrc).pathname; } catch { return null; } })();
+    finalContent = finalContent.replace(/<img[^>]+>/gs, (imgTag) => {
+      if (!imgTag.includes(newSrc)) return imgTag;
+      return imgTag.replace(
+        /https?:\/\/[^\s"'>]+\/wp-content\/uploads\/[^\s"'>]+/g,
+        (url) => {
+          try {
+            const p = new URL(url).pathname;
+            // Keep if already in our mappings or shares the new image's base path
+            if (pathToNewUrl[p]) return pathToNewUrl[p];
+            if (p.replace(/(-\d+x\d+)?\.[^./]+$/, '') === newBasePath) return url;
+            // Orphaned URL from a previous replacement — replace with full-size new image
+            return newSrc;
+          } catch { return url; }
+        },
+      );
+    });
+  }
+
   await updateItem(postId, { content: finalContent });
   return { success: true };
 }
