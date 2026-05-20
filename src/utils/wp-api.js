@@ -189,21 +189,43 @@ export async function deleteMedia(id) {
 }
 
 export async function uploadMedia(buffer, mimeType, filename, meta = {}) {
-  const uploadResponse = await withRetry(() => client.post('/media', buffer, {
+  const doPost = () => client.post('/media', buffer, {
     headers: {
       'Content-Type': mimeType,
       'Content-Disposition': `attachment; filename="${filename.replace(/"/g, '')}"`,
     },
     maxBodyLength: Infinity,
     maxContentLength: Infinity,
-  }));
+  });
+
+  let uploadResponse;
+  try {
+    uploadResponse = await doPost();
+  } catch (err) {
+    if (!RETRYABLE.has(err.response?.status)) throw err;
+    // 503 on upload: WordPress may have saved the file while generating thumbnails.
+    // Wait and search by slug before retrying to prevent duplicate uploads.
+    await new Promise(r => setTimeout(r, 5000));
+    const slug = filename.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    try {
+      const search = await client.get('/media', { params: { search: slug, per_page: 5, orderby: 'date', order: 'desc' } });
+      const match = search.data.find(m => m.slug === slug || m.slug.startsWith(slug));
+      if (match) {
+        if (Object.keys(meta).length > 0) {
+          const u = await client.put(`/media/${match.id}`, meta);
+          return u.data;
+        }
+        return match;
+      }
+    } catch {}
+    // Not found in library — safe to retry once
+    uploadResponse = await doPost();
+  }
 
   const id = uploadResponse.data.id;
-
   if (Object.keys(meta).length > 0) {
     const updateResponse = await client.put(`/media/${id}`, meta);
     return updateResponse.data;
   }
-
   return uploadResponse.data;
 }
