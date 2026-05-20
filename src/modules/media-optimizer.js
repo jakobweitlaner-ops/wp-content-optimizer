@@ -507,7 +507,7 @@ function buildRenameUrlMappings(oldItem, newItem) {
   return mappings;
 }
 
-async function updateFeaturedImageReferences(idMap) {
+export async function updateFeaturedImageReferences(idMap) {
   if (Object.keys(idMap).length === 0) return 0;
   const [posts, pages] = await Promise.all([getPosts({ lang: 'all' }), getPages({ lang: 'all' })]);
   let count = 0;
@@ -579,16 +579,40 @@ export async function uploadFromPC({ buffer, mimeType, originalFilename, postId,
 
   if (onProgress) onProgress('Aktualisiere Referenzen…');
 
+  // Fetch old media item's full details (all size URLs) before we delete it
+  let oldMediaItem = null;
+  if (oldMediaId) {
+    try { oldMediaItem = await getMediaItem(oldMediaId); } catch {}
+  }
+
   const { replaceImage } = await import('./seasonal-replacer.js');
   await replaceImage({
     postId,
     postType,
     mode,
-    oldSrc: oldSrc || null,
+    oldSrc: oldSrc || oldMediaItem?.source_url || null,
     oldMediaId: oldMediaId || null,
     newMediaId: updatedNewItem.id,
     newSrc: updatedNewItem.source_url,
   });
+
+  // Build full URL mappings (all size variants) so other posts referencing
+  // the same image also get updated — replaceImage only touches the one post
+  const urlMappings = buildRenameUrlMappings(
+    oldMediaItem || { source_url: oldSrc, media_details: {} },
+    updatedNewItem,
+  );
+  if (oldSrc && updatedNewItem.source_url && !urlMappings[oldSrc]) {
+    urlMappings[oldSrc] = updatedNewItem.source_url;
+  }
+  const idMap = oldMediaId ? { [oldMediaId]: updatedNewItem.id } : {};
+
+  if (Object.keys(urlMappings).length > 0) {
+    await updateMediaReferences(urlMappings, idMap);
+  }
+  if (Object.keys(idMap).length > 0) {
+    await updateFeaturedImageReferences(idMap);
+  }
 
   if (oldMediaId) {
     if (onProgress) onProgress('Entferne altes Bild…');

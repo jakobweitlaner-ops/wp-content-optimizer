@@ -7,9 +7,9 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { exec } from 'child_process';
-import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI, auditFilenamesWithAI, applyFilenameRenames, detectOversizedImages, compressOversizedImages, repairPostReferences, uploadFromPC } from './modules/media-optimizer.js';
+import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI, auditFilenamesWithAI, applyFilenameRenames, detectOversizedImages, compressOversizedImages, repairPostReferences, uploadFromPC, updateMediaReferences, updateFeaturedImageReferences } from './modules/media-optimizer.js';
 import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals, applyBrandFix } from './modules/seo-optimizer.js';
-import { updatePost, updatePage } from './utils/wp-api.js';
+import { updatePost, updatePage, getMediaItem } from './utils/wp-api.js';
 import { getPostsWithImages, getMediaLibrary, replaceImage } from './modules/seasonal-replacer.js';
 import axios from 'axios';
 import https from 'https';
@@ -514,8 +514,41 @@ app.post('/api/seasonal/replace', express.json(), async (req, res) => {
     return res.status(400).json({ error: 'postId, postType, mode, newMediaId required' });
   }
   try {
-    const result = await replaceImage({ postId, postType, mode, oldSrc, oldMediaId, newMediaId, newSrc });
-    res.json(result);
+    await replaceImage({ postId, postType, mode, oldSrc, oldMediaId, newMediaId, newSrc });
+
+    // Also update every other post/page that references the same old image
+    // (replaceImage only touches the one target post)
+    const urlMappings = {};
+    if (oldSrc && newSrc && oldSrc !== newSrc) urlMappings[oldSrc] = newSrc;
+
+    // Fetch old+new media items to include all size-variant URLs in the mapping
+    if (oldMediaId) {
+      try {
+        const [oldItem, newItem] = await Promise.all([
+          getMediaItem(oldMediaId),
+          getMediaItem(newMediaId),
+        ]);
+        const oldSizes = oldItem.media_details?.sizes || {};
+        const newSizes = newItem.media_details?.sizes || {};
+        for (const [sizeName, oldSizeData] of Object.entries(oldSizes)) {
+          if (newSizes[sizeName]?.source_url && oldSizeData.source_url !== newSizes[sizeName].source_url) {
+            urlMappings[oldSizeData.source_url] = newSizes[sizeName].source_url;
+          }
+        }
+        if (oldItem.source_url !== newItem.source_url) {
+          urlMappings[oldItem.source_url] = newItem.source_url;
+        }
+      } catch {}
+    }
+
+    const idMap = (oldMediaId && newMediaId) ? { [oldMediaId]: newMediaId } : {};
+
+    await Promise.all([
+      Object.keys(urlMappings).length > 0 ? updateMediaReferences(urlMappings, idMap) : Promise.resolve(),
+      Object.keys(idMap).length > 0 ? updateFeaturedImageReferences(idMap) : Promise.resolve(),
+    ]);
+
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
