@@ -7,7 +7,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { exec } from 'child_process';
-import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI, auditFilenamesWithAI, applyFilenameRenames, detectOversizedImages, compressOversizedImages, repairPostReferences } from './modules/media-optimizer.js';
+import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI, auditFilenamesWithAI, applyFilenameRenames, detectOversizedImages, compressOversizedImages, repairPostReferences, uploadFromPC } from './modules/media-optimizer.js';
 import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals, applyBrandFix } from './modules/seo-optimizer.js';
 import { updatePost, updatePage } from './utils/wp-api.js';
 import { getPostsWithImages, getMediaLibrary, replaceImage } from './modules/seasonal-replacer.js';
@@ -519,6 +519,38 @@ app.post('/api/seasonal/replace', express.json(), async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+app.post('/api/upload-from-pc', express.raw({ type: '*/*', limit: '50mb' }), (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (type, data = {}) => res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`);
+
+  const { postId, postType, mode, oldMediaId, oldSrc, filename } = req.query;
+  const mimeType = (req.headers['content-type'] || 'image/jpeg').split(';')[0].trim();
+  const originalFilename = filename || 'upload.jpg';
+
+  uploadFromPC({
+    buffer: req.body,
+    mimeType,
+    originalFilename,
+    postId: parseInt(postId, 10),
+    postType,
+    mode,
+    oldMediaId: oldMediaId ? parseInt(oldMediaId, 10) : null,
+    oldSrc: oldSrc || null,
+    onProgress: (message) => send('progress', { message }),
+  })
+    .then((result) => {
+      send('done', result);
+      res.end();
+    })
+    .catch((err) => {
+      send('error', { message: err.message });
+      res.end();
+    });
 });
 
 app.listen(PORT, () => {
