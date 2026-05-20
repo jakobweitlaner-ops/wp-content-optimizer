@@ -1673,6 +1673,8 @@
       <div class="seasonal-toolbar">
         <span class="seasonal-heading">🖼️ Bild Management</span>
         <span class="seasonal-count-label" id="seasonal-count-label"></span>
+        <button class="compress-repair-btn" id="seasonal-repair-btn" onclick="repairReferencesFromSeasonal()" title="Scannt alle Beiträge/Seiten und korrigiert veraltete Bild-URLs (inkl. UAG-Srcsets)">🔗 Referenzen reparieren</button>
+        <span class="compress-status" id="seasonal-repair-status" style="font-size:0.8rem;color:#64748b;margin-left:0.5rem"></span>
       </div>
       <div class="seasonal-scroll" id="seasonal-scroll">
         <div class="seasonal-loading">Lade Beiträge und Seiten…</div>
@@ -3063,11 +3065,11 @@
     }
   }
 
-  async function repairReferences() {
-    const btn = document.getElementById('compress-repair-btn');
-    const statusEl = document.getElementById('compress-status');
-    btn.disabled = true;
-    statusEl.textContent = 'Scanne Beiträge…';
+  async function _runRepairReferences(btnId, statusId) {
+    const btn = document.getElementById(btnId);
+    const statusEl = document.getElementById(statusId);
+    if (btn) btn.disabled = true;
+    if (statusEl) statusEl.textContent = 'Scanne Beiträge…';
 
     try {
       const resp = await fetch('/api/repair-references', { method: 'POST' });
@@ -3083,17 +3085,20 @@
         for (const line of lines) {
           if (!line.startsWith('data:')) continue;
           const msg = JSON.parse(line.slice(5).trim());
-          if (msg.type === 'progress') statusEl.textContent = msg.text;
-          if (msg.type === 'out') statusEl.textContent = msg.text;
-          if (msg.type === 'err') statusEl.textContent = '⚠ ' + msg.text;
+          if (msg.type === 'progress' && statusEl) statusEl.textContent = msg.text;
+          if (msg.type === 'out' && statusEl) statusEl.textContent = msg.text;
+          if (msg.type === 'err' && statusEl) statusEl.textContent = '⚠ ' + msg.text;
         }
       }
     } catch (err) {
-      statusEl.textContent = `Fehler: ${escapeHtml(err.message)}`;
+      if (statusEl) statusEl.textContent = `Fehler: ${escapeHtml(err.message)}`;
     } finally {
-      btn.disabled = false;
+      if (btn) btn.disabled = false;
     }
   }
+
+  function repairReferences() { _runRepairReferences('compress-repair-btn', 'compress-status'); }
+  function repairReferencesFromSeasonal() { _runRepairReferences('seasonal-repair-btn', 'seasonal-repair-status'); }
 
   // ── Seasonal Image Replacement ───────────────────────────────
 
