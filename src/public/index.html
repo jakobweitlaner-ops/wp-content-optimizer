@@ -3499,7 +3499,7 @@
         postId,
         postType,
         mode: img.slot,
-        oldSrc: img.src,
+        oldSrc: img.contentSrc || img.src,
         oldMediaId: img.mediaId,
         newMediaId: newMedia.id,
         newSrc: newMedia.src,

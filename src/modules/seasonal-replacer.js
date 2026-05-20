@@ -141,11 +141,14 @@ export async function getPostsWithImages({ onPost } = {}) {
       try {
         const getFn = item.type === 'page' ? getPage : getPost;
         const full = await getFn(item.id, { _fields: 'content', context: 'edit' });
+        // Prefer raw content to match what replaceImage() will modify
         contentImages = deduplicateContentImages(
-          extractContentImages(full.content?.rendered || full.content?.raw || '')
+          extractContentImages(full.content?.raw || full.content?.rendered || '')
         );
         for (const img of contentImages) {
-          images.push({ slot: 'content', label: 'Inhaltsbild', mediaId: img.mediaId, src: img.src, raw: img.raw });
+          // contentSrc preserves the URL as it appears in the actual content —
+          // used as oldSrc for replacement so it always matches the stored HTML.
+          images.push({ slot: 'content', label: 'Inhaltsbild', mediaId: img.mediaId, src: img.src, contentSrc: img.src, raw: img.raw });
         }
       } catch {
         // content unavailable – featured image still shown
