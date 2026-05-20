@@ -543,12 +543,6 @@ app.post('/api/seasonal/replace', express.json(), async (req, res) => {
     // Pass urlMappings so replaceImage updates all size-variant URLs (incl. srcset) at once
     await replaceImage({ postId, postType, mode, oldSrc, oldMediaId, newMediaId, newSrc, urlMappings });
 
-    // Also update every other post/page that references the same old image
-    await Promise.all([
-      Object.keys(urlMappings).length > 0 ? updateMediaReferences(urlMappings, idMap) : Promise.resolve(),
-      Object.keys(idMap).length > 0 ? updateFeaturedImageReferences(idMap) : Promise.resolve(),
-    ]);
-
     // Best-effort cache invalidation: fetch the post URL with both desktop and mobile
     // User-Agents so device-based server caches (e.g. World4You, LiteSpeed) regenerate
     // both variants. Failures are silently ignored — the content update already succeeded.
