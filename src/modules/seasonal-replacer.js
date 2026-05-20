@@ -184,20 +184,26 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
   // (fallback handles http↔https and domain mismatches between stored URL and WP_URL env)
   // Also matches any size variant sharing the same base filename (e.g. rendered -300x200 vs
   // stored -1024x683), since WordPress may store a different size than what is rendered.
+  // Strip WordPress size/scaled suffixes for base-path comparison (e.g. -300x200, -scaled, -scaled-300x200)
+  const stripSizeSuffix = (pathname) => pathname.replace(/(-scaled)?(-\d+x\d+)?\.[^./]+$/, '');
+
   let finalContent = rawContent;
   if (rawContent.includes(oldSrc)) {
-    finalContent = rawContent.split(oldSrc).join(newSrc);
+    // Use the size-appropriate mapped URL when oldSrc appears in a srcset slot,
+    // so a 300w entry is replaced with the new 300w variant, not the full-size image.
+    const mappedOldSrc = urlMappings[oldSrc] ?? newSrc;
+    finalContent = rawContent.split(oldSrc).join(mappedOldSrc);
   } else {
     try {
       const oldPath = new URL(oldSrc).pathname;
-      const oldBase = oldPath.replace(/(-\d+x\d+)?\.[^./]+$/, '');
+      const oldBase = stripSizeSuffix(oldPath);
       finalContent = rawContent.replace(
         /https?:\/\/[^\s"'>]+\/wp-content\/uploads\/[^\s"'>]+/g,
         (url) => {
           try {
             const p = new URL(url).pathname;
             if (p === oldPath) return newSrc;
-            if (p.replace(/(-\d+x\d+)?\.[^./]+$/, '') === oldBase) return newSrc;
+            if (stripSizeSuffix(p) === oldBase) return newSrc;
             return url;
           } catch { return url; }
         },
@@ -230,11 +236,11 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
     if (!pathToNewUrl[oldPath]) pathToNewUrl[oldPath] = newSrc;
   } catch {}
 
-  // Compute base path of oldSrc (strip dimension suffix e.g. -1024x683 and extension)
+  // Compute base path of oldSrc (strip -scaled and dimension suffixes e.g. -1024x683)
   // so that size variants not listed in urlMappings are still caught (srcset fallback)
   let oldBasePath = null;
   try {
-    oldBasePath = new URL(oldSrc).pathname.replace(/(-\d+x\d+)?\.[^./]+$/, '');
+    oldBasePath = stripSizeSuffix(new URL(oldSrc).pathname);
   } catch {}
 
   if (Object.keys(pathToNewUrl).length > 0 || oldBasePath) {
@@ -246,7 +252,7 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
           const mapped = pathToNewUrl[urlObj.pathname];
           if (mapped) return mapped;
           // Fall back: replace any size variant sharing the same base filename
-          if (oldBasePath && urlObj.pathname.replace(/(-\d+x\d+)?\.[^./]+$/, '') === oldBasePath) {
+          if (oldBasePath && stripSizeSuffix(urlObj.pathname) === oldBasePath) {
             return newSrc;
           }
           return url;
@@ -259,11 +265,12 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
   // These are stale entries left by a previous partial replacement (e.g. IMG_0073-scaled.jpeg
   // remaining as 780w/360w srcset entries after the src was already updated to the new image).
   // Any upload URL in the updated img tag whose base path differs from newSrc is replaced with newSrc.
+  // stripSizeSuffix handles WordPress -scaled images so that new-image-300x200.jpg is correctly
+  // recognised as a size variant of new-image-scaled.jpg (same base: new-image).
   let newBasePath = null;
-  try { newBasePath = new URL(newSrc).pathname.replace(/(-\d+x\d+)?\.[^./]+$/, ''); } catch {}
+  try { newBasePath = stripSizeSuffix(new URL(newSrc).pathname); } catch {}
 
   if (newBasePath) {
-    const newSrcPath = (() => { try { return new URL(newSrc).pathname; } catch { return null; } })();
     finalContent = finalContent.replace(/<img[^>]+>/gs, (imgTag) => {
       if (!imgTag.includes(newSrc)) return imgTag;
       return imgTag.replace(
@@ -273,7 +280,7 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
             const p = new URL(url).pathname;
             // Keep if already in our mappings or shares the new image's base path
             if (pathToNewUrl[p]) return pathToNewUrl[p];
-            if (p.replace(/(-\d+x\d+)?\.[^./]+$/, '') === newBasePath) return url;
+            if (stripSizeSuffix(p) === newBasePath) return url;
             // Orphaned URL from a previous replacement — replace with full-size new image
             return newSrc;
           } catch { return url; }
