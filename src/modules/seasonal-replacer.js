@@ -147,20 +147,34 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
 
   if (!oldSrc) throw new Error('oldSrc required for content image replacement');
 
-  // Replace the primary src URL
-  let finalContent = rawContent.split(oldSrc).join(newSrc);
-  if (finalContent === rawContent) throw new Error(`Bild-URL nicht im Inhalt gefunden`);
+  // Replace the primary src URL — try exact match first, then path-based fallback
+  // (fallback handles http↔https and domain mismatches between stored URL and WP_URL env)
+  let finalContent = rawContent;
+  if (rawContent.includes(oldSrc)) {
+    finalContent = rawContent.split(oldSrc).join(newSrc);
+  } else {
+    try {
+      const oldPath = new URL(oldSrc).pathname;
+      finalContent = rawContent.replace(
+        /https?:\/\/[^\s"'>]+\/wp-content\/uploads\/[^\s"'>]+/g,
+        (url) => {
+          try { return new URL(url).pathname === oldPath ? newSrc : url; }
+          catch { return url; }
+        },
+      );
+    } catch {}
+    if (finalContent === rawContent) throw new Error('Bild-URL nicht im Inhalt gefunden');
+  }
 
-  // Replace all srcset size URLs (old filename → new filename pattern)
+  // Replace wp-image-ID class and Gutenberg block "id" attribute
   if (oldMediaId && newMediaId) {
-    // Replace wp-image-ID class and Gutenberg block "id" attribute
     finalContent = finalContent
       .split(`wp-image-${oldMediaId}`).join(`wp-image-${newMediaId}`)
       .split(`"id":${oldMediaId}`).join(`"id":${newMediaId}`)
       .split(`"id": ${oldMediaId}`).join(`"id": ${newMediaId}`);
   }
 
-  // Replace remaining srcset URLs that share the same filename base as oldSrc
+  // Replace remaining srcset size URLs that share the same filename base as oldSrc
   // (e.g. old-name-300x200.jpg → new-name-300x200.jpg)
   const oldBase = oldSrc.replace(/\.[^.]+$/, '');
   const newBase = newSrc.replace(/\.[^.]+$/, '');

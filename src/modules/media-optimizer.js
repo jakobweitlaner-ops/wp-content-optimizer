@@ -170,13 +170,20 @@ export async function updateMediaReferences(urlMappings, idMappings = {}) {
 }
 
 export async function repairPostReferences({ onProgress } = {}) {
-  // Build pathname → canonical URL map from entire media library
   const allMedia = await getMedia({ media_type: 'image' });
+
+  // pathname → canonical URL  (for URL repair — fixes desktop references)
   const pathToUrl = new Map();
+  // pathname → media item ID  (for block-ID repair — fixes mobile srcset)
+  // size variant paths all point to the same item ID as the original
+  const pathToId = new Map();
+
   for (const item of allMedia) {
     for (const url of collectUrls(item)) {
       try {
-        pathToUrl.set(new URL(url).pathname, url);
+        const p = new URL(url).pathname;
+        pathToUrl.set(p, url);
+        pathToId.set(p, item.id);
       } catch {}
     }
   }
@@ -191,14 +198,45 @@ export async function repairPostReferences({ onProgress } = {}) {
     if (onProgress) onProgress(i + 1, all.length, item.slug || String(item.id));
 
     const raw = item.content?.raw || '';
-    const updated = raw.replace(/https?:\/\/[^\s"'>]+\/wp-content\/uploads\/[^\s"'>]+/g, (url) => {
+    let updated = raw;
+
+    // Pass 1 — fix URLs to canonical form (already-correct URLs are unchanged)
+    updated = updated.replace(/https?:\/\/[^\s"'>]+\/wp-content\/uploads\/[^\s"'>]+/g, (url) => {
       try {
         const canonical = pathToUrl.get(new URL(url).pathname);
         return canonical || url;
-      } catch {
-        return url;
-      }
+      } catch { return url; }
     });
+
+    // Pass 2 — fix wp-image-{id} CSS class in every <img> tag
+    // After pass 1 the src is canonical, so we can look up the correct media ID.
+    // Only changes the class when the stored ID differs from what the src resolves to.
+    updated = updated.replace(/<img[^>]+>/g, (imgTag) => {
+      const srcMatch = imgTag.match(/\bsrc="([^"]+)"/);
+      if (!srcMatch) return imgTag;
+      try {
+        const correctId = pathToId.get(new URL(srcMatch[1]).pathname);
+        if (!correctId) return imgTag;
+        return imgTag.replace(/\bwp-image-(\d+)\b/, (cls, oldId) =>
+          parseInt(oldId, 10) !== correctId ? `wp-image-${correctId}` : cls,
+        );
+      } catch { return imgTag; }
+    });
+
+    // Pass 3 — sync Gutenberg block comment {"id":X} with the wp-image-X class
+    // Uses the class value fixed in pass 2 as the source of truth.
+    // Block comment format: <!-- wp:image {"id":123,...} --> ... <!-- /wp:image -->
+    updated = updated.replace(
+      /<!-- wp:image (\{[^\n]*?\}) -->([\s\S]*?)<!-- \/wp:image -->/g,
+      (blockMatch, jsonStr, blockBody) => {
+        const classMatch = blockBody.match(/\bwp-image-(\d+)\b/);
+        if (!classMatch) return blockMatch;
+        const correctId = parseInt(classMatch[1], 10);
+        const newJson = jsonStr.replace(/"id"\s*:\s*\d+/, `"id":${correctId}`);
+        if (newJson === jsonStr) return blockMatch;
+        return `<!-- wp:image ${newJson} -->${blockBody}<!-- /wp:image -->`;
+      },
+    );
 
     if (updated !== raw) {
       const fn = item.type === 'page' ? updatePage : updatePost;
@@ -507,7 +545,7 @@ function buildRenameUrlMappings(oldItem, newItem) {
   return mappings;
 }
 
-async function updateFeaturedImageReferences(idMap) {
+export async function updateFeaturedImageReferences(idMap) {
   if (Object.keys(idMap).length === 0) return 0;
   const [posts, pages] = await Promise.all([getPosts({ lang: 'all' }), getPages({ lang: 'all' })]);
   let count = 0;
@@ -579,16 +617,40 @@ export async function uploadFromPC({ buffer, mimeType, originalFilename, postId,
 
   if (onProgress) onProgress('Aktualisiere Referenzen…');
 
+  // Fetch old media item's full details (all size URLs) before we delete it
+  let oldMediaItem = null;
+  if (oldMediaId) {
+    try { oldMediaItem = await getMediaItem(oldMediaId); } catch {}
+  }
+
   const { replaceImage } = await import('./seasonal-replacer.js');
   await replaceImage({
     postId,
     postType,
     mode,
-    oldSrc: oldSrc || null,
+    oldSrc: oldSrc || oldMediaItem?.source_url || null,
     oldMediaId: oldMediaId || null,
     newMediaId: updatedNewItem.id,
     newSrc: updatedNewItem.source_url,
   });
+
+  // Build full URL mappings (all size variants) so other posts referencing
+  // the same image also get updated — replaceImage only touches the one post
+  const urlMappings = buildRenameUrlMappings(
+    oldMediaItem || { source_url: oldSrc, media_details: {} },
+    updatedNewItem,
+  );
+  if (oldSrc && updatedNewItem.source_url && !urlMappings[oldSrc]) {
+    urlMappings[oldSrc] = updatedNewItem.source_url;
+  }
+  const idMap = oldMediaId ? { [oldMediaId]: updatedNewItem.id } : {};
+
+  if (Object.keys(urlMappings).length > 0) {
+    await updateMediaReferences(urlMappings, idMap);
+  }
+  if (Object.keys(idMap).length > 0) {
+    await updateFeaturedImageReferences(idMap);
+  }
 
   if (oldMediaId) {
     if (onProgress) onProgress('Entferne altes Bild…');
