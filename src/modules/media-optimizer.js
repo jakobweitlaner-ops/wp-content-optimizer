@@ -605,18 +605,17 @@ export async function auditFilenamesWithAI({ onProgress, onProposal, onError } =
       if (!match) return;
       const json = JSON.parse(match[0]);
 
-      if (json.quality === 'poor' && json.suggestion) {
-        const proposal = {
-          id: item.id,
-          filename: currentSlug,
-          url: item.source_url,
-          currentFilename: currentSlug,
-          proposedFilename: sanitizeFilename(json.suggestion),
-          reason: json.reason || '',
-        };
-        proposals.push(proposal);
-        if (onProposal) onProposal(proposal);
-      }
+      const proposal = {
+        id: item.id,
+        filename: currentSlug,
+        url: item.source_url,
+        currentFilename: currentSlug,
+        quality: json.quality === 'good' ? 'good' : 'poor',
+        proposedFilename: json.quality === 'poor' && json.suggestion ? sanitizeFilename(json.suggestion) : null,
+        reason: json.reason || '',
+      };
+      proposals.push(proposal);
+      if (onProposal) onProposal(proposal);
     } catch (err) {
       if (onError) onError(currentSlug, err.message);
     }

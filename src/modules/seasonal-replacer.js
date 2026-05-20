@@ -1,4 +1,4 @@
-import { getPosts, getPages, getMediaPage, getMediaByIds, updatePost, updatePage } from '../utils/wp-api.js';
+import { getPosts, getPages, getPage, getPost, getMediaPage, getMediaByIds, updatePost, updatePage } from '../utils/wp-api.js';
 
 function extractContentImages(html) {
   const images = [];
@@ -42,10 +42,11 @@ function groupByTranslations(items) {
   return grouped;
 }
 
-export async function getPostsWithImages() {
+export async function getPostsWithImages({ onPost } = {}) {
+  // Step 1: fetch basic post info without content (fast)
   const [posts, pages] = await Promise.all([
-    getPosts({ _fields: 'id,title,link,content,featured_media,translations', per_page: 100 }),
-    getPages({ _fields: 'id,title,link,content,featured_media,translations', per_page: 100 }),
+    getPosts({ _fields: 'id,title,link,featured_media,translations', per_page: 100 }),
+    getPages({ _fields: 'id,title,link,featured_media,translations', per_page: 100 }),
   ]);
 
   // Deduplicate by id across posts+pages and within each list
@@ -61,68 +62,70 @@ export async function getPostsWithImages() {
   // Group translated pages/posts so they appear consecutively
   const sortedItems = groupByTranslations(allItems);
 
+  // Step 2: resolve featured image URLs in bulk (no content needed yet)
+  const featuredIds = [...new Set(
+    sortedItems.filter(i => i.featured_media > 0).map(i => i.featured_media)
+  )];
+  const featuredUrlMap = {};
+  if (featuredIds.length > 0) {
+    try {
+      const mediaItems = await getMediaByIds(featuredIds);
+      for (const m of mediaItems) {
+        featuredUrlMap[String(m.id)] = m.media_details?.sizes?.medium?.source_url
+          || m.media_details?.sizes?.thumbnail?.source_url
+          || m.source_url;
+      }
+    } catch (err) {
+      console.error('[seasonal] getMediaByIds failed:', err.message);
+    }
+  }
+
+  // Step 3: fetch content per-item in batches of 10 to extract embedded images
+  const BATCH = 10;
   const results = [];
 
-  for (const item of sortedItems) {
-    const content = item.content?.rendered || '';
-    const contentImages = extractContentImages(content);
-    const images = [];
+  for (let i = 0; i < sortedItems.length; i += BATCH) {
+    const batch = sortedItems.slice(i, i + BATCH);
 
-    if (item.featured_media && item.featured_media > 0) {
-      images.push({
-        slot: 'featured',
-        label: 'Beitragsbild',
-        mediaId: item.featured_media,
-        src: null,
-      });
-    }
+    const batchResults = await Promise.all(batch.map(async (item) => {
+      const images = [];
 
-    for (const img of contentImages) {
-      images.push({
-        slot: 'content',
-        label: 'Inhaltsbild',
-        mediaId: img.mediaId,
-        src: img.src,
-        raw: img.raw,
-      });
-    }
+      if (item.featured_media > 0) {
+        images.push({
+          slot: 'featured',
+          label: 'Beitragsbild',
+          mediaId: item.featured_media,
+          src: featuredUrlMap[String(item.featured_media)] || null,
+        });
+      }
 
-    if (images.length > 0) {
-      results.push({
+      // Fetch full content only for this item (parallelised within the batch)
+      try {
+        const getFn = item.type === 'page' ? getPage : getPost;
+        const full = await getFn(item.id, { _fields: 'content', context: 'edit' });
+        const contentImages = extractContentImages(full.content?.rendered || full.content?.raw || '');
+        for (const img of contentImages) {
+          images.push({ slot: 'content', label: 'Inhaltsbild', mediaId: img.mediaId, src: img.src, raw: img.raw });
+        }
+      } catch {
+        // content unavailable – featured image still shown
+      }
+
+      if (images.length === 0) return null;
+
+      return {
         id: item.id,
         type: item.type,
         title: item.title?.rendered || `(ID ${item.id})`,
         url: item.link,
         images,
-      });
-    }
-  }
+      };
+    }));
 
-  // Resolve featured image URLs via batch request
-  const featuredIds = [...new Set(
-    results.flatMap(p => p.images.filter(i => i.slot === 'featured' && i.mediaId).map(i => i.mediaId))
-  )];
-
-  if (featuredIds.length > 0) {
-    try {
-      const mediaItems = await getMediaByIds(featuredIds);
-      const urlMap = {};
-      for (const m of mediaItems) {
-        // Use medium size if available, else full size
-        urlMap[String(m.id)] = m.media_details?.sizes?.medium?.source_url
-          || m.media_details?.sizes?.thumbnail?.source_url
-          || m.source_url;
-      }
-      for (const post of results) {
-        for (const img of post.images) {
-          if (img.slot === 'featured' && img.mediaId) {
-            const resolved = urlMap[String(img.mediaId)];
-            if (resolved) img.src = resolved;
-          }
-        }
-      }
-    } catch (err) {
-      console.error('[seasonal] getMediaByIds failed:', err.message);
+    for (const entry of batchResults) {
+      if (!entry) continue;
+      results.push(entry);
+      if (onPost) onPost(entry);
     }
   }
 

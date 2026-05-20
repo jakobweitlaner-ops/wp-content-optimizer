@@ -273,8 +273,9 @@ app.get('/preview/audit-filenames', (req, res) => {
   auditFilenamesWithAI({
     onProgress: (done, total, slug) =>
       send('progress', `Analysiere ${done}/${total}: ${slug}`),
-    onProposal: (p) =>
-      send('out', `⚠ ${p.filename} → ${p.proposedFilename}  (${p.reason})`),
+    onProposal: (p) => {
+      if (p.quality === 'poor') send('out', `⚠ ${p.filename} → ${p.proposedFilename}  (${p.reason})`);
+    },
     onError: (slug, msg) =>
       send('err', `Fehler bei ${slug}: ${msg}`),
   })
@@ -477,13 +478,24 @@ app.get('/api/seasonal/proxy-image', async (req, res) => {
   }
 });
 
-app.get('/api/seasonal/posts', async (req, res) => {
-  try {
-    const items = await getPostsWithImages();
-    res.json(items);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+app.get('/api/seasonal/posts', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (type, data) => res.write(`data: ${JSON.stringify({ type, data })}\n\n`);
+
+  getPostsWithImages({
+    onPost: (post) => send('post', post),
+  })
+    .then((items) => {
+      send('done', { total: items.length });
+      res.end();
+    })
+    .catch((err) => {
+      send('error', { message: err.message });
+      res.end();
+    });
 });
 
 app.get('/api/seasonal/media', async (req, res) => {

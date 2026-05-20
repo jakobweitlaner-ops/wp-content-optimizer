@@ -4,7 +4,7 @@ import https from 'https';
 const BASE_URL = process.env.WP_URL;
 const USERNAME = process.env.WP_USERNAME;
 const APP_PASSWORD = process.env.WP_APP_PASSWORD;
-const TIMEOUT = parseInt(process.env.TIMEOUT || '60000', 10);
+const TIMEOUT = parseInt(process.env.TIMEOUT || '120000', 10);
 const INSECURE = process.env.WP_INSECURE === 'true';
 
 function getAuthHeader() {
@@ -152,7 +152,7 @@ export async function getMediaItem(id) {
 }
 
 export async function replaceMedia(id, buffer, mimeType) {
-  const response = await axios.post(
+  const response = await withRetry(() => axios.post(
     `${BASE_URL}/wp-json/wp-optimizer/v1/media/${id}/replace`,
     buffer,
     {
@@ -165,24 +165,38 @@ export async function replaceMedia(id, buffer, mimeType) {
       maxBodyLength: Infinity,
       maxContentLength: Infinity,
     },
-  );
+  ));
   return response.data;
 }
 
+const RETRYABLE = new Set([502, 503, 504]);
+
+async function withRetry(fn, retries = 4, delay = 2000) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const status = err.response?.status;
+      if (attempt >= retries || !RETRYABLE.has(status)) throw err;
+      await new Promise(r => setTimeout(r, delay * Math.pow(2, attempt)));
+    }
+  }
+}
+
 export async function deleteMedia(id) {
-  const { data } = await client.delete(`/media/${id}`, { params: { force: true } });
+  const { data } = await withRetry(() => client.delete(`/media/${id}`, { params: { force: true } }));
   return data;
 }
 
 export async function uploadMedia(buffer, mimeType, filename, meta = {}) {
-  const uploadResponse = await client.post('/media', buffer, {
+  const uploadResponse = await withRetry(() => client.post('/media', buffer, {
     headers: {
       'Content-Type': mimeType,
       'Content-Disposition': `attachment; filename="${filename.replace(/"/g, '')}"`,
     },
     maxBodyLength: Infinity,
     maxContentLength: Infinity,
-  });
+  }));
 
   const id = uploadResponse.data.id;
 
