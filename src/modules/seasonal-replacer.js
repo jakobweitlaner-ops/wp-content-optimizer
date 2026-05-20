@@ -103,10 +103,11 @@ export async function getPostsWithImages({ onPost } = {}) {
       }
 
       // Fetch full content only for this item (parallelised within the batch)
+      let contentImages = [];
       try {
         const getFn = item.type === 'page' ? getPage : getPost;
         const full = await getFn(item.id, { _fields: 'content', context: 'edit' });
-        const contentImages = extractContentImages(full.content?.rendered || full.content?.raw || '');
+        contentImages = extractContentImages(full.content?.rendered || full.content?.raw || '');
         for (const img of contentImages) {
           images.push({ slot: 'content', label: 'Inhaltsbild', mediaId: img.mediaId, src: img.src, raw: img.raw });
         }
@@ -125,8 +126,37 @@ export async function getPostsWithImages({ onPost } = {}) {
       };
     }));
 
-    for (const entry of batchResults) {
-      if (!entry) continue;
+    // For content images with a known mediaId, resolve the thumbnail URL directly
+    // from the media library — this guarantees a fresh, correct preview URL even
+    // when the stored HTML src points to an outdated or domain-mismatched URL.
+    const batchEntries = batchResults.filter(Boolean);
+    const contentMediaIds = [...new Set(
+      batchEntries.flatMap(e => e.images
+        .filter(img => img.slot === 'content' && img.mediaId)
+        .map(img => img.mediaId)
+      )
+    )];
+
+    if (contentMediaIds.length > 0) {
+      try {
+        const mediaItems = await getMediaByIds(contentMediaIds);
+        const contentUrlMap = {};
+        for (const m of mediaItems) {
+          contentUrlMap[String(m.id)] = m.media_details?.sizes?.medium?.source_url
+            || m.media_details?.sizes?.thumbnail?.source_url
+            || m.source_url;
+        }
+        for (const entry of batchEntries) {
+          for (const img of entry.images) {
+            if (img.slot === 'content' && img.mediaId && contentUrlMap[String(img.mediaId)]) {
+              img.src = contentUrlMap[String(img.mediaId)];
+            }
+          }
+        }
+      } catch {}
+    }
+
+    for (const entry of batchEntries) {
       results.push(entry);
       if (onPost) onPost(entry);
     }
