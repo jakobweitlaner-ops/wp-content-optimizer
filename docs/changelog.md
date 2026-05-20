@@ -2,6 +2,36 @@
 
 <!-- AUTO-GENERATED SECTION: changelog -->
 
+## [1.0.0] — 2026-05-20
+
+### Added
+- feat: bereits gut benannte Bilder nach unten sortieren bei erneuter Analyse
+- feat: KI-gestützte Umbenennung von WordPress-Bilddateinamen
+- feat: Bildaustausch – Übersetzungen gruppiert, Menüpunkt umbenannt
+- feat: add repair-references to fix existing broken image URLs in posts
+
+### Changed
+- refactor: Dateinamen-Umbenennung als Einzelbild-Kartenansicht
+
+### Fixed
+- fix: 503-Fehler beim Umbenennen durch Retry-Logik mit Backoff beheben
+- fix: Bild Management Timeout durch progressives SSE-Streaming behoben
+- fix: Bild Management aktualisiert jetzt auch Block-ID und srcset-URLs
+- fix: Gutenberg-Block-IDs und wp-image-Klassen nach Umbenennung aktualisieren
+- fix: Umbenennen-Button war wegen doppelter Anführungszeichen im onclick-Attribut nicht klickbar
+- fix: Menüpunkt von "Bildaustausch" in "Bild Management" umbenennen
+- fix: fetch all Polylang language variants when updating post references
+- fix: rename thumbnails by size_name match, not basename equality
+
+### Other
+- Merge pull request #101 from jakobweitlaner-ops/claude/wordpress-image-filenames-RAWXd
+- Merge pull request #100 from jakobweitlaner-ops/claude/wordpress-image-filenames-RAWXd
+- Merge pull request #99 from jakobweitlaner-ops/claude/wordpress-image-filenames-RAWXd
+- Merge pull request #98 from jakobweitlaner-ops/claude/wordpress-image-filenames-RAWXd
+- Merge pull request #97 from jakobweitlaner-ops/claude/rename-images-organize-pages-uTrhg
+- Merge pull request #96 from jakobweitlaner-ops/claude/fix-thumbnail-scaled-rename
+- Merge pull request #95 from jakobweitlaner-ops/claude/fix-thumbnail-scaled-rename
+
 ## [1.0.0] — 2026-05-19
 
 ### Added
