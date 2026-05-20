@@ -3529,7 +3529,15 @@
         if (newThumb) newThumb.style.display = 'none';
       }, 3000);
     } catch (err) {
+      console.error('[replace]', err.message);
       if (btn) { btn.disabled = false; btn.textContent = 'Fehler'; btn.className = 'seasonal-replace-btn error'; btn.title = err.message; }
+      const row = document.getElementById(`seasonal-row-${postId}-${postType}-${imgIdx}`);
+      if (row) {
+        let errSpan = row.querySelector('.seasonal-replace-error');
+        if (!errSpan) { errSpan = document.createElement('span'); errSpan.className = 'seasonal-replace-error'; errSpan.style.cssText = 'color:#ef4444;font-size:0.75rem;display:block;margin-top:0.25rem'; row.appendChild(errSpan); }
+        errSpan.textContent = err.message;
+        setTimeout(() => errSpan.remove(), 8000);
+      }
       setTimeout(() => {
         if (btn) { btn.textContent = 'Ersetzen'; btn.className = 'seasonal-replace-btn'; btn.title = ''; }
       }, 4000);
