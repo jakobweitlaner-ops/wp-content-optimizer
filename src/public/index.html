@@ -3442,7 +3442,8 @@
 
         const titleEl = document.createElement('div');
         titleEl.className = 'media-picker-item-title';
-        titleEl.textContent = item.title;
+        titleEl.textContent = item.filename || item.title;
+        el.title = (item.title !== item.filename ? item.title + '\n' : '') + (item.filename || '');
 
         el.appendChild(imgEl);
         el.appendChild(titleEl);
