@@ -565,6 +565,7 @@ app.post('/api/seasonal/replace', express.json(), async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
+    console.error('[replace]', err.message, err.stack);
     res.status(500).json({ error: err.message });
   }
 });
