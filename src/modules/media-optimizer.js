@@ -122,6 +122,13 @@ function buildUrlMappings(oldItem, newItem) {
 export async function updateMediaReferences(urlMappings, idMappings = {}) {
   if (!urlMappings || Object.keys(urlMappings).length === 0) return 0;
 
+  // Build pathname → newUrl lookup so we match regardless of domain/protocol
+  // (handles http↔https, localhost vs production domain, migrated sites)
+  const pathToNewUrl = {};
+  for (const [oldUrl, newUrl] of Object.entries(urlMappings)) {
+    try { pathToNewUrl[new URL(oldUrl).pathname] = newUrl; } catch {}
+  }
+
   // lang=all fetches posts in every Polylang language; ignored on non-Polylang sites
   const [posts, pages] = await Promise.all([getPosts({ lang: 'all' }), getPages({ lang: 'all' })]);
   let updatedCount = 0;
@@ -130,9 +137,18 @@ export async function updateMediaReferences(urlMappings, idMappings = {}) {
     const raw = item.content?.raw || '';
     let updated = raw;
 
+    // Exact URL replacement (fast path when domains match)
     for (const [oldUrl, newUrl] of Object.entries(urlMappings)) {
       updated = updated.split(oldUrl).join(newUrl);
     }
+
+    // Path-based replacement: catches http↔https and domain mismatches
+    updated = updated.replace(/https?:\/\/[^\s"'>]+\/wp-content\/uploads\/[^\s"'>]+/g, (url) => {
+      try {
+        const mapped = pathToNewUrl[new URL(url).pathname];
+        return mapped || url;
+      } catch { return url; }
+    });
 
     // Update Gutenberg block comments {"id":OLD} and CSS classes wp-image-OLD
     // so WordPress regenerates correct srcset for responsive/mobile images
