@@ -202,3 +202,135 @@ describe('detectOversizedImages', () => {
     vi.resetModules();
   });
 });
+
+// ── ID replacement logic (pure unit tests, no module import needed) ──────────
+// These mirror the fix in updateMediaReferences and replaceImage: use regex
+// with word boundaries instead of String.split to avoid partial-ID matches.
+
+function applyIdMappings(content, idMappings) {
+  let updated = content;
+  for (const [oldId, newId] of Object.entries(idMappings)) {
+    updated = updated
+      .replace(new RegExp(`\\bwp-image-${oldId}\\b`, 'g'), `wp-image-${newId}`)
+      .replace(new RegExp(`"id":${oldId}(?!\\d)`, 'g'), `"id":${newId}`)
+      .replace(new RegExp(`"id": ${oldId}(?!\\d)`, 'g'), `"id": ${newId}`);
+  }
+  return updated;
+}
+
+describe('ID replacement – substring-safety', () => {
+  const BASE = 'https://example.com/wp-content/uploads/2024/01';
+
+  it('does not corrupt wp-image class when old ID is a prefix of another ID', () => {
+    const raw = `<!-- wp:image {"id":1234} --><img src="${BASE}/other.jpg" class="wp-image-1234"/><!-- /wp:image -->`;
+    const result = applyIdMappings(raw, { 12: 99 });
+    expect(result).toContain('wp-image-1234');
+    expect(result).not.toContain('wp-image-994');
+    expect(result).toContain('"id":1234');
+    expect(result).not.toContain('"id":994');
+  });
+
+  it('replaces the target ID without touching longer IDs sharing that prefix', () => {
+    const raw = [
+      `<!-- wp:image {"id":12} --><img src="${BASE}/old.jpg" class="wp-image-12"/><!-- /wp:image -->`,
+      `<!-- wp:image {"id":1234} --><img src="${BASE}/other.jpg" class="wp-image-1234"/><!-- /wp:image -->`,
+    ].join('\n');
+    const result = applyIdMappings(raw, { 12: 99 });
+    expect(result).toContain('wp-image-99');
+    expect(result).not.toContain('wp-image-12"');
+    expect(result).toContain('wp-image-1234');
+    expect(result).toContain('"id":99');
+    expect(result).toContain('"id":1234');
+  });
+
+  it('handles "id": N (space before number) without corrupting longer IDs', () => {
+    const raw = `<!-- wp:image {"id": 12} --><img class="wp-image-12"/><!-- /wp:image -->\n<!-- wp:image {"id": 120} --><img class="wp-image-120"/><!-- /wp:image -->`;
+    const result = applyIdMappings(raw, { 12: 99 });
+    expect(result).toContain('"id": 99');
+    expect(result).not.toContain('"id": 12"');
+    expect(result).toContain('"id": 120');
+  });
+});
+
+// ── replaceImage – srcset size-variant handling ──────────────────────────────
+
+describe('replaceImage – srcset update with size-variant oldSrc', () => {
+  const BASE = 'https://example.com/wp-content/uploads/2024/01';
+
+  async function runReplace(opts) {
+    vi.resetModules();
+    let savedContent = null;
+    vi.doMock('../src/utils/wp-api.js', () => ({
+      getPost: async () => ({ content: { raw: opts.raw } }),
+      getPage: async () => ({ content: { raw: opts.raw } }),
+      updatePost: async (_id, data) => { savedContent = data.content; },
+      updatePage: async (_id, data) => { savedContent = data.content; },
+    }));
+    const { replaceImage } = await import('../src/modules/seasonal-replacer.js');
+    await replaceImage({
+      postId: 1,
+      postType: 'post',
+      mode: 'content',
+      oldSrc: opts.oldSrc,
+      oldMediaId: opts.oldMediaId ?? null,
+      newMediaId: opts.newMediaId ?? null,
+      newSrc: opts.newSrc,
+    });
+    vi.doUnmock('../src/utils/wp-api.js');
+    vi.resetModules();
+    return savedContent;
+  }
+
+  it('updates srcset size variants when oldSrc is the large-size URL', async () => {
+    // oldSrc is the 'large' size (1024w), but srcset also has 300w and 768w variants
+    const raw = [
+      `<!-- wp:image {"id":10} -->`,
+      `<figure><img src="${BASE}/old-name-1024x683.jpg" class="wp-image-10"`,
+      ` srcset="${BASE}/old-name-300x200.jpg 300w, ${BASE}/old-name-768x512.jpg 768w, ${BASE}/old-name-1024x683.jpg 1024w"`,
+      `/></figure>`,
+      `<!-- /wp:image -->`,
+    ].join('');
+
+    const result = await runReplace({
+      raw,
+      oldSrc: `${BASE}/old-name-1024x683.jpg`,
+      oldMediaId: 10,
+      newMediaId: 20,
+      newSrc: `${BASE}/new-name.jpg`,
+    });
+
+    expect(result).not.toBeNull();
+    // All old-name size variants must be gone
+    expect(result).not.toContain('old-name-300x200');
+    expect(result).not.toContain('old-name-768x512');
+    expect(result).not.toContain('old-name-1024x683');
+    // IDs updated
+    expect(result).toContain('wp-image-20');
+    expect(result).not.toContain('wp-image-10');
+  });
+
+  it('does not corrupt wp-image class of unrelated longer IDs during replacement', async () => {
+    const raw = [
+      `<!-- wp:image {"id":10} -->`,
+      `<img src="${BASE}/old.jpg" class="wp-image-10"/>`,
+      `<!-- /wp:image -->`,
+      `<!-- wp:image {"id":100} -->`,
+      `<img src="${BASE}/other.jpg" class="wp-image-100"/>`,
+      `<!-- /wp:image -->`,
+    ].join('');
+
+    const result = await runReplace({
+      raw,
+      oldSrc: `${BASE}/old.jpg`,
+      oldMediaId: 10,
+      newMediaId: 99,
+      newSrc: `${BASE}/new.jpg`,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result).toContain('wp-image-99');
+    expect(result).not.toContain('wp-image-10"');
+    // wp-image-100 must be untouched
+    expect(result).toContain('wp-image-100');
+  });
+});

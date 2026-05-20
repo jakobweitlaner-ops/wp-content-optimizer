@@ -167,17 +167,28 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
   }
 
   // Replace wp-image-ID class and Gutenberg block "id" attribute
+  // Use regex (not string split) to avoid matching IDs that are prefixes of longer IDs
+  // e.g. replacing wp-image-12 must NOT corrupt wp-image-1234
   if (oldMediaId && newMediaId) {
     finalContent = finalContent
-      .split(`wp-image-${oldMediaId}`).join(`wp-image-${newMediaId}`)
-      .split(`"id":${oldMediaId}`).join(`"id":${newMediaId}`)
-      .split(`"id": ${oldMediaId}`).join(`"id": ${newMediaId}`);
+      .replace(new RegExp(`\\bwp-image-${oldMediaId}\\b`, 'g'), `wp-image-${newMediaId}`)
+      .replace(new RegExp(`"id":${oldMediaId}(?!\\d)`, 'g'), `"id":${newMediaId}`)
+      .replace(new RegExp(`"id": ${oldMediaId}(?!\\d)`, 'g'), `"id": ${newMediaId}`);
   }
 
   // Replace remaining srcset size URLs that share the same filename base as oldSrc
-  // (e.g. old-name-300x200.jpg → new-name-300x200.jpg)
-  const oldBase = oldSrc.replace(/\.[^.]+$/, '');
-  const newBase = newSrc.replace(/\.[^.]+$/, '');
+  // (e.g. old-name-300x200.jpg → new-name-300x200.jpg).
+  // Strip dimension suffix (e.g. -1024x683) AND extension from the URL path so that
+  // all size variants are matched, not just the exact size passed as oldSrc.
+  // Use URL parsing to avoid accidentally stripping dots from the domain (e.g. example.com).
+  const stripSizeAndExt = (url) => {
+    try {
+      const { origin, pathname } = new URL(url);
+      return origin + pathname.replace(/(-\d+x\d+)?\.[^./]+$/, '');
+    } catch { return url; }
+  };
+  const oldBase = stripSizeAndExt(oldSrc);
+  const newBase = stripSizeAndExt(newSrc);
   if (oldBase && newBase && oldBase !== newBase) {
     finalContent = finalContent.split(oldBase).join(newBase);
   }
