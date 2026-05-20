@@ -157,6 +157,7 @@ export async function updateMediaReferences(urlMappings, idMappings = {}) {
     for (const [oldId, newId] of Object.entries(idMappings)) {
       updated = updated
         .replace(new RegExp(`\\bwp-image-${oldId}\\b`, 'g'), `wp-image-${newId}`)
+        .replace(new RegExp(`\\buag-image-${oldId}\\b`, 'g'), `uag-image-${newId}`)
         .replace(new RegExp(`"id":${oldId}(?!\\d)`, 'g'), `"id":${newId}`)
         .replace(new RegExp(`"id": ${oldId}(?!\\d)`, 'g'), `"id": ${newId}`);
     }
