@@ -182,17 +182,24 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
 
   // Replace the primary src URL — try exact match first, then path-based fallback
   // (fallback handles http↔https and domain mismatches between stored URL and WP_URL env)
+  // Also matches any size variant sharing the same base filename (e.g. rendered -300x200 vs
+  // stored -1024x683), since WordPress may store a different size than what is rendered.
   let finalContent = rawContent;
   if (rawContent.includes(oldSrc)) {
     finalContent = rawContent.split(oldSrc).join(newSrc);
   } else {
     try {
       const oldPath = new URL(oldSrc).pathname;
+      const oldBase = oldPath.replace(/(-\d+x\d+)?\.[^./]+$/, '');
       finalContent = rawContent.replace(
         /https?:\/\/[^\s"'>]+\/wp-content\/uploads\/[^\s"'>]+/g,
         (url) => {
-          try { return new URL(url).pathname === oldPath ? newSrc : url; }
-          catch { return url; }
+          try {
+            const p = new URL(url).pathname;
+            if (p === oldPath) return newSrc;
+            if (p.replace(/(-\d+x\d+)?\.[^./]+$/, '') === oldBase) return newSrc;
+            return url;
+          } catch { return url; }
         },
       );
     } catch {}
