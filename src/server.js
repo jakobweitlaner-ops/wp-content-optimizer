@@ -273,8 +273,9 @@ app.get('/preview/audit-filenames', (req, res) => {
   auditFilenamesWithAI({
     onProgress: (done, total, slug) =>
       send('progress', `Analysiere ${done}/${total}: ${slug}`),
-    onProposal: (p) =>
-      send('out', `⚠ ${p.filename} → ${p.proposedFilename}  (${p.reason})`),
+    onProposal: (p) => {
+      if (p.quality === 'poor') send('out', `⚠ ${p.filename} → ${p.proposedFilename}  (${p.reason})`);
+    },
     onError: (slug, msg) =>
       send('err', `Fehler bei ${slug}: ${msg}`),
   })

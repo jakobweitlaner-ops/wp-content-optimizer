@@ -2692,41 +2692,67 @@
       return;
     }
 
-    document.getElementById('rename-count-label').textContent = `${proposals.length} ausstehend`;
+    const poor = proposals.filter(p => p.quality === 'poor');
+    const good = proposals.filter(p => p.quality === 'good');
 
-    for (const p of proposals) {
+    document.getElementById('rename-count-label').textContent =
+      `${poor.length} ausstehend · ${good.length} bereits gut`;
+
+    const makeCard = (p) => {
       const card = document.createElement('div');
       card.className = 'compress-img-card';
       card.dataset.id = p.id;
-      card.style.flexDirection = 'column';
-      card.style.alignItems = 'stretch';
-      card.style.gap = '0.5rem';
+      card.style.cssText = 'flex-direction:column;align-items:stretch;gap:0.5rem';
 
       const proxyUrl = `/api/seasonal/proxy-image?url=${encodeURIComponent(p.url)}`;
-      card.innerHTML = `
-        <div style="display:flex;align-items:center;gap:0.75rem">
-          <img src="${proxyUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:4px;flex-shrink:0;background:#f1f5f9" alt="" onerror="this.style.display='none'">
-          <div style="flex:1;min-width:0">
-            <div class="compress-img-name">${escapeHtml(p.currentFilename)}</div>
-            <div class="compress-img-meta" style="color:#94a3b8;font-style:italic">${escapeHtml(p.reason)}</div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:0.5rem">
-          <span style="font-size:0.75rem;color:#94a3b8;flex-shrink:0">Neuer Name:</span>
-          <input class="rename-card-input" type="text" value="${escapeHtml(p.proposedFilename)}"
-            style="flex:1;padding:0.28rem 0.5rem;border:1px solid #cbd5e1;border-radius:5px;font-size:0.78rem;font-family:inherit;min-width:0"
-            placeholder="Dateiname ohne Endung…">
-          <button class="rename-card-btn compress-apply-btn" style="flex-shrink:0;white-space:nowrap"
-            onclick="renameSingle(${p.id}, this.closest('.compress-img-card'))">
-            Umbenennen
-          </button>
-        </div>
-        <div class="rename-card-status" style="font-size:0.72rem;color:#94a3b8;min-height:1em"></div>`;
 
-      scroll.appendChild(card);
+      if (p.quality === 'good') {
+        card.style.opacity = '0.5';
+        card.innerHTML = `
+          <div style="display:flex;align-items:center;gap:0.75rem">
+            <img src="${proxyUrl}" style="width:44px;height:44px;object-fit:cover;border-radius:4px;flex-shrink:0;background:#f1f5f9" alt="" onerror="this.style.display='none'">
+            <div style="flex:1;min-width:0">
+              <div class="compress-img-name" style="color:#64748b">${escapeHtml(p.currentFilename)}</div>
+              <div class="compress-img-meta">${escapeHtml(p.reason)}</div>
+            </div>
+            <span style="font-size:0.75rem;color:#16a34a;font-weight:600;flex-shrink:0">✓ gut</span>
+          </div>`;
+      } else {
+        card.innerHTML = `
+          <div style="display:flex;align-items:center;gap:0.75rem">
+            <img src="${proxyUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:4px;flex-shrink:0;background:#f1f5f9" alt="" onerror="this.style.display='none'">
+            <div style="flex:1;min-width:0">
+              <div class="compress-img-name">${escapeHtml(p.currentFilename)}</div>
+              <div class="compress-img-meta" style="color:#94a3b8;font-style:italic">${escapeHtml(p.reason)}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <span style="font-size:0.75rem;color:#94a3b8;flex-shrink:0">Neuer Name:</span>
+            <input class="rename-card-input" type="text" value="${escapeHtml(p.proposedFilename || '')}"
+              style="flex:1;padding:0.28rem 0.5rem;border:1px solid #cbd5e1;border-radius:5px;font-size:0.78rem;font-family:inherit;min-width:0"
+              placeholder="Dateiname ohne Endung…">
+            <button class="rename-card-btn compress-apply-btn" style="flex-shrink:0;white-space:nowrap"
+              onclick="renameSingle(${p.id}, this.closest('.compress-img-card'))">
+              Umbenennen
+            </button>
+          </div>
+          <div class="rename-card-status" style="font-size:0.72rem;color:#94a3b8;min-height:1em"></div>`;
+      }
+      return card;
+    };
+
+    // Poor first, then a divider, then good ones at the bottom
+    for (const p of poor) scroll.appendChild(makeCard(p));
+
+    if (good.length > 0) {
+      const divider = document.createElement('div');
+      divider.style.cssText = 'font-size:0.72rem;font-weight:600;color:#94a3b8;letter-spacing:0.06em;text-transform:uppercase;padding:0.75rem 0.25rem 0.25rem';
+      divider.textContent = `✓ Bereits gut benannt (${good.length})`;
+      scroll.appendChild(divider);
+      for (const p of good) scroll.appendChild(makeCard(p));
     }
 
-    footer.style.display = 'flex';
+    if (poor.length > 0) footer.style.display = 'flex';
   }
 
   function loadRenameView() {
@@ -2754,8 +2780,9 @@
         es.close(); clearActiveEs();
         const proposals = msg.data || [];
         buildRenameCards(proposals);
-        setNavState('rename-images', proposals.length > 0 ? '' : 'success', 'Bereit');
-        if (proposals.length === 0) resetNavState('rename-images');
+        const poorCount = proposals.filter(p => p.quality === 'poor').length;
+        setNavState('rename-images', poorCount > 0 ? '' : 'success', 'Bereit');
+        if (poorCount === 0) resetNavState('rename-images');
       } else if (msg.type === 'done' && msg.text === 'error') {
         es.close(); clearActiveEs(); setNavState('rename-images', 'error', 'Fehler');
         document.getElementById('rename-scroll').innerHTML =
