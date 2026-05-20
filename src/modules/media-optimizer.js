@@ -151,12 +151,14 @@ export async function updateMediaReferences(urlMappings, idMappings = {}) {
     });
 
     // Update Gutenberg block comments {"id":OLD} and CSS classes wp-image-OLD
-    // so WordPress regenerates correct srcset for responsive/mobile images
+    // so WordPress regenerates correct srcset for responsive/mobile images.
+    // Use regex (not string split) to avoid matching IDs that are prefixes of longer IDs
+    // e.g. replacing "id":12 must NOT corrupt "id":1234 or wp-image-1234.
     for (const [oldId, newId] of Object.entries(idMappings)) {
       updated = updated
-        .split(`"id":${oldId}`).join(`"id":${newId}`)
-        .split(`"id": ${oldId}`).join(`"id": ${newId}`)
-        .split(`wp-image-${oldId}`).join(`wp-image-${newId}`);
+        .replace(new RegExp(`\\bwp-image-${oldId}\\b`, 'g'), `wp-image-${newId}`)
+        .replace(new RegExp(`"id":${oldId}(?!\\d)`, 'g'), `"id":${newId}`)
+        .replace(new RegExp(`"id": ${oldId}(?!\\d)`, 'g'), `"id": ${newId}`);
     }
 
     if (updated !== raw) {
