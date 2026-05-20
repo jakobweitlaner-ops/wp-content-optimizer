@@ -509,7 +509,7 @@ app.get('/api/seasonal/media', async (req, res) => {
 });
 
 app.post('/api/seasonal/replace', express.json(), async (req, res) => {
-  const { postId, postType, mode, oldSrc, oldMediaId, newMediaId, newSrc } = req.body;
+  const { postId, postType, mode, oldSrc, oldMediaId, newMediaId, newSrc, postUrl } = req.body;
   if (!postId || !postType || !mode || !newMediaId) {
     return res.status(400).json({ error: 'postId, postType, mode, newMediaId required' });
   }
@@ -548,6 +548,20 @@ app.post('/api/seasonal/replace', express.json(), async (req, res) => {
       Object.keys(urlMappings).length > 0 ? updateMediaReferences(urlMappings, idMap) : Promise.resolve(),
       Object.keys(idMap).length > 0 ? updateFeaturedImageReferences(idMap) : Promise.resolve(),
     ]);
+
+    // Best-effort cache invalidation: fetch the post URL with both desktop and mobile
+    // User-Agents so device-based server caches (e.g. World4You, LiteSpeed) regenerate
+    // both variants. Failures are silently ignored — the content update already succeeded.
+    if (postUrl) {
+      const UA_DESKTOP = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+      const UA_MOBILE  = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
+      const purgeOpts  = { timeout: 8000, validateStatus: () => true };
+      await Promise.all([
+        axios.get(postUrl,  { ...purgeOpts, headers: { 'User-Agent': UA_DESKTOP, 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } }).catch(() => {}),
+        axios.get(postUrl,  { ...purgeOpts, headers: { 'User-Agent': UA_MOBILE,  'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } }).catch(() => {}),
+        axios({ method: 'PURGE', url: postUrl, ...purgeOpts }).catch(() => {}),
+      ]);
+    }
 
     res.json({ success: true });
   } catch (err) {
