@@ -7,8 +7,10 @@ function extractContentImages(html) {
   while ((match = imgRe.exec(html)) !== null) {
     const src = match[1];
     const classMatch = match[0].match(/wp-image-(\d+)/);
+    const uagMatch = match[0].match(/uag-image-(\d+)/);
     const dataMatch = match[0].match(/data-id="(\d+)"/);
     const mediaId = classMatch ? parseInt(classMatch[1], 10)
+      : uagMatch ? parseInt(uagMatch[1], 10)
       : dataMatch ? parseInt(dataMatch[1], 10)
       : null;
     images.push({ src, mediaId, raw: match[0] });
@@ -172,6 +174,7 @@ export async function replaceImage({ postId, postType, mode, oldSrc, oldMediaId,
   if (oldMediaId && newMediaId) {
     finalContent = finalContent
       .replace(new RegExp(`\\bwp-image-${oldMediaId}\\b`, 'g'), `wp-image-${newMediaId}`)
+      .replace(new RegExp(`\\buag-image-${oldMediaId}\\b`, 'g'), `uag-image-${newMediaId}`)
       .replace(new RegExp(`"id":${oldMediaId}(?!\\d)`, 'g'), `"id":${newMediaId}`)
       .replace(new RegExp(`"id": ${oldMediaId}(?!\\d)`, 'g'), `"id": ${newMediaId}`);
   }
