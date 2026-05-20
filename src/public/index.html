@@ -1355,10 +1355,13 @@
 
     .media-picker-close:hover { color: #334155; }
 
-    .media-picker-grid {
+    .media-picker-body {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
+    }
+
+    .media-picker-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
       gap: 0.5rem;
@@ -1690,8 +1693,10 @@
           <input class="media-picker-search" id="media-picker-search" type="text" placeholder="Suchen…" oninput="onMediaSearchInput(this.value)">
           <button class="media-picker-close" onclick="closeMediaPicker()">✕</button>
         </div>
-        <div class="media-picker-grid" id="media-picker-grid">
-          <div class="seasonal-loading">Lade Medien…</div>
+        <div class="media-picker-body">
+          <div class="media-picker-grid" id="media-picker-grid">
+            <div class="seasonal-loading">Lade Medien…</div>
+          </div>
         </div>
         <div class="media-picker-footer">
           <span class="media-picker-selection-info" id="media-picker-info">Kein Bild gewählt</span>

@@ -46,9 +46,10 @@ function groupByTranslations(items) {
 
 export async function getPostsWithImages({ onPost } = {}) {
   // Step 1: fetch basic post info without content (fast)
+  // lang=all fetches posts/pages in every Polylang language (ignored on non-Polylang sites)
   const [posts, pages] = await Promise.all([
-    getPosts({ _fields: 'id,title,link,featured_media,translations', per_page: 100 }),
-    getPages({ _fields: 'id,title,link,featured_media,translations', per_page: 100 }),
+    getPosts({ _fields: 'id,title,link,featured_media,translations', lang: 'all' }),
+    getPages({ _fields: 'id,title,link,featured_media,translations', lang: 'all' }),
   ]);
 
   // Deduplicate by id across posts+pages and within each list
