@@ -180,8 +180,11 @@ export async function repairPostReferences({ onProgress } = {}) {
   // pathname → media item ID  (for block-ID repair — fixes mobile srcset)
   // size variant paths all point to the same item ID as the original
   const pathToId = new Map();
+  // media item ID → source_url  (for UAG srcset repair)
+  const idToSourceUrl = new Map();
 
   for (const item of allMedia) {
+    idToSourceUrl.set(item.id, item.source_url);
     for (const url of collectUrls(item)) {
       try {
         const p = new URL(url).pathname;
@@ -240,6 +243,30 @@ export async function repairPostReferences({ onProgress } = {}) {
         return `<!-- wp:image ${newJson} -->${blockBody}<!-- /wp:image -->`;
       },
     );
+
+    // Pass 4 — fix UAG image srcsets: replace srcset URLs that belong to a different
+    // (or deleted) media item than the one referenced by the uag-image-{id} CSS class.
+    // This repairs content where a previous image replacement updated the src but left
+    // stale size-variant URLs (e.g. IMG_0073-scaled.jpeg 780w) from the old media item.
+    updated = updated.replace(/<img[^>]+>/g, (imgTag) => {
+      const uagMatch = imgTag.match(/\buag-image-(\d+)\b/);
+      if (!uagMatch) return imgTag;
+      const correctId = parseInt(uagMatch[1], 10);
+      const correctSrc = idToSourceUrl.get(correctId);
+      if (!correctSrc) return imgTag;
+      return imgTag.replace(
+        /https?:\/\/[^\s"'>]+\/wp-content\/uploads\/[^\s"'>]+/g,
+        (url) => {
+          try {
+            const urlId = pathToId.get(new URL(url).pathname);
+            // Replace if the URL belongs to a different media item OR is not in the library
+            // (orphaned — deleted media whose file no longer exists)
+            if (urlId !== correctId) return correctSrc;
+            return url;
+          } catch { return url; }
+        },
+      );
+    });
 
     if (updated !== raw) {
       const fn = item.type === 'page' ? updatePage : updatePost;
