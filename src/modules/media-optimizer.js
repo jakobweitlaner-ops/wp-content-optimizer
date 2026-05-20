@@ -522,6 +522,91 @@ async function updateFeaturedImageReferences(idMap) {
   return count;
 }
 
+async function analyzeImageForUpload(buffer, mimeType, originalFilename, siteContext) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  const client = new Anthropic({ apiKey });
+  const base64 = buffer.toString('base64');
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+          {
+            type: 'text',
+            text: `${siteContext ? `Kontext der Webseite:\n${siteContext}\n\n` : ''}Originaler Dateiname: "${originalFilename}"\n\nAnalysiere dieses Bild und generiere SEO-optimierte Metadaten für WordPress auf Deutsch. Antworte ausschließlich mit JSON:\n{"filename":"seo-dateiname-ohne-endung-nur-kleinbuchstaben-und-bindestriche","altText":"beschreibender Alt-Text auf Deutsch","title":"Bildtitel auf Deutsch"}`,
+          },
+        ],
+      }],
+    });
+    const text = response.content[0]?.text || '';
+    const match = text.match(/\{[\s\S]*?\}/);
+    if (!match) return null;
+    const json = JSON.parse(match[0]);
+    return {
+      filename: json.filename ? sanitizeFilename(json.filename) : null,
+      altText: json.altText || null,
+      title: json.title || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function uploadFromPC({ buffer, mimeType, originalFilename, postId, postType, mode, oldMediaId, oldSrc, onProgress }) {
+  const siteContext = await getSiteContext().catch(() => '');
+
+  if (onProgress) onProgress('Analysiere Bild mit KI…');
+  const aiMeta = await analyzeImageForUpload(buffer, mimeType, originalFilename, siteContext);
+
+  const origExt = path.extname(originalFilename);
+  const ext = origExt || `.${mimeType.split('/')[1] || 'jpg'}`;
+  const baseWithoutExt = originalFilename.replace(/\.[^.]+$/, '');
+  const aiFilename = aiMeta?.filename || sanitizeFilename(baseWithoutExt);
+  const newFilename = aiFilename + ext;
+
+  if (onProgress) onProgress(`Lade hoch als "${newFilename}"…`);
+
+  const meta = {};
+  if (aiMeta?.altText) meta.alt_text = aiMeta.altText;
+  if (aiMeta?.title) meta.title = aiMeta.title;
+
+  const newItem = await uploadMedia(buffer, mimeType, newFilename, meta);
+  const updatedNewItem = await getMediaItem(newItem.id);
+
+  if (onProgress) onProgress('Aktualisiere Referenzen…');
+
+  const { replaceImage } = await import('./seasonal-replacer.js');
+  await replaceImage({
+    postId,
+    postType,
+    mode,
+    oldSrc: oldSrc || null,
+    oldMediaId: oldMediaId || null,
+    newMediaId: updatedNewItem.id,
+    newSrc: updatedNewItem.source_url,
+  });
+
+  if (oldMediaId) {
+    if (onProgress) onProgress('Entferne altes Bild…');
+    try { await deleteMedia(oldMediaId); } catch {}
+  }
+
+  return {
+    newId: updatedNewItem.id,
+    newSrc: updatedNewItem.source_url,
+    thumbnail: updatedNewItem.media_details?.sizes?.medium?.source_url
+      || updatedNewItem.media_details?.sizes?.thumbnail?.source_url
+      || updatedNewItem.source_url,
+    filename: newFilename,
+    altText: aiMeta?.altText || null,
+    title: aiMeta?.title || null,
+  };
+}
+
 export async function renameMediaItem(item, newBasename) {
   const sanitized = sanitizeFilename(newBasename);
   const origPath = item.source_url.split('?')[0];

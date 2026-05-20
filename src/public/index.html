@@ -1271,6 +1271,15 @@
     .seasonal-replace-btn:disabled { opacity: 0.5; cursor: default; }
     .seasonal-replace-btn.success { border-color: #16a34a; color: #16a34a; }
     .seasonal-replace-btn.error { border-color: #ef4444; color: #ef4444; }
+    .upload-status-msg {
+      font-size: 0.7rem;
+      color: #64748b;
+      max-width: 130px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 1;
+    }
 
     .seasonal-new-thumb {
       width: 48px;
@@ -3325,6 +3334,33 @@
     btn.addEventListener('click', () => openMediaPicker(post.id, post.type, idx));
     row.appendChild(btn);
 
+    // Upload from PC: hidden file input + button
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none';
+    fileInput.id = `file-input-${post.id}-${post.type}-${idx}`;
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) uploadFromPC(post.id, post.type, idx, fileInput.files[0]);
+    });
+
+    const uploadBtn = document.createElement('button');
+    uploadBtn.className = 'seasonal-replace-btn';
+    uploadBtn.id = `upload-btn-${post.id}-${post.type}-${idx}`;
+    uploadBtn.title = 'Von PC hochladen (KI generiert Dateiname & Metadaten)';
+    uploadBtn.textContent = '↑ PC';
+
+    uploadBtn.addEventListener('click', () => fileInput.click());
+
+    const uploadStatus = document.createElement('div');
+    uploadStatus.id = `upload-status-${post.id}-${post.type}-${idx}`;
+    uploadStatus.className = 'upload-status-msg';
+    uploadStatus.style.display = 'none';
+
+    row.appendChild(fileInput);
+    row.appendChild(uploadBtn);
+    row.appendChild(uploadStatus);
+
     return row;
   }
 
@@ -3501,6 +3537,92 @@
 
     pickerContext = null;
     pickerSelected = null;
+  }
+
+  async function uploadFromPC(postId, postType, imgIdx, file) {
+    const post = seasonalData.find(p => p.id === postId && p.type === postType);
+    if (!post) return;
+    const img = post.images[imgIdx];
+
+    const uploadBtn = document.getElementById(`upload-btn-${postId}-${postType}-${imgIdx}`);
+    const replaceBtn = document.getElementById(`replace-btn-${postId}-${postType}-${imgIdx}`);
+    const status = document.getElementById(`upload-status-${postId}-${postType}-${imgIdx}`);
+    const row = document.getElementById(`seasonal-row-${postId}-${postType}-${imgIdx}`);
+
+    if (uploadBtn) { uploadBtn.disabled = true; }
+    if (replaceBtn) { replaceBtn.disabled = true; }
+    if (status) { status.style.display = 'block'; status.style.color = '#64748b'; status.textContent = 'Vorbereitung…'; }
+
+    const params = new URLSearchParams({
+      postId,
+      postType,
+      mode: img.slot === 'featured' ? 'featured' : 'content',
+      filename: file.name,
+    });
+    if (img.mediaId) params.set('oldMediaId', img.mediaId);
+    if (img.src) params.set('oldSrc', img.src);
+
+    try {
+      const resp = await fetch(`/api/upload-from-pc?${params}`, {
+        method: 'POST',
+        headers: { 'Content-Type': file.type || 'image/jpeg' },
+        body: file,
+      });
+
+      if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let event;
+          try { event = JSON.parse(line.slice(6)); } catch { continue; }
+          if (event.type === 'progress') {
+            if (status) status.textContent = event.message;
+          } else if (event.type === 'done') {
+            // Update local data
+            post.images[imgIdx].src = event.newSrc;
+            post.images[imgIdx].mediaId = event.newId;
+            // Swap thumbnail
+            if (row) {
+              const oldThumb = row.querySelector('.seasonal-thumb, .seasonal-thumb-placeholder');
+              if (oldThumb && event.thumbnail) {
+                const newImg = document.createElement('img');
+                newImg.className = 'seasonal-thumb';
+                newImg.src = proxyThumb(event.thumbnail) || event.thumbnail;
+                newImg.alt = '';
+                newImg.loading = 'lazy';
+                oldThumb.replaceWith(newImg);
+              }
+              // Update filename display
+              const srcEl = row.querySelector('.seasonal-image-src');
+              if (srcEl) srcEl.textContent = event.filename || event.newSrc.split('/').pop();
+            }
+            if (status) { status.style.color = '#16a34a'; status.textContent = `✓ Hochgeladen: ${event.filename}`; }
+            if (uploadBtn) { uploadBtn.disabled = false; uploadBtn.textContent = '✓ PC'; uploadBtn.className = 'seasonal-replace-btn success'; }
+            if (replaceBtn) { replaceBtn.disabled = false; }
+            setTimeout(() => {
+              if (uploadBtn) { uploadBtn.textContent = '↑ PC'; uploadBtn.className = 'seasonal-replace-btn'; }
+              if (status) status.style.display = 'none';
+            }, 4000);
+          } else if (event.type === 'error') {
+            throw new Error(event.message);
+          }
+        }
+      }
+    } catch (err) {
+      if (status) { status.style.color = '#ef4444'; status.textContent = `Fehler: ${err.message}`; }
+      if (uploadBtn) { uploadBtn.disabled = false; }
+      if (replaceBtn) { replaceBtn.disabled = false; }
+    }
   }
 </script>
 </body>
