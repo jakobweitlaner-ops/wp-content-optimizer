@@ -340,6 +340,7 @@ export async function getMediaLibrary({ page = 1, perPage = 30, search = '' } = 
   return items.map((m) => ({
     id: m.id,
     title: m.title?.rendered || m.slug,
+    filename: m.source_url ? m.source_url.split('/').pop() : (m.slug || ''),
     slug: m.slug,
     src: m.source_url,
     thumbnail: m.media_details?.sizes?.thumbnail?.source_url || m.source_url,
