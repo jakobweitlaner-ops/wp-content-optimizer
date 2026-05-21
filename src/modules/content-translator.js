@@ -1,29 +1,24 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { getPosts, getPages, getPost, getPage, updatePost, updatePage } from '../utils/wp-api.js';
+import {
+  getPosts, getPages, getPost, getPage,
+  updatePost, updatePage, createPost, createPage,
+} from '../utils/wp-api.js';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-export const TRANSLATE_LANGS = {
-  de: 'Deutsch',
-  en: 'English',
-  fr: 'Français',
-  es: 'Español',
-  it: 'Italiano',
-  nl: 'Nederlands',
-  pl: 'Polski',
-  pt: 'Português',
-  ru: 'Русский',
-  ja: '日本語',
-  zh: '中文',
-  ar: 'العربية',
-};
+// ── HTML Tokeniser ───────────────────────────────────────────────
+//
+// Splits HTML into three token types so the translator ONLY ever touches
+// plain text nodes — never tags, attributes, or block markup.
+//
+//   raw   → HTML comments (incl. Gutenberg <!-- wp:... -->) and <script>/<style>
+//   tag   → any HTML element  <img src="…">  </p>  <br/>  etc.
+//   text  → everything between tags (the only thing we translate)
+//
+// Because tags and raw tokens are copied as-is, image src attributes,
+// href links, Gutenberg JSON payloads, and all HTML structure are
+// guaranteed to be unchanged byte-for-byte.
 
-// Tokenise HTML into raw/tag/text tokens so only text nodes are translated.
-// Priority order in regex:
-//   1. HTML comments  <!-- ... -->
-//   2. <script> / <style> blocks (keep raw)
-//   3. Any HTML tag  <...>
-//   4. Text nodes (everything else)
 function tokeniseHtml(html) {
   const tokens = [];
   const re = /<!--[\s\S]*?-->|<(?:script|style)[^>]*>[\s\S]*?<\/(?:script|style)>|<[^>]*>|[^<]+/gi;
@@ -41,33 +36,45 @@ function tokeniseHtml(html) {
   return tokens;
 }
 
-// A text node is translatable if it contains at least two letters (not just whitespace/entities).
+// A text node worth translating must contain at least 2 consecutive alphabetic
+// characters and must not be a bare URL, HTML entity string, or WP shortcode.
 function isTranslatable(text) {
-  return /[a-zA-ZÀ-ÿĀ-ɏЀ-ӿ぀-ヿ一-鿿]{2,}/.test(text);
+  const t = text.trim();
+  if (!t) return false;
+  if (/^(&[a-zA-Z#\d]+;|\s)+$/.test(t)) return false;    // pure entities
+  if (/^https?:\/\/\S+$/.test(t) || /^\/\/\S+$/.test(t)) return false; // bare URL
+  if (/^\[[^\]\n]{1,80}\]$/.test(t)) return false;         // WP shortcode
+  // Must have ≥2 consecutive letters (covers Latin, extended Latin, Cyrillic, CJK, Hangul)
+  return /[a-zA-ZÀ-ÿĀ-ɏЀ-ӿ一-鿿぀-ヿ가-힣]{2,}/.test(text);
 }
 
-// Send a batch of plain-text strings to Claude and get back a {index: translation} map.
-async function translateBatch(texts, targetLangCode) {
+// ── Claude translation batch ─────────────────────────────────────
+
+async function translateBatch(texts, targetLangName) {
   if (texts.length === 0) return {};
-  const langName = TRANSLATE_LANGS[targetLangCode] || targetLangCode;
 
   const numbered = texts.map((t, i) => `${i}: ${JSON.stringify(t)}`).join('\n');
 
-  const prompt = `Translate the following numbered text segments into ${langName}.
+  const prompt = `Translate the following numbered text segments into ${targetLangName}.
 
-Rules:
-- Preserve HTML entities (&amp; &nbsp; &lt; &gt; &quot; etc.) exactly as-is
-- Preserve numbers, URLs, e-mail addresses, and brand names exactly
-- Keep the same surrounding whitespace (leading/trailing newlines or spaces)
-- Return ONLY valid JSON with integer keys: {"0":"translation","1":"translation",...}
+Strict rules — violations will break the website:
+- Return ONLY valid JSON: {"0":"…","1":"…"} — no markdown, no explanation
+- Preserve ALL leading/trailing whitespace (spaces, tabs, newlines) exactly
+- Preserve HTML entities (&amp; &nbsp; &lt; &gt; &quot; &#…;) byte-for-byte
+- Preserve every URL (http://, https://, /path/to/page) exactly — never translate or shorten them
+- Preserve every image filename (*.jpg, *.png, *.webp, *.svg, *.gif, *.pdf, *.mp4) exactly
+- Preserve email addresses exactly
+- Preserve WordPress shortcodes ([contact-form-7 …]) exactly
+- Preserve phone numbers, postal codes, and numeric codes exactly
+- Keep proper nouns and brand names appropriate for the target language
 
-Texts:
+Texts to translate:
 ${numbered}`;
 
   const msg = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 4096,
-    system: 'You are a professional translator. Respond with valid JSON only. No markdown, no explanation.',
+    system: 'You are a professional translator. Output valid JSON only. Never add explanation, comments, or markdown formatting.',
     messages: [{ role: 'user', content: prompt }],
   });
 
@@ -80,8 +87,9 @@ ${numbered}`;
   }
 }
 
-// Translate all text nodes in an HTML string; return translated HTML.
-async function translateHtml(html, targetLangCode) {
+// Translate all translatable text nodes in an HTML string.
+// Tags, attributes, HTML comments, and script/style blocks are never touched.
+async function translateHtml(html, targetLangName) {
   if (!html) return html;
 
   const tokens = tokeniseHtml(html);
@@ -91,49 +99,75 @@ async function translateHtml(html, targetLangCode) {
 
   if (candidates.length === 0) return html;
 
-  // Batch into groups of 80 to stay well within context limits.
+  // Batch into groups of 80 — fits comfortably within Haiku context limits.
   const BATCH = 80;
   const translations = {};
   for (let b = 0; b < candidates.length; b += BATCH) {
     const slice = candidates.slice(b, b + BATCH);
-    const result = await translateBatch(slice.map((c) => c.value), targetLangCode);
+    const result = await translateBatch(slice.map((c) => c.value), targetLangName);
     slice.forEach((c, idx) => {
-      const translated = result[String(idx)];
-      if (typeof translated === 'string') translations[c.i] = translated;
+      const tr = result[String(idx)];
+      if (typeof tr === 'string') translations[c.i] = tr;
     });
   }
 
+  // Reassemble — only text tokens that got a translation are replaced.
   return tokens.map((t, i) => (translations[i] !== undefined ? translations[i] : t.value)).join('');
 }
 
 // ── Public API ───────────────────────────────────────────────────
 
+// Fetch all published posts and pages together with their Polylang metadata.
+// Returns: { id, type, title, url, lang, translations }
 export async function listTranslatableItems() {
+  const fields = 'id,title,status,link,lang,translations';
   const [posts, pages] = await Promise.all([
-    getPosts({ _fields: 'id,title,status,link' }).catch(() => []),
-    getPages({ _fields: 'id,title,status,link' }).catch(() => []),
+    getPosts({ _fields: fields }).catch(() => []),
+    getPages({ _fields: fields }).catch(() => []),
   ]);
   return [
-    ...pages.map((p) => ({ id: p.id, type: 'page', title: p.title?.rendered || '(no title)', url: p.link })),
-    ...posts.map((p) => ({ id: p.id, type: 'post', title: p.title?.rendered || '(no title)', url: p.link })),
+    ...pages.map((p) => ({
+      id: p.id,
+      type: 'page',
+      title: p.title?.rendered || '(no title)',
+      url: p.link,
+      lang: p.lang || null,
+      translations: p.translations || {},
+    })),
+    ...posts.map((p) => ({
+      id: p.id,
+      type: 'post',
+      title: p.title?.rendered || '(no title)',
+      url: p.link,
+      lang: p.lang || null,
+      translations: p.translations || {},
+    })),
   ];
 }
 
-export async function translateItem(id, type, targetLangCode) {
+// Translate a single post/page and return all data needed to save it.
+// targetLangName: display name used in the Claude prompt (e.g. "English")
+export async function translateItem(id, type, targetLangCode, targetLangName) {
   const item = type === 'page'
     ? await getPage(id, { context: 'edit' })
     : await getPost(id, { context: 'edit' });
 
+  const sourceLang = item.lang || null;
+  const polylangTranslations = item.translations || {};
+  const existingTranslationId = polylangTranslations[targetLangCode] || 0;
+
   const originalTitle = item.title?.rendered || '';
-  // Prefer raw block content so Gutenberg block comments are preserved unchanged.
+  // Use raw Gutenberg block content so block comments are preserved unchanged.
   const originalContent = item.content?.raw || item.content?.rendered || '';
-  const originalExcerpt = item.excerpt?.raw || item.excerpt?.rendered?.replace(/<[^>]+>/g, '').trim() || '';
+  const originalExcerpt = item.excerpt?.raw
+    || item.excerpt?.rendered?.replace(/<[^>]+>/g, '').trim()
+    || '';
 
   const [translatedTitle, translatedContent, translatedExcerpt] = await Promise.all([
-    translateBatch([originalTitle], targetLangCode).then((r) => r['0'] || originalTitle),
-    translateHtml(originalContent, targetLangCode),
+    translateBatch([originalTitle], targetLangName).then((r) => r['0'] || originalTitle),
+    translateHtml(originalContent, targetLangName),
     originalExcerpt
-      ? translateBatch([originalExcerpt], targetLangCode).then((r) => r['0'] || originalExcerpt)
+      ? translateBatch([originalExcerpt], targetLangName).then((r) => r['0'] || originalExcerpt)
       : Promise.resolve(''),
   ]);
 
@@ -142,20 +176,56 @@ export async function translateItem(id, type, targetLangCode) {
   return {
     id,
     type,
+    sourceLang,
+    polylangTranslations,
+    existingTranslationId,
     title: originalTitle,
     translatedTitle,
-    contentSnippet: stripTags(originalContent).substring(0, 200),
-    translatedContentSnippet: stripTags(translatedContent).substring(0, 200),
+    contentSnippet: stripTags(originalContent).substring(0, 220),
+    translatedContentSnippet: stripTags(translatedContent).substring(0, 220),
     translatedContent,
     translatedExcerpt,
   };
 }
 
-export async function applyTranslation(id, type, translatedTitle, translatedContent, translatedExcerpt) {
-  const data = {};
-  if (translatedTitle) data.title = translatedTitle;
-  if (translatedContent) data.content = translatedContent;
-  if (translatedExcerpt) data.excerpt = translatedExcerpt;
-  if (type === 'page') return updatePage(id, data);
-  return updatePost(id, data);
+// Save a translation back to WordPress, respecting Polylang structure:
+//   existingTranslationId > 0  → update the already-linked translation post
+//   existingTranslationId === 0 → create a new draft in targetLangCode and link it
+export async function applyTranslation({
+  id,
+  type,
+  targetLangCode,
+  existingTranslationId,
+  polylangTranslations,
+  sourceLang,
+  translatedTitle,
+  translatedContent,
+  translatedExcerpt,
+}) {
+  const payload = {};
+  if (translatedTitle)   payload.title   = translatedTitle;
+  if (translatedContent) payload.content = translatedContent;
+  if (translatedExcerpt) payload.excerpt = translatedExcerpt;
+
+  if (existingTranslationId > 0) {
+    // Translation already exists in Polylang — just update its content.
+    if (type === 'page') return updatePage(existingTranslationId, payload);
+    return updatePost(existingTranslationId, payload);
+  }
+
+  // No linked translation yet — create a new draft and tell Polylang to link it.
+  const newPayload = {
+    ...payload,
+    status: 'draft',
+    lang: targetLangCode,
+    // Include all known sibling IDs so Polylang connects the full translation set.
+    translations: {
+      ...polylangTranslations,
+      ...(sourceLang ? { [sourceLang]: id } : {}),
+      [targetLangCode]: 0,  // 0 = "this new post"
+    },
+  };
+
+  if (type === 'page') return createPage(newPayload);
+  return createPost(newPayload);
 }

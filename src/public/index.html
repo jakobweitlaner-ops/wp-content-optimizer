@@ -1906,18 +1906,7 @@
         <label style="font-size:0.78rem;color:#475569;display:flex;align-items:center;gap:0.4rem">
           Zielsprache:
           <select id="translate-target-lang" class="translate-lang-select">
-            <option value="en">Englisch</option>
-            <option value="de">Deutsch</option>
-            <option value="fr">Französisch</option>
-            <option value="es">Spanisch</option>
-            <option value="it">Italienisch</option>
-            <option value="nl">Niederländisch</option>
-            <option value="pl">Polnisch</option>
-            <option value="pt">Portugiesisch</option>
-            <option value="ru">Russisch</option>
-            <option value="ja">Japanisch</option>
-            <option value="zh">Chinesisch</option>
-            <option value="ar">Arabisch</option>
+            <option value="">Wird geladen…</option>
           </select>
         </label>
         <button class="compress-scan-btn" onclick="loadTranslateItems()">Seiten laden</button>
@@ -3915,8 +3904,9 @@
 
   // ── Translation View ─────────────────────────────────────────
 
-  let translateItems = [];
-  let translateResults = [];
+  let translateItems = [];   // all items returned by /api/translate/items
+  let translateLangs = [];   // [{ code, name }, …] from Polylang
+  let translateResults = []; // translated items ready to save
   let translateRunning = false;
 
   function showTranslateView() {
@@ -3939,14 +3929,85 @@
     showTranslateView();
     setNavState('translate', 'running', 'Läuft…');
     document.getElementById('toolbar-label').textContent = 'Übersetzung';
+    // Load languages first so the dropdown is ready before items arrive.
+    await loadTranslateLangs();
     await loadTranslateItems();
     setNavState('translate', 'success', 'Bereit');
     resetNavState('translate');
   }
 
-  async function loadTranslateItems() {
+  // Fetch languages from Polylang and populate the dropdown dynamically.
+  async function loadTranslateLangs() {
+    try {
+      const resp = await fetch('/api/translate/langs');
+      if (!resp.ok) return;
+      translateLangs = await resp.json(); // [{ code, name, locale }]
+      if (!Array.isArray(translateLangs) || translateLangs.length === 0) return;
+
+      const sel = document.getElementById('translate-target-lang');
+      sel.innerHTML = translateLangs
+        .map((l) => `<option value="${escapeHtml(l.code)}">${escapeHtml(l.name)}</option>`)
+        .join('');
+    } catch {}
+  }
+
+  // Return the display name for a language code (from the loaded list).
+  function translateLangName(code) {
+    const found = translateLangs.find((l) => l.code === code);
+    return found ? found.name : code.toUpperCase();
+  }
+
+  // Render item rows, filtering out items already in the target language.
+  function renderTranslateItemList() {
     const scroll = document.getElementById('translate-scroll');
     const countLabel = document.getElementById('translate-count-label');
+    const footer = document.getElementById('translate-footer');
+    const targetLangCode = document.getElementById('translate-target-lang').value;
+
+    // Only show items NOT already in the target language.
+    const eligible = translateItems.filter((item) => item.lang !== targetLangCode);
+
+    if (eligible.length === 0) {
+      scroll.innerHTML = '<div class="translate-loading">Alle Seiten/Beiträge sind bereits in der Zielsprache vorhanden.</div>';
+      footer.style.display = 'none';
+      return;
+    }
+
+    scroll.innerHTML = '';
+    eligible.forEach((item) => {
+      const existingId = item.translations?.[targetLangCode] || 0;
+      const action = existingId > 0 ? 'aktualisieren' : 'neu anlegen';
+      const actionColor = existingId > 0 ? '#f59e0b' : '#16a34a';
+      const sourceLangBadge = item.lang ? `<span style="font-size:0.68rem;background:#e2e8f0;color:#475569;border-radius:4px;padding:0.05rem 0.3rem;flex-shrink:0">${item.lang.toUpperCase()}</span>` : '';
+
+      const row = document.createElement('div');
+      row.className = 'translate-item-row';
+      row.dataset.id = item.id;
+      row.dataset.type = item.type;
+      row.innerHTML = `
+        <input type="checkbox" checked data-id="${item.id}" data-type="${item.type}">
+        ${sourceLangBadge}
+        <span class="translate-item-label">${escapeHtml(item.title)}</span>
+        <span class="translate-item-type">${item.type === 'page' ? 'Seite' : 'Beitrag'}</span>
+        <span style="font-size:0.68rem;color:${actionColor};flex-shrink:0;white-space:nowrap">${action}</span>
+      `;
+      row.addEventListener('click', (e) => {
+        if (e.target.tagName !== 'INPUT') {
+          const cb = row.querySelector('input[type="checkbox"]');
+          cb.checked = !cb.checked;
+        }
+        updateTranslateSelectAll();
+      });
+      scroll.appendChild(row);
+    });
+
+    countLabel.textContent = `${eligible.length} von ${translateItems.length} angezeigt`;
+    footer.style.display = 'flex';
+    updateTranslateSelectAll();
+  }
+
+  async function loadTranslateItems() {
+    const scroll = document.getElementById('translate-scroll');
     const footer = document.getElementById('translate-footer');
     scroll.innerHTML = '<div class="translate-loading">Lade Seiten und Beiträge…</div>';
     footer.style.display = 'none';
@@ -3963,34 +4024,19 @@
         return;
       }
 
-      scroll.innerHTML = '';
-      translateItems.forEach((item) => {
-        const row = document.createElement('div');
-        row.className = 'translate-item-row';
-        row.dataset.id = item.id;
-        row.dataset.type = item.type;
-        row.innerHTML = `
-          <input type="checkbox" checked data-id="${item.id}" data-type="${item.type}">
-          <span class="translate-item-label">${escapeHtml(item.title)}</span>
-          <span class="translate-item-type">${item.type === 'page' ? 'Seite' : 'Beitrag'}</span>
-        `;
-        row.addEventListener('click', (e) => {
-          if (e.target.tagName !== 'INPUT') {
-            const cb = row.querySelector('input[type="checkbox"]');
-            cb.checked = !cb.checked;
-          }
-          updateTranslateSelectAll();
-        });
-        scroll.appendChild(row);
-      });
-
-      countLabel.textContent = `${translateItems.length} Seiten/Beiträge`;
-      footer.style.display = 'flex';
-      updateTranslateSelectAll();
+      renderTranslateItemList();
     } catch (err) {
       scroll.innerHTML = `<div class="translate-loading" style="color:#ef4444">Fehler: ${escapeHtml(err.message)}</div>`;
     }
   }
+
+  // Re-render item list when target language changes (filters eligible items).
+  document.getElementById('translate-target-lang').addEventListener('change', () => {
+    if (translateItems.length > 0 && !translateRunning) {
+      translateResults = [];
+      renderTranslateItemList();
+    }
+  });
 
   function updateTranslateSelectAll() {
     const checkboxes = document.querySelectorAll('#translate-scroll input[type="checkbox"]');
@@ -4017,7 +4063,8 @@
       .map((cb) => ({ id: cb.dataset.id, type: cb.dataset.type }));
     if (selected.length === 0) return;
 
-    const targetLang = document.getElementById('translate-target-lang').value;
+    const targetLangCode = document.getElementById('translate-target-lang').value;
+    const targetLangName = translateLangName(targetLangCode);
     translateRunning = true;
     translateResults = [];
 
@@ -4025,13 +4072,11 @@
     const statusEl = document.getElementById('translate-status');
     const startBtn = document.getElementById('translate-start-btn');
     const applyAllBtn = document.getElementById('translate-apply-all-btn');
-    const footer = document.getElementById('translate-footer');
 
     startBtn.disabled = true;
     applyAllBtn.style.display = 'none';
     scroll.innerHTML = '';
 
-    // Progress placeholder
     const progressRow = document.createElement('div');
     progressRow.className = 'translate-result-progress';
     progressRow.innerHTML = '<div class="translate-spinner"></div><span id="translate-progress-text">Wird gestartet…</span>';
@@ -4041,7 +4086,7 @@
       const resp = await fetch('/api/translate/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: selected, targetLang }),
+        body: JSON.stringify({ items: selected, targetLangCode, targetLangName }),
       });
 
       if (!resp.ok) {
@@ -4070,10 +4115,9 @@
             statusEl.textContent = evt.text;
           } else if (evt.type === 'result' && evt.data) {
             progressRow.remove();
-            const card = buildTranslateResultCard(evt.data);
+            const card = buildTranslateResultCard(evt.data, targetLangCode, targetLangName);
             scroll.appendChild(card);
-            translateResults.push(evt.data);
-            // Re-add progress row at bottom
+            translateResults.push({ ...evt.data, targetLangCode, targetLangName });
             scroll.appendChild(progressRow);
             scroll.scrollTop = scroll.scrollHeight;
           } else if (evt.type === 'err') {
@@ -4107,13 +4151,16 @@
     }
   }
 
-  function buildTranslateResultCard(data) {
+  function buildTranslateResultCard(data, targetLangCode, targetLangName) {
     const card = document.createElement('div');
     card.className = 'translate-result-card';
     card.dataset.id = data.id;
     card.dataset.type = data.type;
 
     const snippet = (s) => escapeHtml((s || '').substring(0, 180) + ((s || '').length > 180 ? '…' : ''));
+    const action = data.existingTranslationId > 0
+      ? `aktualisiert (ID ${data.existingTranslationId})`
+      : 'wird neu angelegt (Entwurf)';
 
     card.innerHTML = `
       <div class="translate-result-header">
@@ -4123,13 +4170,16 @@
             <span class="translate-result-arrow">→</span>
             <span class="translate-result-translated" title="${escapeHtml(data.translatedTitle)}">${escapeHtml(data.translatedTitle)}</span>
           </div>
-          <div style="font-size:0.7rem;color:#94a3b8;margin-top:0.15rem">${data.type === 'page' ? 'Seite' : 'Beitrag'} · ID ${data.id}</div>
+          <div style="font-size:0.7rem;color:#94a3b8;margin-top:0.15rem">
+            ${data.type === 'page' ? 'Seite' : 'Beitrag'} · ID ${data.id}
+            · ${escapeHtml(targetLangName)}: ${escapeHtml(action)}
+          </div>
         </div>
         <button class="translate-result-save-btn" onclick="saveSingleTranslation(this, ${data.id}, '${data.type}')">Speichern</button>
       </div>
       <div class="translate-result-diff">
         <div class="translate-result-snippet"><strong>Original</strong>${snippet(data.contentSnippet)}</div>
-        <div class="translate-result-snippet"><strong>Übersetzt</strong>${snippet(data.translatedContentSnippet)}</div>
+        <div class="translate-result-snippet"><strong>${escapeHtml(targetLangName)}</strong>${snippet(data.translatedContentSnippet)}</div>
       </div>
     `;
     return card;
@@ -4146,9 +4196,13 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          targetLangCode: result.targetLangCode,
           items: [{
             id: result.id,
             type: result.type,
+            sourceLang: result.sourceLang,
+            polylangTranslations: result.polylangTranslations,
+            existingTranslationId: result.existingTranslationId,
             translatedTitle: result.translatedTitle,
             translatedContent: result.translatedContent,
             translatedExcerpt: result.translatedExcerpt,
@@ -4158,7 +4212,6 @@
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-      // Consume the SSE stream (simple drain)
       const reader = resp.body.getReader();
       while (true) {
         const { done } = await reader.read();
@@ -4187,14 +4240,21 @@
     applyAllBtn.disabled = true;
     statusEl.textContent = `Speichere ${unsaved.length} Einträge…`;
 
+    // All unsaved results share the same targetLangCode.
+    const targetLangCode = unsaved[0]?.targetLangCode;
+
     try {
       const resp = await fetch('/api/translate/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          targetLangCode,
           items: unsaved.map((r) => ({
             id: r.id,
             type: r.type,
+            sourceLang: r.sourceLang,
+            polylangTranslations: r.polylangTranslations,
+            existingTranslationId: r.existingTranslationId,
             translatedTitle: r.translatedTitle,
             translatedContent: r.translatedContent,
             translatedExcerpt: r.translatedExcerpt,
@@ -4225,8 +4285,8 @@
               const card = document.querySelector(`.translate-result-card[data-id="${match[1]}"][data-type="${match[2]}"]`);
               if (card) {
                 card.classList.add('saved');
-                const btn = card.querySelector('.translate-result-save-btn');
-                if (btn) { btn.textContent = '✔ Gespeichert'; btn.className = 'translate-result-save-btn saved'; btn.disabled = true; }
+                const saveBtn = card.querySelector('.translate-result-save-btn');
+                if (saveBtn) { saveBtn.textContent = '✔ Gespeichert'; saveBtn.className = 'translate-result-save-btn saved'; saveBtn.disabled = true; }
               }
               savedCount++;
             }

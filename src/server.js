@@ -9,9 +9,9 @@ import { dirname, join } from 'path';
 import { exec } from 'child_process';
 import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI, auditFilenamesWithAI, applyFilenameRenames, detectOversizedImages, compressOversizedImages, repairPostReferences, uploadFromPC, updateMediaReferences, updateFeaturedImageReferences } from './modules/media-optimizer.js';
 import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals, applyBrandFix } from './modules/seo-optimizer.js';
-import { updatePost, updatePage, getMediaItem } from './utils/wp-api.js';
+import { updatePost, updatePage, getMediaItem, getPolylangLanguages } from './utils/wp-api.js';
 import { getPostsWithImages, getMediaLibrary, replaceImage } from './modules/seasonal-replacer.js';
-import { listTranslatableItems, translateItem, applyTranslation, TRANSLATE_LANGS } from './modules/content-translator.js';
+import { listTranslatableItems, translateItem, applyTranslation } from './modules/content-translator.js';
 import axios from 'axios';
 import https from 'https';
 
@@ -604,10 +604,17 @@ app.post('/api/upload-from-pc', express.raw({ type: '*/*', limit: '50mb' }), (re
 
 // ── Content Translation ────────────────────────────────────────
 
-app.get('/api/translate/langs', (req, res) => {
-  res.json(TRANSLATE_LANGS);
+// Returns languages configured in Polylang (dynamic, no hardcoded list).
+app.get('/api/translate/langs', async (req, res) => {
+  try {
+    const langs = await getPolylangLanguages();
+    res.json(langs); // [{ code, name, locale }, …]
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
+// Returns all published posts/pages with Polylang metadata (lang, translations).
 app.get('/api/translate/items', async (req, res) => {
   try {
     const items = await listTranslatableItems();
@@ -617,10 +624,12 @@ app.get('/api/translate/items', async (req, res) => {
   }
 });
 
+// SSE stream: translate selected items to targetLang.
+// Each item result includes Polylang metadata needed for the apply step.
 app.post('/api/translate/preview', express.json(), (req, res) => {
-  const { items, targetLang } = req.body || {};
-  if (!Array.isArray(items) || items.length === 0 || !targetLang) {
-    return res.status(400).json({ error: 'items array and targetLang required' });
+  const { items, targetLangCode, targetLangName } = req.body || {};
+  if (!Array.isArray(items) || items.length === 0 || !targetLangCode || !targetLangName) {
+    return res.status(400).json({ error: 'items, targetLangCode and targetLangName required' });
   }
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(503).json({ error: 'ANTHROPIC_API_KEY not set' });
@@ -638,7 +647,7 @@ app.post('/api/translate/preview', express.json(), (req, res) => {
       const { id, type } = items[i];
       send('progress', `Übersetze ${i + 1}/${items.length}…`);
       try {
-        const result = await translateItem(parseInt(id, 10), type, targetLang);
+        const result = await translateItem(parseInt(id, 10), type, targetLangCode, targetLangName);
         send('result', `✔ ${result.title}`, result);
       } catch (err) {
         send('err', `Fehler bei ID ${id}: ${err.message}`);
@@ -651,10 +660,12 @@ app.post('/api/translate/preview', express.json(), (req, res) => {
   req.on('close', () => res.end());
 });
 
+// SSE stream: save translated items to WordPress via Polylang-aware logic.
+// Creates a new linked draft when no translation exists; updates existing otherwise.
 app.post('/api/translate/apply', express.json(), (req, res) => {
-  const { items } = req.body || {};
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'items array required' });
+  const { items, targetLangCode } = req.body || {};
+  if (!Array.isArray(items) || items.length === 0 || !targetLangCode) {
+    return res.status(400).json({ error: 'items and targetLangCode required' });
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -665,10 +676,12 @@ app.post('/api/translate/apply', express.json(), (req, res) => {
 
   (async () => {
     let ok = 0;
-    for (const { id, type, translatedTitle, translatedContent, translatedExcerpt } of items) {
+    for (const item of items) {
+      const { id, type } = item;
       try {
-        await applyTranslation(parseInt(id, 10), type, translatedTitle, translatedContent, translatedExcerpt);
-        send('out', `✔ ID ${id} (${type}) gespeichert`);
+        const saved = await applyTranslation({ ...item, id: parseInt(id, 10), targetLangCode });
+        const action = item.existingTranslationId > 0 ? 'aktualisiert' : `neu angelegt (ID ${saved.id})`;
+        send('out', `✔ ID ${id} (${type}) ${action}`);
         ok++;
       } catch (err) {
         send('err', `✖ ID ${id}: ${err.message}`);
