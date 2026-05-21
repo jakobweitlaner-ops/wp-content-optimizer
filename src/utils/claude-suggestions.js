@@ -22,7 +22,13 @@ export function detectLanguage(text) {
   return 'en';
 }
 
-const LANG_NAMES = { de: 'German', fr: 'French', es: 'Spanish', it: 'Italian', en: 'English' };
+const LANG_NAMES = {
+  de: 'German', en: 'English', gb: 'English', fr: 'French', es: 'Spanish',
+  it: 'Italian', nl: 'Dutch', pl: 'Polish', pt: 'Portuguese', ru: 'Russian',
+  tr: 'Turkish', sv: 'Swedish', da: 'Danish', nb: 'Norwegian', fi: 'Finnish',
+  cs: 'Czech', sk: 'Slovak', hu: 'Hungarian', ro: 'Romanian', ja: 'Japanese',
+  zh: 'Chinese', ko: 'Korean', ar: 'Arabic',
+};
 
 function langName(code) {
   return LANG_NAMES[code] || 'English';
@@ -30,9 +36,9 @@ function langName(code) {
 
 // Resolve language for a post.
 // Prefers Polylang's post.lang (available with context:'edit'); falls back to heuristic.
-// og_locale from Yoast is the WordPress site locale (always de_DE for this site) — not usable.
+// Polylang language codes can be anything the user configured (e.g. "gb" for English).
 function resolvePostLang(post) {
-  if (post.lang && LANG_NAMES[post.lang]) return langName(post.lang);
+  if (post.lang) return langName(post.lang);
   const title = post.title?.rendered || '';
   const content = (post.content?.rendered || '').replace(/<[^>]+>/g, ' ');
   return langName(detectLanguage(title + ' ' + content));
