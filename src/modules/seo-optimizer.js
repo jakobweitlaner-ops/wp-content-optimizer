@@ -192,13 +192,17 @@ export async function auditSeoItems() {
     const currentIntro = firstParaMatch2 ? firstParaMatch2[1].replace(/<[^>]+>/g, '').trim().substring(0, 150) : '';
     const headingFormat = detectHeadingFormat(renderedContent);
     const plainText = stripHtml(renderedContent);
-    const detectedLang = detectLanguage((post.title?.rendered || '') + ' ' + plainText);
-    // Fall back to WordPress/Yoast locale when text is too short to detect reliably
+    // Prefer Polylang's authoritative lang field; fall back to heuristic detection.
     const ogLocale = (yoast.og_locale || '').toLowerCase().substring(0, 2);
-    const KNOWN_LANGS = new Set(['de', 'fr', 'es', 'it', 'en']);
-    const lang = (detectedLang !== 'en' || !ogLocale)
-      ? detectedLang
-      : (KNOWN_LANGS.has(ogLocale) ? ogLocale : 'en');
+    const KNOWN_LANGS = new Set(['de', 'fr', 'es', 'it', 'en', 'nl', 'pl', 'pt', 'ru', 'tr', 'sv', 'da', 'nb', 'fi', 'cs', 'sk', 'hu', 'ro']);
+    const lang = post.lang && KNOWN_LANGS.has(post.lang)
+      ? post.lang
+      : (() => {
+          const detected = detectLanguage((post.title?.rendered || '') + ' ' + plainText);
+          return (detected !== 'en' || !ogLocale)
+            ? detected
+            : (KNOWN_LANGS.has(ogLocale) ? ogLocale : 'en');
+        })();
     return {
       id: post.id,
       type: post._type,
@@ -348,7 +352,7 @@ export async function getSeoImageProposals(id, type, keyphrase) {
 
   if (mediaItems.length === 0) return [];
 
-  const suggestions = await generateImageAltWithKeyphrase(mediaItems, title, keyphrase);
+  const suggestions = await generateImageAltWithKeyphrase(mediaItems, title, keyphrase, post.lang || null);
 
   return mediaItems.map(item => {
     const suggestion = suggestions.find(s => s.id === item.id);
