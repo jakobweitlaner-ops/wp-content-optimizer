@@ -309,7 +309,7 @@ export async function applyTranslation({
     const updated = type === 'page'
       ? await updatePage(existingTranslationId, payload)
       : await updatePost(existingTranslationId, payload);
-    await copyMenuPositions(id, existingTranslationId, type, targetLangCode, translatedTitle);
+    await copyMenuPositions(id, existingTranslationId, type, targetLangCode, translatedTitle, sourceLang);
     return updated;
   }
 
@@ -340,14 +340,15 @@ export async function applyTranslation({
   };
 
   const saved = type === 'page' ? await createPage(newPayload) : await createPost(newPayload);
-  await copyMenuPositions(id, saved.id, type, targetLangCode, translatedTitle);
+  await copyMenuPositions(id, saved.id, type, targetLangCode, translatedTitle, sourceLang);
   return saved;
 }
 
 // Copy nav menu positions from the source post/page to the newly created translation.
 // Polylang creates separate menus per language named like "Primary Menu DE" / "Primary Menu IT".
-// We find the target menu by replacing the source language code with the target code in the slug.
-async function copyMenuPositions(sourceId, translatedId, objectType, targetLangCode, translatedTitle) {
+// Only processes menus whose slug/name matches sourceLang so that EN/IT/other-language
+// menus containing the source page are ignored.
+async function copyMenuPositions(sourceId, translatedId, objectType, targetLangCode, translatedTitle, sourceLang) {
   try {
     const [sourceItems, allMenus] = await Promise.all([
       getMenuItemsByObjectId(sourceId),
@@ -370,6 +371,20 @@ async function copyMenuPositions(sourceId, translatedId, objectType, targetLangC
 
       const sourceMenu = menuMap[sourceMenuId];
       if (!sourceMenu) continue;
+
+      // Only process menus that belong to the source language.
+      // This prevents EN menus, or menus from a previous wrong assignment in a target-language
+      // menu, from being mapped to additional target menus.
+      if (sourceLang) {
+        const lc = sourceLang.toLowerCase();
+        const menuSlug = (sourceMenu.slug || '').toLowerCase();
+        const menuName = (sourceMenu.name || '').toLowerCase();
+        const isSourceLangMenu = menuSlug.endsWith(`-${lc}`) || menuName.endsWith(` ${lc}`) || menuName.endsWith(`-${lc}`);
+        if (!isSourceLangMenu) {
+          console.log(`[menu] skipping menu "${sourceMenu.slug}" — not a ${lc} menu`);
+          continue;
+        }
+      }
 
       const targetMenu = resolveTargetMenu(sourceMenu, targetLangCode, allMenus, LANG_CODES);
       if (!targetMenu) {
