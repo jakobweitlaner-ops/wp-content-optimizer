@@ -177,7 +177,12 @@ export function scoreSeo(post) {
 }
 
 export async function auditSeoItems() {
-  const [posts, pages] = await Promise.all([getPosts(), getPages()]);
+  // context: 'view' is needed here so Yoast's yoast_head_json (og_locale, og_title, …)
+  // and Polylang's lang field are included — both are suppressed by context: 'edit'.
+  const [posts, pages] = await Promise.all([
+    getPosts({ context: 'view' }),
+    getPages({ context: 'view' }),
+  ]);
   const content = [
     ...posts.map((p) => ({ ...p, _type: 'post' })),
     ...pages.map((p) => ({ ...p, _type: 'page' })),
@@ -202,6 +207,9 @@ export async function auditSeoItems() {
       : (ogLocale && KNOWN_LANGS.has(ogLocale))
         ? ogLocale
         : detectLanguage((post.title?.rendered || '') + ' ' + plainText);
+    if (process.env.DEBUG_LANG) {
+      console.log(`[lang] "${post.title?.rendered}" → post.lang=${post.lang} og_locale=${yoast.og_locale} → ${lang}`);
+    }
     return {
       id: post.id,
       type: post._type,
@@ -267,7 +275,7 @@ export async function auditSeo({ minScore = 80, aiSuggestions = false, output } 
   }
 
   log.info('Fetching posts and pages...');
-  const [posts, pages] = await Promise.all([getPosts(), getPages()]);
+  const [posts, pages] = await Promise.all([getPosts({ context: 'view' }), getPages({ context: 'view' })]);
   const content = [
     ...posts.map((p) => ({ ...p, _type: 'post' })),
     ...pages.map((p) => ({ ...p, _type: 'page' })),
@@ -371,7 +379,7 @@ export async function previewSeoFixes({ minScore = 80, onProgress, onError } = {
     throw new Error('ANTHROPIC_API_KEY not set');
   }
 
-  const [posts, pages] = await Promise.all([getPosts(), getPages()]);
+  const [posts, pages] = await Promise.all([getPosts({ context: 'view' }), getPages({ context: 'view' })]);
   const content = [
     ...posts.map((p) => ({ ...p, _type: 'post' })),
     ...pages.map((p) => ({ ...p, _type: 'page' })),
