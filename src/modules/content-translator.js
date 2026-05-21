@@ -329,7 +329,7 @@ export async function applyTranslation({
   const newPayload = {
     ...payload,
     ...(slug ? { slug } : {}),
-    status: 'draft',
+    status: 'publish',
     lang: targetLangCode,
     // Include all known sibling IDs so Polylang connects the full translation set.
     translations: {
@@ -340,8 +340,7 @@ export async function applyTranslation({
   };
 
   const saved = type === 'page' ? await createPage(newPayload) : await createPost(newPayload);
-  // Skip menu item creation for new drafts — WordPress shows menu items to drafts as
-  // "(ungültig)". Menu positions are copied when the translation is updated (already published).
+  await copyMenuPositions(id, saved.id, type, targetLangCode, translatedTitle);
   return saved;
 }
 
