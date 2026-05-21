@@ -1904,7 +1904,13 @@
       <div class="translate-toolbar">
         <span class="translate-heading">🌐 Übersetzung</span>
         <label style="font-size:0.78rem;color:#475569;display:flex;align-items:center;gap:0.4rem">
-          Zielsprache:
+          Von:
+          <select id="translate-source-lang" class="translate-lang-select">
+            <option value="">Wird geladen…</option>
+          </select>
+        </label>
+        <label style="font-size:0.78rem;color:#475569;display:flex;align-items:center;gap:0.4rem">
+          Nach:
           <select id="translate-target-lang" class="translate-lang-select">
             <option value="">Wird geladen…</option>
           </select>
@@ -3936,7 +3942,7 @@
     resetNavState('translate');
   }
 
-  // Fetch languages from Polylang and populate the dropdown dynamically.
+  // Fetch languages from Polylang and populate both dropdowns dynamically.
   async function loadTranslateLangs() {
     try {
       const resp = await fetch('/api/translate/langs');
@@ -3944,10 +3950,17 @@
       translateLangs = await resp.json(); // [{ code, name, locale }]
       if (!Array.isArray(translateLangs) || translateLangs.length === 0) return;
 
-      const sel = document.getElementById('translate-target-lang');
-      sel.innerHTML = translateLangs
+      const options = translateLangs
         .map((l) => `<option value="${escapeHtml(l.code)}">${escapeHtml(l.name)}</option>`)
         .join('');
+
+      document.getElementById('translate-source-lang').innerHTML = options;
+      document.getElementById('translate-target-lang').innerHTML = options;
+
+      // Default: first lang as source, second lang as target (avoid same→same)
+      if (translateLangs.length >= 2) {
+        document.getElementById('translate-target-lang').value = translateLangs[1].code;
+      }
     } catch {}
   }
 
@@ -3957,36 +3970,38 @@
     return found ? found.name : code.toUpperCase();
   }
 
-  // Render item rows, filtering out items already in the target language.
+  // Render item rows, filtered by source language and excluding items already in target language.
   function renderTranslateItemList() {
     const scroll = document.getElementById('translate-scroll');
     const countLabel = document.getElementById('translate-count-label');
     const footer = document.getElementById('translate-footer');
+    const sourceLangCode = document.getElementById('translate-source-lang').value;
     const targetLangCode = document.getElementById('translate-target-lang').value;
 
-    // Only show items NOT already in the target language (those ARE the source pages).
-    const eligible = translateItems.filter((item) => item.lang !== targetLangCode);
+    // Show only items in the selected source language that are not the target language.
+    const eligible = translateItems.filter((item) =>
+      item.lang === sourceLangCode && item.lang !== targetLangCode,
+    );
 
     if (eligible.length === 0) {
-      scroll.innerHTML = '<div class="translate-loading">Alle Seiten/Beiträge sind bereits in der Zielsprache vorhanden.</div>';
+      scroll.innerHTML = '<div class="translate-loading">Keine Seiten/Beiträge in der gewählten Ausgangssprache gefunden.</div>';
       footer.style.display = 'none';
+      countLabel.textContent = '';
       return;
     }
 
     // Hint bar at the top
     scroll.innerHTML = `<div style="font-size:0.74rem;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:0.5rem 0.75rem;margin-bottom:0.25rem">
-      Das Original wird <strong>niemals verändert</strong>. Neue Übersetzungen werden als Entwurf angelegt.
-      Seiten mit bestehender Übersetzung sind abgehakt — nur gezielt anhaken um sie neu zu übersetzen.
+      Das Original wird <strong>niemals verändert</strong>. Bitte gewünschte Einträge auswählen und übersetzen.
     </div>`;
 
     let newCount = 0, existingCount = 0;
     eligible.forEach((item) => {
       const existingId = item.translations?.[targetLangCode] || 0;
-      // Items without a translation are checked by default; existing translations are unchecked.
       const isNew = existingId === 0;
       if (isNew) newCount++; else existingCount++;
 
-      const actionLabel = isNew ? 'neu anlegen' : 'Entwurf aktualisieren';
+      const actionLabel = isNew ? 'neu anlegen' : 'aktualisieren';
       const actionColor = isNew ? '#16a34a' : '#94a3b8';
       const rowOpacity  = isNew ? '' : 'opacity:0.6';
       const sourceLangBadge = item.lang
@@ -3999,7 +4014,7 @@
       row.dataset.type = item.type;
       row.style.cssText = rowOpacity;
       row.innerHTML = `
-        <input type="checkbox" ${isNew ? 'checked' : ''} data-id="${item.id}" data-type="${item.type}">
+        <input type="checkbox" data-id="${item.id}" data-type="${item.type}">
         ${sourceLangBadge}
         <span class="translate-item-label">${escapeHtml(item.title)}</span>
         <span class="translate-item-type">${item.type === 'page' ? 'Seite' : 'Beitrag'}</span>
@@ -4053,13 +4068,15 @@
     }
   }
 
-  // Re-render item list when target language changes (filters eligible items).
-  document.getElementById('translate-target-lang').addEventListener('change', () => {
+  // Re-render when source or target language changes.
+  function onTranslateLangChange() {
     if (translateItems.length > 0 && !translateRunning) {
       translateResults = [];
       renderTranslateItemList();
     }
-  });
+  }
+  document.getElementById('translate-source-lang').addEventListener('change', onTranslateLangChange);
+  document.getElementById('translate-target-lang').addEventListener('change', onTranslateLangChange);
 
   function updateTranslateSelectAll() {
     const checkboxes = document.querySelectorAll('#translate-scroll input[type="checkbox"]');
