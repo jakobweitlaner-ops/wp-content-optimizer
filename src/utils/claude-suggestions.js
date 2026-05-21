@@ -39,6 +39,8 @@ function langName(code) {
 // Polylang language codes can be anything the user configured (e.g. "gb" for English).
 function resolvePostLang(post) {
   if (post.lang) return langName(post.lang);
+  const urlLang = (post.link || '').match(/\/([a-z]{2})\//)?.[1] || null;
+  if (urlLang) return langName(urlLang);
   const title = post.title?.rendered || '';
   const content = (post.content?.rendered || '').replace(/<[^>]+>/g, ' ');
   return langName(detectLanguage(title + ' ' + content));

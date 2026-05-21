@@ -194,9 +194,10 @@ export async function auditSeoItems() {
     const currentIntro = firstParaMatch2 ? firstParaMatch2[1].replace(/<[^>]+>/g, '').trim().substring(0, 150) : '';
     const headingFormat = detectHeadingFormat(renderedContent);
     const plainText = stripHtml(renderedContent);
-    // Use post.lang from Polylang directly — the code can be anything the user configured
-    // (e.g. "gb" for English). Only fall back to heuristic detection when Polylang has no value.
-    const lang = post.lang || detectLanguage((post.title?.rendered || '') + ' ' + plainText);
+    // Priority: post.lang (Polylang) → URL segment (e.g. /it/ in permalink) → heuristic.
+    // URL detection is reliable because Polylang always adds the language code to permalinks.
+    const urlLang = (post.link || '').match(/\/([a-z]{2})\//)?.[1] || null;
+    const lang = post.lang || urlLang || detectLanguage((post.title?.rendered || '') + ' ' + plainText);
     return {
       id: post.id,
       type: post._type,
