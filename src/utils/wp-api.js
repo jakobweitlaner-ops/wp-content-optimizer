@@ -309,7 +309,9 @@ export async function getMenuItemsByObjectId(objectId) {
       () => client.get('/menu-items', { params: { object_id: objectId, per_page: 100 } }),
       3, 1000,
     );
-    return Array.isArray(data) ? data : [];
+    // WP REST API does not reliably filter by object_id server-side — filter client-side.
+    const items = Array.isArray(data) ? data : [];
+    return items.filter((item) => Number(item.object_id) === Number(objectId));
   } catch {
     return [];
   }
