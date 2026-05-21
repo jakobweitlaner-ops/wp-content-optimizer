@@ -29,11 +29,10 @@ function langName(code) {
 }
 
 // Resolve language for a post.
-// Priority: Polylang post.lang → Yoast og_locale → heuristic detectLanguage.
+// Prefers Polylang's post.lang (available with context:'edit'); falls back to heuristic.
+// og_locale from Yoast is the WordPress site locale (always de_DE for this site) — not usable.
 function resolvePostLang(post) {
   if (post.lang && LANG_NAMES[post.lang]) return langName(post.lang);
-  const ogLocale = (post.yoast_head_json?.og_locale || '').toLowerCase().substring(0, 2);
-  if (ogLocale && LANG_NAMES[ogLocale]) return langName(ogLocale);
   const title = post.title?.rendered || '';
   const content = (post.content?.rendered || '').replace(/<[^>]+>/g, ' ');
   return langName(detectLanguage(title + ' ' + content));
