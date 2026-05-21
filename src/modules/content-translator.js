@@ -377,7 +377,9 @@ async function copyMenuPositions(sourceId, translatedId, objectType, targetLangC
       console.log(`[menu] source menu: ${sourceMenu.slug} (${sourceMenuId}) → target menu: ${targetMenu?.slug} (${targetMenuId})`);
 
       const existing = await getMenuItems(targetMenuId);
-      if (existing.some((mi) => mi.object_id === translatedId)) {
+
+      // Type-safe duplicate check: REST API returns object_id as string, translatedId is a number.
+      if (existing.some((mi) => Number(mi.object_id) === Number(translatedId))) {
         console.log(`[menu] translated page ${translatedId} already in menu ${targetMenuId}, skipping`);
         continue;
       }
