@@ -24,12 +24,9 @@ jobs:
 
       - name: Upload to mu-plugins via FTP
         env:
-          FTP_HOST:     ${{ secrets.FTP_HOST }}
-          FTP_USER:     ${{ secrets.FTP_USERNAME }}
-          FTP_PASS:     ${{ secrets.FTP_PASSWORD }}
-          # Path on the FTP server relative to the login root,
-          # e.g.  html/wp-content/mu-plugins
-          FTP_PATH:     ${{ secrets.FTP_MU_PLUGINS_PATH }}
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USERNAME }}
+          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
         run: |
           lftp -c "
             set ftp:ssl-allow true
@@ -37,10 +34,10 @@ jobs:
             set ssl:verify-certificate false
             open ftp://$FTP_HOST
             user $FTP_USER $FTP_PASS
-            mkdir -p $FTP_PATH
-            put -O $FTP_PATH wp-optimizer-yoast-rest.php
+            mkdir -p html/wp-content/mu-plugins
+            put -O html/wp-content/mu-plugins wp-optimizer-yoast-rest.php
             bye
           "
 
       - name: Confirm deployment
-        run: echo "wp-optimizer-yoast-rest.php deployed to ${{ secrets.FTP_HOST }}/${{ secrets.FTP_MU_PLUGINS_PATH }}"
+        run: echo "wp-optimizer-yoast-rest.php deployed to ${{ secrets.FTP_HOST }}/html/wp-content/mu-plugins"
