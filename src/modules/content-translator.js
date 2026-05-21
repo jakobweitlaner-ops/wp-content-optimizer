@@ -302,6 +302,7 @@ export async function applyTranslation({
   Object.assign(metaToWrite, translatedYoastMeta || {});
 
   if (Object.keys(metaToWrite).length > 0) payload.meta = metaToWrite;
+  console.log(`[apply] meta to write for ID ${existingTranslationId || '(new)'}:`, JSON.stringify(metaToWrite));
 
   if (existingTranslationId > 0) {
     // Translation already exists in Polylang — update content and copy menu positions.
