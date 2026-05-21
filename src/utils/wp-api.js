@@ -333,6 +333,12 @@ export async function createMenuItem(data) {
   return response.data;
 }
 
+// Update an existing nav menu item (e.g. to set menu_order after creation).
+export async function updateMenuItem(id, data) {
+  const response = await withRetry(() => client.post(`/menu-items/${id}`, data), 3, 1000);
+  return response.data;
+}
+
 // Return all menu items that belong to a specific menu.
 export async function getMenuItems(menuId) {
   try {
