@@ -28,9 +28,12 @@ function langName(code) {
   return LANG_NAMES[code] || 'English';
 }
 
-// Resolve language for a post: prefer Polylang's post.lang field, fall back to heuristic detection.
+// Resolve language for a post.
+// Priority: Polylang post.lang → Yoast og_locale → heuristic detectLanguage.
 function resolvePostLang(post) {
   if (post.lang && LANG_NAMES[post.lang]) return langName(post.lang);
+  const ogLocale = (post.yoast_head_json?.og_locale || '').toLowerCase().substring(0, 2);
+  if (ogLocale && LANG_NAMES[ogLocale]) return langName(ogLocale);
   const title = post.title?.rendered || '';
   const content = (post.content?.rendered || '').replace(/<[^>]+>/g, ' ');
   return langName(detectLanguage(title + ' ' + content));
