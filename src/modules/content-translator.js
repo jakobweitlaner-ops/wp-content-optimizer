@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import {
   getPosts, getPages, getPost, getPage,
   updatePost, updatePage, createPost, createPage,
-  getMenuItemsByObjectId, getMenus, getMenuItems, createMenuItem,
+  getMenuItemsByObjectId, getMenus, getMenuItems, createMenuItem, updateMenuItem,
 } from '../utils/wp-api.js';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -403,6 +403,8 @@ async function copyMenuPositions(sourceId, translatedId, objectType, targetLangC
         continue;
       }
 
+      const menuOrder = item.menu_order ?? 0;
+      console.log(`[menu] source item menu_order: ${menuOrder}`);
       const created = await createMenuItem({
         menus:      targetMenuId,   // integer — WP REST API expects a single term ID
         object_id:  translatedId,
@@ -410,10 +412,14 @@ async function copyMenuPositions(sourceId, translatedId, objectType, targetLangC
         type:       'post_type',
         status:     'publish',
         parent:     item.parent ?? 0,
-        menu_order: item.menu_order ?? 0,
+        menu_order: menuOrder,
         title:      translatedTitle || item.title?.rendered || '',
       });
-      console.log(`[menu] created menu item ${created.id} in menu ${targetMenuId} for page ${translatedId}`);
+      // WordPress sometimes ignores menu_order on creation — update explicitly to ensure position.
+      if (created.menu_order !== menuOrder) {
+        await updateMenuItem(created.id, { menu_order: menuOrder });
+      }
+      console.log(`[menu] created menu item ${created.id} in menu ${targetMenuId} for page ${translatedId} at position ${menuOrder}`);
     }
   } catch (err) {
     console.warn('[translate] Menüzuordnung fehlgeschlagen:', err.message, err.response?.data);
