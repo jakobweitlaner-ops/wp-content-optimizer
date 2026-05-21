@@ -238,8 +238,21 @@ export async function applyTranslation({
   }
 
   // No linked translation yet — create a new draft and tell Polylang to link it.
+  // Derive slug from translated title so the URL matches the target language.
+  const slug = translatedTitle
+    ? translatedTitle
+        .toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .substring(0, 80)
+    : undefined;
+
   const newPayload = {
     ...payload,
+    ...(slug ? { slug } : {}),
     status: 'draft',
     lang: targetLangCode,
     // Include all known sibling IDs so Polylang connects the full translation set.
