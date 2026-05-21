@@ -300,13 +300,32 @@ export async function applyTranslation({
     '_yoast_wpseo_twitter-image', '_yoast_wpseo_twitter-image-id',
   ]);
 
-  // Non-Yoast display keys that are safe to copy (registered by themes via register_post_meta).
-  const DISPLAY_KEYS = ['_hide_title', 'hide_title', '_wp_page_template'];
+  // Non-Yoast display/layout keys that are safe to copy from source to translation.
+  // Includes common "hide page title" meta keys used by popular themes.
+  const DISPLAY_KEYS = [
+    '_hide_title', 'hide_title',           // generic
+    '_wp_page_template',                    // page template
+    'ast-hide-page-header',                 // Astra: hide page title
+    '_astra_page_specific_meta',            // Astra: serialised page settings
+    'site-sidebar-layout', 'site-content-layout', // Astra layout
+    '_generate-hide-title',                 // GeneratePress
+    'ocean_hide_page_header',               // OceanWP
+    'theme_page_hide_title',               // generic fallback
+  ];
 
   const metaToWrite = {};
-  // Copy safe display keys from source
+  // Copy explicit display/layout keys from source
   for (const key of DISPLAY_KEYS) {
     if (sourceMeta?.[key] !== undefined) metaToWrite[key] = sourceMeta[key];
+  }
+  // Also copy any key whose name suggests title/header visibility (catches unknown theme keys).
+  for (const [key, val] of Object.entries(sourceMeta || {})) {
+    if (!YOAST_ALL_KEYS.has(key) && !DISPLAY_KEYS.includes(key)) {
+      const k = key.toLowerCase();
+      if (k.includes('hide') || k.includes('header') || k.includes('title-display') || k.includes('page-header')) {
+        metaToWrite[key] = val;
+      }
+    }
   }
   // Copy non-translatable Yoast fields (robots, canonical, images) from source
   for (const [key, val] of Object.entries(sourceMeta || {})) {

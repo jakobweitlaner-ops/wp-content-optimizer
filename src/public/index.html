@@ -4202,7 +4202,7 @@
     const snippet = (s) => escapeHtml((s || '').substring(0, 180) + ((s || '').length > 180 ? '…' : ''));
     const action = data.existingTranslationId > 0
       ? `aktualisiert (ID ${data.existingTranslationId})`
-      : 'wird neu angelegt (Entwurf)';
+      : 'wird neu angelegt (veröffentlicht)';
 
     card.innerHTML = `
       <div class="translate-result-header">
