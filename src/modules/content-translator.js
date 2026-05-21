@@ -420,9 +420,9 @@ function resolveTargetMenu(sourceMenu, targetLangCode, allMenus, langCodes) {
     slug.endsWith(`-${lc}`) || name.endsWith(` ${lc}`) || name.endsWith(`-${lc}`),
   );
 
-  // No lang code found in slug/name — can't reliably map to a target menu.
-  // Return null so the caller skips menu item creation rather than guessing.
-  if (!sourceLang) return null;
+  // No lang code found, or source menu is already in the target language
+  // (e.g. footer-menue-it when translating to IT → maps to itself). Skip in both cases.
+  if (!sourceLang || sourceLang === tc) return null;
 
   // 2. Slug swap: "primary-menu-de" → "primary-menu-it"
   const targetSlug = slug.endsWith(`-${sourceLang}`)
