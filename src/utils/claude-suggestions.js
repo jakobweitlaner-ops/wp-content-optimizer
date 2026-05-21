@@ -28,12 +28,20 @@ function langName(code) {
   return LANG_NAMES[code] || 'English';
 }
 
+// Resolve language for a post: prefer Polylang's post.lang field, fall back to heuristic detection.
+function resolvePostLang(post) {
+  if (post.lang && LANG_NAMES[post.lang]) return langName(post.lang);
+  const title = post.title?.rendered || '';
+  const content = (post.content?.rendered || '').replace(/<[^>]+>/g, ' ');
+  return langName(detectLanguage(title + ' ' + content));
+}
+
 export async function generateSeoFixes(post, issues, keyphrase = '') {
   const title = post.title?.rendered || '(no title)';
   const excerpt = post.excerpt?.rendered?.replace(/<[^>]+>/g, '').trim() || '';
   const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
   const contentSnippet = content.substring(0, 400);
-  const lang = langName(detectLanguage(title + ' ' + content));
+  const lang = resolvePostLang(post);
   const keyphraseHint = keyphrase ? `\nFocus keyphrase: "${keyphrase}" — weave it naturally into the text; do NOT place it at the very beginning.` : '';
 
   const needsTitle = issues.some((i) => /title/i.test(i));
@@ -111,7 +119,7 @@ Respond with ONLY this JSON (no explanation, no markdown):
 export async function generateKeyphrase(post) {
   const title = post.title?.rendered || '(no title)';
   const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
-  const lang = langName(detectLanguage(title + ' ' + content));
+  const lang = resolvePostLang(post);
 
   const prompt = `You are an SEO expert. Generate a focus keyphrase for this WordPress post.
 
@@ -144,8 +152,8 @@ Respond with ONLY this JSON (no explanation, no markdown):
   }
 }
 
-export async function generateImageAltWithKeyphrase(images, postTitle, keyphrase) {
-  const lang = langName(detectLanguage(postTitle + ' ' + keyphrase));
+export async function generateImageAltWithKeyphrase(images, postTitle, keyphrase, postLang = null) {
+  const lang = (postLang && LANG_NAMES[postLang]) ? langName(postLang) : langName(detectLanguage(postTitle + ' ' + keyphrase));
 
   const prompt = `You are an SEO expert. Improve the alt texts for images in a WordPress post so they naturally include words from the focus keyphrase.
 
@@ -186,7 +194,7 @@ export async function generateIntroFix(post, keyphrase) {
   const title = post.title?.rendered || '(no title)';
   const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
   const currentIntro = post.currentIntro || '';
-  const lang = langName(detectLanguage(title + ' ' + content));
+  const lang = resolvePostLang(post);
 
   // Send remaining body so the AI knows what's already covered and avoids repetition
   const bodySnippet = currentIntro
@@ -236,7 +244,7 @@ export async function generateH1Fix(post, keyphrase = '') {
   const title = post.title?.rendered || '(no title)';
   const content = post.content?.rendered?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '';
   const currentH1 = post.currentH1 || '';
-  const lang = langName(detectLanguage(title + ' ' + content));
+  const lang = resolvePostLang(post);
   const keyphraseHint = keyphrase ? `\nFocus keyphrase: "${keyphrase}" — include it naturally in the heading.` : '';
 
   const prompt = `You are an SEO expert. Create an optimized H1 heading for this WordPress page.
@@ -276,7 +284,7 @@ export async function generateContentExtension(post, keyphrase = '') {
   const rendered = post.content?.rendered || '';
   const content = rendered.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   const wordCount = post._wordCount || 0;
-  const lang = langName(detectLanguage(title + ' ' + content));
+  const lang = resolvePostLang(post);
 
   // Extract standalone paragraph texts — skip UAGB/block-internal paragraphs
   const paraTexts = [];
