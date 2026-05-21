@@ -4121,40 +4121,19 @@
         throw new Error(err.error || `HTTP ${resp.status}`);
       }
 
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
+      const { results } = await resp.json();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split('\n');
-        buf = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          let evt;
-          try { evt = JSON.parse(line.slice(6)); } catch { continue; }
-
-          if (evt.type === 'progress') {
-            const pt = document.getElementById('translate-progress-text');
-            if (pt) pt.textContent = evt.text;
-            statusEl.textContent = evt.text;
-          } else if (evt.type === 'result' && evt.data) {
-            progressRow.remove();
-            const card = buildTranslateResultCard(evt.data, targetLangCode, targetLangName);
-            scroll.appendChild(card);
-            translateResults.push({ ...evt.data, targetLangCode, targetLangName });
-            scroll.appendChild(progressRow);
-            scroll.scrollTop = scroll.scrollHeight;
-          } else if (evt.type === 'err') {
-            const errDiv = document.createElement('div');
-            errDiv.style.cssText = 'color:#ef4444;font-size:0.78rem;padding:0.3rem 0';
-            errDiv.textContent = evt.text;
-            scroll.insertBefore(errDiv, progressRow);
-          } else if (evt.type === 'done') {
-            progressRow.remove();
-          }
+      progressRow.remove();
+      for (const result of results) {
+        if (result.success) {
+          const card = buildTranslateResultCard(result, targetLangCode, targetLangName);
+          scroll.appendChild(card);
+          translateResults.push({ ...result, targetLangCode, targetLangName });
+        } else {
+          const errDiv = document.createElement('div');
+          errDiv.style.cssText = 'color:#ef4444;font-size:0.78rem;padding:0.3rem 0';
+          errDiv.textContent = `✖ ID ${result.id}: ${escapeHtml(result.error || 'Unbekannter Fehler')}`;
+          scroll.appendChild(errDiv);
         }
       }
 

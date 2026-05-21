@@ -71,12 +71,15 @@ Strict rules — violations will break the website:
 Texts to translate:
 ${numbered}`;
 
-  const msg = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 4096,
-    system: 'You are a professional translator. Output valid JSON only. Never add explanation, comments, or markdown formatting.',
-    messages: [{ role: 'user', content: prompt }],
-  });
+  const msg = await client.messages.create(
+    {
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 8192,
+      system: 'You are a professional translator. Output valid JSON only. Never add explanation, comments, or markdown formatting.',
+      messages: [{ role: 'user', content: prompt }],
+    },
+    { timeout: 90_000 },
+  );
 
   const raw = msg.content[0]?.text?.trim() || '{}';
   const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
@@ -89,7 +92,8 @@ ${numbered}`;
 
 // Translate all translatable text nodes in an HTML string.
 // Tags, attributes, HTML comments, and script/style blocks are never touched.
-async function translateHtml(html, targetLangName) {
+// onProgress(batchIndex, totalBatches) is called before each Claude API call.
+async function translateHtml(html, targetLangName, onProgress) {
   if (!html) return html;
 
   const tokens = tokeniseHtml(html);
@@ -99,10 +103,16 @@ async function translateHtml(html, targetLangName) {
 
   if (candidates.length === 0) return html;
 
-  // Batch into groups of 80 — fits comfortably within Haiku context limits.
-  const BATCH = 80;
+  // 50 segments per batch: conservative limit that keeps the JSON response
+  // comfortably within Haiku's 8192-token output ceiling even for long texts.
+  const BATCH = 50;
+  const totalBatches = Math.ceil(candidates.length / BATCH);
   const translations = {};
+
   for (let b = 0; b < candidates.length; b += BATCH) {
+    const batchIndex = Math.floor(b / BATCH);
+    if (onProgress) onProgress(batchIndex, totalBatches);
+
     const slice = candidates.slice(b, b + BATCH);
     const result = await translateBatch(slice.map((c) => c.value), targetLangName);
     slice.forEach((c, idx) => {
@@ -147,7 +157,9 @@ export async function listTranslatableItems() {
 
 // Translate a single post/page and return all data needed to save it.
 // targetLangName: display name used in the Claude prompt (e.g. "English")
-export async function translateItem(id, type, targetLangCode, targetLangName) {
+// onProgress(message): optional callback emitted before each Claude API call
+export async function translateItem(id, type, targetLangCode, targetLangName, onProgress) {
+  if (onProgress) onProgress('Lade Seite aus WordPress…');
   const item = type === 'page'
     ? await getPage(id, { context: 'edit' })
     : await getPost(id, { context: 'edit' });
@@ -163,13 +175,25 @@ export async function translateItem(id, type, targetLangCode, targetLangName) {
     || item.excerpt?.rendered?.replace(/<[^>]+>/g, '').trim()
     || '';
 
-  const [translatedTitle, translatedContent, translatedExcerpt] = await Promise.all([
-    translateBatch([originalTitle], targetLangName).then((r) => r['0'] || originalTitle),
-    translateHtml(originalContent, targetLangName),
-    originalExcerpt
-      ? translateBatch([originalExcerpt], targetLangName).then((r) => r['0'] || originalExcerpt)
-      : Promise.resolve(''),
-  ]);
+  if (onProgress) onProgress('Übersetze Titel…');
+  const translatedTitle = await translateBatch([originalTitle], targetLangName)
+    .then((r) => r['0'] || originalTitle);
+
+  if (onProgress) onProgress('Übersetze Inhalt…');
+  const translatedContent = await translateHtml(originalContent, targetLangName,
+    (batchIdx, totalBatches) => {
+      if (onProgress && totalBatches > 1) {
+        onProgress(`Übersetze Inhalt… Batch ${batchIdx + 1}/${totalBatches}`);
+      }
+    },
+  );
+
+  let translatedExcerpt = '';
+  if (originalExcerpt) {
+    if (onProgress) onProgress('Übersetze Auszug…');
+    translatedExcerpt = await translateBatch([originalExcerpt], targetLangName)
+      .then((r) => r['0'] || originalExcerpt);
+  }
 
   const stripTags = (s) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 

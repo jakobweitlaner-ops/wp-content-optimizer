@@ -623,9 +623,9 @@ app.get('/api/translate/items', async (req, res) => {
   }
 });
 
-// SSE stream: translate selected items to targetLang.
-// Each item result includes Polylang metadata needed for the apply step.
-app.post('/api/translate/preview', express.json(), (req, res) => {
+// Plain JSON endpoint: translates all selected items and returns results at once.
+// Simpler and more reliable than SSE-over-POST which has browser/proxy issues.
+app.post('/api/translate/preview', express.json(), async (req, res) => {
   const { items, targetLangCode, targetLangName } = req.body || {};
   if (!Array.isArray(items) || items.length === 0 || !targetLangCode || !targetLangName) {
     return res.status(400).json({ error: 'items, targetLangCode and targetLangName required' });
@@ -634,29 +634,18 @@ app.post('/api/translate/preview', express.json(), (req, res) => {
     return res.status(503).json({ error: 'ANTHROPIC_API_KEY not set' });
   }
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-
-  const send = (type, text, data) =>
-    res.write(`data: ${JSON.stringify({ type, text, ...(data ? { data } : {}) })}\n\n`);
-
-  (async () => {
-    for (let i = 0; i < items.length; i++) {
-      const { id, type } = items[i];
-      send('progress', `Übersetze ${i + 1}/${items.length}…`);
-      try {
-        const result = await translateItem(parseInt(id, 10), type, targetLangCode, targetLangName);
-        send('result', `✔ ${result.title}`, result);
-      } catch (err) {
-        send('err', `Fehler bei ID ${id}: ${err.message}`);
-      }
+  const results = [];
+  for (const { id, type } of items) {
+    try {
+      const result = await translateItem(parseInt(id, 10), type, targetLangCode, targetLangName);
+      results.push({ success: true, ...result });
+    } catch (err) {
+      console.error(`[translate] ID ${id} Fehler:`, err.message);
+      results.push({ success: false, id, type, error: err.message });
     }
-    send('done', 'success');
-    res.end();
-  })();
+  }
 
-  req.on('close', () => res.end());
+  res.json({ results });
 });
 
 // SSE stream: save translated items to WordPress via Polylang-aware logic.
