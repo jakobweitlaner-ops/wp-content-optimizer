@@ -187,6 +187,12 @@ export async function auditSeoItems() {
     ...posts.map((p) => ({ ...p, _type: 'post' })),
     ...pages.map((p) => ({ ...p, _type: 'page' })),
   ];
+
+  // Diagnostic: log raw lang fields for the first 5 items so we can see what WP returns.
+  content.slice(0, 5).forEach((p) => {
+    console.log(`[lang-diag] "${p.title?.rendered}" | post.lang=${JSON.stringify(p.lang)} | og_locale=${JSON.stringify(p.yoast_head_json?.og_locale)} | yoast_head_json=${p.yoast_head_json ? 'present' : 'MISSING'}`);
+  });
+
   return content.map((post) => {
     const seo = scoreSeo(post);
     const yoast = post.yoast_head_json || {};
