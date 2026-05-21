@@ -65,6 +65,7 @@ Strict rules — violations will break the website:
 - Preserve every image filename (*.jpg, *.png, *.webp, *.svg, *.gif, *.pdf, *.mp4) exactly
 - Preserve email addresses exactly
 - Preserve WordPress shortcodes ([contact-form-7 …]) exactly
+- Preserve Yoast SEO template variables (%%title%%, %%sep%%, %%sitename%%, %%page%%, etc.) exactly
 - Preserve phone numbers, postal codes, and numeric codes exactly
 - Keep proper nouns and brand names appropriate for the target language
 
@@ -195,13 +196,42 @@ export async function translateItem(id, type, targetLangCode, targetLangName, on
       .then((r) => r['0'] || originalExcerpt);
   }
 
+  // ── Yoast SEO fields ────────────────────────────────────────────
+  // These live in item.meta under _yoast_wpseo_* keys (exposed by Yoast REST API).
+  // Text fields are translated; non-text fields (robots, canonical, etc.) are copied as-is.
+  const YOAST_TRANSLATE_KEYS = [
+    '_yoast_wpseo_focuskw',
+    '_yoast_wpseo_title',
+    '_yoast_wpseo_metadesc',
+    '_yoast_wpseo_opengraph-title',
+    '_yoast_wpseo_opengraph-description',
+    '_yoast_wpseo_twitter-title',
+    '_yoast_wpseo_twitter-description',
+  ];
+
+  const sourceMeta = item.meta || {};
+  const yoastTranslateable = YOAST_TRANSLATE_KEYS
+    .map((key) => ({ key, value: sourceMeta[key] }))
+    .filter(({ value }) => typeof value === 'string' && value.trim().length > 0);
+
+  let translatedYoastMeta = {};
+  if (yoastTranslateable.length > 0) {
+    if (onProgress) onProgress('Übersetze Yoast SEO…');
+    const result = await translateBatch(yoastTranslateable.map((f) => f.value), targetLangName);
+    yoastTranslateable.forEach(({ key }, idx) => {
+      const tr = result[String(idx)];
+      if (typeof tr === 'string') translatedYoastMeta[key] = tr;
+    });
+  }
+
   const stripTags = (s) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
   return {
     id,
     type,
     sourceLang,
-    sourceMeta: item.meta || {},
+    sourceMeta,
+    translatedYoastMeta,
     polylangTranslations,
     existingTranslationId,
     title: originalTitle,
@@ -224,6 +254,7 @@ export async function applyTranslation({
   polylangTranslations,
   sourceLang,
   sourceMeta,
+  translatedYoastMeta,
   translatedTitle,
   translatedContent,
   translatedExcerpt,
@@ -232,9 +263,11 @@ export async function applyTranslation({
   if (translatedTitle)   payload.title   = translatedTitle;
   if (translatedContent) payload.content = translatedContent;
   if (translatedExcerpt) payload.excerpt = translatedExcerpt;
-  // Copy display/layout meta from source (e.g. hide_title, theme page templates).
-  if (sourceMeta && typeof sourceMeta === 'object' && Object.keys(sourceMeta).length > 0) {
-    payload.meta = sourceMeta;
+
+  // Merge: source meta (display/layout settings) overridden by translated Yoast fields.
+  const mergedMeta = { ...(sourceMeta || {}), ...(translatedYoastMeta || {}) };
+  if (Object.keys(mergedMeta).length > 0) {
+    payload.meta = mergedMeta;
   }
 
   if (existingTranslationId > 0) {
