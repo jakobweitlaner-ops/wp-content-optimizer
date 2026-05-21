@@ -30,7 +30,7 @@ The generated password has the format `xxxx xxxx xxxx xxxx xxxx xxxx` (with spac
 |---|---|---|
 | `WP_INSECURE` | `false` | Set `true` to disable TLS certificate verification (for self-signed certs) |
 | `CONCURRENCY` | `5` | Max concurrent HTTP requests for the link checker |
-| `TIMEOUT` | `60000` | WordPress API request timeout in milliseconds |
+| `TIMEOUT` | `120000` | WordPress API request timeout in milliseconds |
 | `LINK_TIMEOUT` | `20000` | Timeout per link check in milliseconds |
 | `REPORTS_DIR` | `./reports` | Directory where JSON reports are saved |
 | `ANTHROPIC_API_KEY` | *(none)* | Anthropic API key — required for all AI features |
@@ -47,7 +47,8 @@ AI is used by:
 
 - `audit-seo --ai` — generates SEO suggestions per post
 - `get-status` — runs all audits and produces an AI health report
-- Web UI: "AI Alt-Text", SEO fix previews, keyphrase generation, H1/intro/content fixes
+- `rename-images` — proposes descriptive filenames for images
+- Web UI: "AI Alt-Text", SEO fix previews, keyphrase generation, H1/intro/content fixes, image filename renaming
 
 The tool uses `claude-haiku-4-5-20251001` for all AI requests.
 

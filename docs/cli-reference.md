@@ -150,4 +150,69 @@ Requires `ANTHROPIC_API_KEY`.
 
 Key metrics (SEO / links / media) + top 3 action items
 ```
+
+---
+
+## `rename-images`
+
+AI-powered analysis and renaming of image filenames in the media library.
+
+```bash
+node src/cli.js rename-images [options]
+```
+
+Requires `ANTHROPIC_API_KEY`.
+
+| Option | Default | Description |
+|---|---|---|
+| `--dry-run` | `false` | Show proposals only — no files are renamed |
+| `-o, --output <file>` | *(none)* | Save JSON report to this file |
+
+**How it works:**
+
+1. Fetches all images from the media library
+2. Sends each filename to Claude for evaluation (SEO quality, descriptiveness)
+3. Proposes a more descriptive, kebab-case filename for images that need improvement
+4. Without `--dry-run`: re-uploads each image under the new name, updates all post/page references and `featured_media` IDs, then deletes the old file
+
+**Report schema** (when `--output` is used):
+
+```json
+{
+  "results": [
+    {
+      "originalId": 42,
+      "originalUrl": "https://site.com/wp-content/uploads/IMG_4567.jpg",
+      "originalFilename": "img_4567",
+      "newId": 99,
+      "newUrl": "https://site.com/wp-content/uploads/summer-terrace-sunset.jpg",
+      "newFilename": "summer-terrace-sunset",
+      "urlMappings": { "...old-url...": "...new-url..." },
+      "success": true
+    }
+  ],
+  "refsUpdated": 3,
+  "featuredUpdated": 1
+}
+```
+
+---
+
+## `repair-references`
+
+Scan all posts and pages (including all Polylang language variants) and normalise image URLs against the current media library. Fixes broken `src` and `srcset` references left by earlier renames or migrations.
+
+```bash
+node src/cli.js repair-references
+```
+
+No options. The command prints a progress counter and reports how many posts were updated.
+
+**How it works:**
+
+1. Loads the full media library (all images, keyed by filename slug)
+2. Iterates over every published post and page (all Polylang languages)
+3. For each post, checks every `src`, `srcset`, and `data-src` image URL in the content
+4. Replaces any URL whose filename slug matches a current media item but points to a wrong path
+5. Saves the post only if at least one URL was changed
 <!-- END AUTO-GENERATED SECTION: cli-commands -->
