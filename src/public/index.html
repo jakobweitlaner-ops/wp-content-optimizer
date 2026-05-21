@@ -4004,9 +4004,11 @@
       const actionLabel = isNew ? 'neu anlegen' : 'aktualisieren';
       const actionColor = isNew ? '#16a34a' : '#94a3b8';
       const rowOpacity  = isNew ? '' : 'opacity:0.6';
-      const sourceLangBadge = item.lang
-        ? `<span style="font-size:0.68rem;background:#e2e8f0;color:#475569;border-radius:4px;padding:0.05rem 0.3rem;flex-shrink:0">${item.lang.toUpperCase()}</span>`
-        : '';
+      const langOk = item.lang === sourceLangCode;
+      const langBg  = langOk ? '#dbeafe' : '#fee2e2';
+      const langClr = langOk ? '#1e40af' : '#b91c1c';
+      const langText = item.lang ? item.lang.toUpperCase() : '?';
+      const sourceLangBadge = `<span style="font-size:0.7rem;font-weight:600;background:${langBg};color:${langClr};border-radius:4px;padding:0.1rem 0.35rem;flex-shrink:0;letter-spacing:0.03em">${langText}</span>`;
 
       const row = document.createElement('div');
       row.className = 'translate-item-row';
@@ -4121,39 +4123,56 @@
     applyAllBtn.style.display = 'none';
     scroll.innerHTML = '';
 
+    // Lookup map so we can show titles in progress (selected only has id+type)
+    const titleMap = Object.fromEntries(
+      translateItems.map((it) => [`${it.id}:${it.type}`, it.title]),
+    );
+
     const progressRow = document.createElement('div');
     progressRow.className = 'translate-result-progress';
     progressRow.innerHTML = '<div class="translate-spinner"></div><span id="translate-progress-text">Wird gestartet…</span>';
     scroll.appendChild(progressRow);
+    const progressText = progressRow.querySelector('#translate-progress-text');
 
     try {
-      const resp = await fetch('/api/translate/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: selected, targetLangCode, targetLangName }),
-      });
+      // Translate items one by one so the title and progress are visible in real time.
+      for (let i = 0; i < selected.length; i++) {
+        const { id, type } = selected[i];
+        const title = titleMap[`${id}:${type}`] || `ID ${id}`;
+        progressText.textContent = `(${i + 1}/${selected.length}) ${title} …`;
 
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
-        throw new Error(err.error || `HTTP ${resp.status}`);
-      }
+        const resp = await fetch('/api/translate/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: [{ id, type }], targetLangCode, targetLangName }),
+        });
 
-      const { results } = await resp.json();
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+          const errDiv = document.createElement('div');
+          errDiv.style.cssText = 'color:#ef4444;font-size:0.78rem;padding:0.3rem 0';
+          errDiv.textContent = `✖ ${escapeHtml(title)}: ${escapeHtml(err.error || `HTTP ${resp.status}`)}`;
+          scroll.insertBefore(errDiv, progressRow);
+          continue;
+        }
 
-      progressRow.remove();
-      for (const result of results) {
+        const { results } = await resp.json();
+        const result = results?.[0];
+        if (!result) continue;
+
         if (result.success) {
           const card = buildTranslateResultCard(result, targetLangCode, targetLangName);
-          scroll.appendChild(card);
+          scroll.insertBefore(card, progressRow);
           translateResults.push({ ...result, targetLangCode, targetLangName });
         } else {
           const errDiv = document.createElement('div');
           errDiv.style.cssText = 'color:#ef4444;font-size:0.78rem;padding:0.3rem 0';
-          errDiv.textContent = `✖ ID ${result.id}: ${escapeHtml(result.error || 'Unbekannter Fehler')}`;
-          scroll.appendChild(errDiv);
+          errDiv.textContent = `✖ ${escapeHtml(title)}: ${escapeHtml(result.error || 'Unbekannter Fehler')}`;
+          scroll.insertBefore(errDiv, progressRow);
         }
       }
 
+      progressRow.remove();
       if (translateResults.length > 0) {
         applyAllBtn.style.display = '';
         applyAllBtn.textContent = `Alle in WP speichern (${translateResults.length})`;
