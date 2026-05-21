@@ -1,0 +1,43 @@
+name: Deploy mu-plugin to World4You
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wp-optimizer-yoast-rest.php'
+
+  # Manual trigger from the Actions tab (e.g. for first-time setup)
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Upload wp-optimizer-yoast-rest.php via FTP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install lftp
+        run: sudo apt-get install -y lftp
+
+      - name: Upload to mu-plugins via FTP
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USERNAME }}
+          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          lftp -c "
+            set ftp:ssl-allow true
+            set ftp:ssl-force true
+            set ssl:verify-certificate false
+            open ftp://$FTP_HOST
+            user $FTP_USER $FTP_PASS
+            mkdir -p html/wp-content/mu-plugins
+            put -O html/wp-content/mu-plugins wp-optimizer-yoast-rest.php
+            bye
+          "
+
+      - name: Confirm deployment
+        run: echo "wp-optimizer-yoast-rest.php deployed to ${{ secrets.FTP_HOST }}/html/wp-content/mu-plugins"
