@@ -11,6 +11,7 @@ import { previewMediaFixes, applyMediaFixes, auditAltTextWithAI, auditFilenamesW
 import { previewSeoFixes, applySeoFixes, auditSeoItems, generateSeoFixForItem, getSeoImageProposals, applyBrandFix } from './modules/seo-optimizer.js';
 import { updatePost, updatePage, getMediaItem } from './utils/wp-api.js';
 import { getPostsWithImages, getMediaLibrary, replaceImage } from './modules/seasonal-replacer.js';
+import { listTranslatableItems, translateItem, applyTranslation, TRANSLATE_LANGS } from './modules/content-translator.js';
 import axios from 'axios';
 import https from 'https';
 
@@ -599,6 +600,84 @@ app.post('/api/upload-from-pc', express.raw({ type: '*/*', limit: '50mb' }), (re
       send('error', { message: err.message });
       res.end();
     });
+});
+
+// ── Content Translation ────────────────────────────────────────
+
+app.get('/api/translate/langs', (req, res) => {
+  res.json(TRANSLATE_LANGS);
+});
+
+app.get('/api/translate/items', async (req, res) => {
+  try {
+    const items = await listTranslatableItems();
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/translate/preview', express.json(), (req, res) => {
+  const { items, targetLang } = req.body || {};
+  if (!Array.isArray(items) || items.length === 0 || !targetLang) {
+    return res.status(400).json({ error: 'items array and targetLang required' });
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: 'ANTHROPIC_API_KEY not set' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (type, text, data) =>
+    res.write(`data: ${JSON.stringify({ type, text, ...(data ? { data } : {}) })}\n\n`);
+
+  (async () => {
+    for (let i = 0; i < items.length; i++) {
+      const { id, type } = items[i];
+      send('progress', `Übersetze ${i + 1}/${items.length}…`);
+      try {
+        const result = await translateItem(parseInt(id, 10), type, targetLang);
+        send('result', `✔ ${result.title}`, result);
+      } catch (err) {
+        send('err', `Fehler bei ID ${id}: ${err.message}`);
+      }
+    }
+    send('done', 'success');
+    res.end();
+  })();
+
+  req.on('close', () => res.end());
+});
+
+app.post('/api/translate/apply', express.json(), (req, res) => {
+  const { items } = req.body || {};
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items array required' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (type, text) => res.write(`data: ${JSON.stringify({ type, text })}\n\n`);
+
+  (async () => {
+    let ok = 0;
+    for (const { id, type, translatedTitle, translatedContent, translatedExcerpt } of items) {
+      try {
+        await applyTranslation(parseInt(id, 10), type, translatedTitle, translatedContent, translatedExcerpt);
+        send('out', `✔ ID ${id} (${type}) gespeichert`);
+        ok++;
+      } catch (err) {
+        send('err', `✖ ID ${id}: ${err.message}`);
+      }
+    }
+    send('out', `Fertig. ${ok}/${items.length} gespeichert.`);
+    send('done', ok > 0 ? 'success' : 'error');
+    res.end();
+  })();
 });
 
 app.listen(PORT, () => {

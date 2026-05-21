@@ -1094,6 +1094,223 @@
       margin-left: auto;
     }
 
+    /* ── Translation View ───────────────────────────────────── */
+
+    .translate-view {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .translate-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.65rem 1.25rem;
+      border-bottom: 1px solid #e2e8f0;
+      background: #fff;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .translate-heading {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .translate-lang-select {
+      padding: 0.25rem 0.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      color: #1e293b;
+      background: #f8fafc;
+    }
+
+    .translate-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .translate-loading {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #94a3b8;
+      font-size: 0.85rem;
+    }
+
+    .translate-item-row {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.5rem 0.75rem;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 7px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .translate-item-row:hover { border-color: #94a3b8; }
+    .translate-item-row input[type="checkbox"] {
+      flex-shrink: 0;
+      width: 15px;
+      height: 15px;
+      accent-color: #4f6ef7;
+      cursor: pointer;
+    }
+
+    .translate-item-label {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.82rem;
+      color: #1e293b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .translate-item-type {
+      font-size: 0.7rem;
+      color: #94a3b8;
+      flex-shrink: 0;
+    }
+
+    .translate-result-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 9px;
+      padding: 0.85rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      flex-shrink: 0;
+    }
+
+    .translate-result-card.saved {
+      border-color: #86efac;
+      background: #f0fdf4;
+    }
+
+    .translate-result-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .translate-result-titles {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .translate-result-title-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.82rem;
+    }
+
+    .translate-result-orig {
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+    }
+
+    .translate-result-arrow {
+      color: #94a3b8;
+      flex-shrink: 0;
+    }
+
+    .translate-result-translated {
+      font-weight: 600;
+      color: #1e293b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+    }
+
+    .translate-result-save-btn {
+      padding: 0.28rem 0.75rem;
+      background: #4f6ef7;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .translate-result-save-btn:hover { background: #3b5bdb; }
+    .translate-result-save-btn:disabled { opacity: 0.5; cursor: default; }
+    .translate-result-save-btn.saved { background: #16a34a; cursor: default; }
+
+    .translate-result-diff {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+
+    .translate-result-snippet {
+      font-size: 0.73rem;
+      color: #64748b;
+      line-height: 1.5;
+      background: #f8fafc;
+      border-radius: 5px;
+      padding: 0.4rem 0.55rem;
+    }
+
+    .translate-result-snippet strong {
+      display: block;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #94a3b8;
+      margin-bottom: 0.2rem;
+    }
+
+    .translate-result-progress {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 0.75rem;
+      background: #fff;
+      border: 1px dashed #cbd5e1;
+      border-radius: 7px;
+      font-size: 0.8rem;
+      color: #64748b;
+      flex-shrink: 0;
+    }
+
+    .translate-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #e2e8f0;
+      border-top-color: #4f6ef7;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .translate-footer {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.65rem 1.25rem;
+      border-top: 1px solid #e2e8f0;
+      background: #fff;
+      flex-shrink: 0;
+    }
+
     /* ── Seasonal Image View ─────────────────────────────────── */
 
     .seasonal-view {
@@ -1561,6 +1778,15 @@
         <span class="nav-state" id="state-seasonal-images">Bereit</span>
       </button>
 
+      <button class="nav-item" data-cmd="translate" onclick="loadTranslateView()">
+        <span class="nav-item-icon">🌐</span>
+        <div class="nav-item-body">
+          <span class="nav-item-label">Übersetzung</span>
+          <span class="nav-item-note">Seiten &amp; Beiträge per KI übersetzen</span>
+        </div>
+        <span class="nav-state" id="state-translate">Bereit</span>
+      </button>
+
     </nav>
 
     <div class="sidebar-footer">
@@ -1670,6 +1896,43 @@
         <button class="compress-apply-btn" id="compress-apply-btn" onclick="applyCompression()">Ausgewählte komprimieren</button>
         <button class="compress-repair-btn" id="compress-repair-btn" onclick="repairReferences()" title="Scannt alle Beiträge/Seiten (alle Sprachen) und korrigiert Bild-URLs anhand der aktuellen Mediathek">🔗 Referenzen reparieren</button>
         <span class="compress-status" id="compress-status"></span>
+      </div>
+    </div>
+
+    <!-- Translation View -->
+    <div class="translate-view" id="translate-view">
+      <div class="translate-toolbar">
+        <span class="translate-heading">🌐 Übersetzung</span>
+        <label style="font-size:0.78rem;color:#475569;display:flex;align-items:center;gap:0.4rem">
+          Zielsprache:
+          <select id="translate-target-lang" class="translate-lang-select">
+            <option value="en">Englisch</option>
+            <option value="de">Deutsch</option>
+            <option value="fr">Französisch</option>
+            <option value="es">Spanisch</option>
+            <option value="it">Italienisch</option>
+            <option value="nl">Niederländisch</option>
+            <option value="pl">Polnisch</option>
+            <option value="pt">Portugiesisch</option>
+            <option value="ru">Russisch</option>
+            <option value="ja">Japanisch</option>
+            <option value="zh">Chinesisch</option>
+            <option value="ar">Arabisch</option>
+          </select>
+        </label>
+        <button class="compress-scan-btn" onclick="loadTranslateItems()">Seiten laden</button>
+        <span class="compress-count-label" id="translate-count-label"></span>
+      </div>
+
+      <div class="translate-scroll" id="translate-scroll">
+        <div class="translate-loading">Klicke „Seiten laden" um alle Beiträge und Seiten anzuzeigen.</div>
+      </div>
+
+      <div class="translate-footer" id="translate-footer" style="display:none">
+        <button class="compress-select-all-btn" id="translate-select-all-btn" onclick="translateToggleAll()">Alle abwählen</button>
+        <button class="compress-apply-btn" id="translate-start-btn" onclick="startTranslation()">Ausgewählte übersetzen</button>
+        <button class="compress-apply-btn" id="translate-apply-all-btn" onclick="applyAllTranslations()" style="display:none;background:#1e40af">Alle in WP speichern</button>
+        <span class="compress-status" id="translate-status"></span>
       </div>
     </div>
 
@@ -1834,6 +2097,7 @@
     document.getElementById('seo-view').style.display = 'flex';
     document.getElementById('seasonal-view').style.display = 'none';
     document.getElementById('compress-view').style.display = 'none';
+    document.getElementById('translate-view').style.display = 'none';
     document.querySelector('.output-wrap').style.display = 'none';
     document.getElementById('review-panel').style.display = 'none';
   }
@@ -1848,6 +2112,7 @@
     document.getElementById('seo-view').style.display = 'none';
     document.getElementById('seasonal-view').style.display = 'none';
     document.getElementById('compress-view').style.display = 'none';
+    document.getElementById('translate-view').style.display = 'none';
     document.querySelector('.output-wrap').style.display = 'none';
     document.getElementById('review-panel').style.display = 'none';
   }
@@ -2626,6 +2891,7 @@
     document.getElementById('h1-view').style.display = 'none';
     document.getElementById('compress-view').style.display = 'none';
     document.getElementById('seasonal-view').style.display = 'none';
+    document.getElementById('translate-view').style.display = 'none';
     document.querySelector('.output-wrap').style.display = 'none';
     document.getElementById('review-panel').style.display = 'none';
   }
@@ -2933,6 +3199,7 @@
     document.getElementById('h1-view').style.display = 'none';
     document.getElementById('seasonal-view').style.display = 'none';
     document.getElementById('rename-view').style.display = 'none';
+    document.getElementById('translate-view').style.display = 'none';
     document.querySelector('.output-wrap').style.display = 'none';
     document.getElementById('review-panel').style.display = 'none';
   }
@@ -3124,6 +3391,7 @@
     document.getElementById('h1-view').style.display = 'none';
     document.getElementById('compress-view').style.display = 'none';
     document.getElementById('rename-view').style.display = 'none';
+    document.getElementById('translate-view').style.display = 'none';
     document.querySelector('.output-wrap').style.display = 'none';
     document.getElementById('review-panel').style.display = 'none';
   }
@@ -3644,6 +3912,336 @@
       if (replaceBtn) { replaceBtn.disabled = false; }
     }
   }
+
+  // ── Translation View ─────────────────────────────────────────
+
+  let translateItems = [];
+  let translateResults = [];
+  let translateRunning = false;
+
+  function showTranslateView() {
+    document.getElementById('translate-view').style.display = 'flex';
+    document.getElementById('seo-view').style.display = 'none';
+    document.getElementById('h1-view').style.display = 'none';
+    document.getElementById('compress-view').style.display = 'none';
+    document.getElementById('rename-view').style.display = 'none';
+    document.getElementById('seasonal-view').style.display = 'none';
+    document.querySelector('.output-wrap').style.display = 'none';
+    document.getElementById('review-panel').style.display = 'none';
+  }
+
+  function hideTranslateView() {
+    document.getElementById('translate-view').style.display = 'none';
+    document.querySelector('.output-wrap').style.display = '';
+  }
+
+  async function loadTranslateView() {
+    showTranslateView();
+    setNavState('translate', 'running', 'Läuft…');
+    document.getElementById('toolbar-label').textContent = 'Übersetzung';
+    await loadTranslateItems();
+    setNavState('translate', 'success', 'Bereit');
+    resetNavState('translate');
+  }
+
+  async function loadTranslateItems() {
+    const scroll = document.getElementById('translate-scroll');
+    const countLabel = document.getElementById('translate-count-label');
+    const footer = document.getElementById('translate-footer');
+    scroll.innerHTML = '<div class="translate-loading">Lade Seiten und Beiträge…</div>';
+    footer.style.display = 'none';
+    translateItems = [];
+    translateResults = [];
+
+    try {
+      const resp = await fetch('/api/translate/items');
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      translateItems = await resp.json();
+
+      if (translateItems.length === 0) {
+        scroll.innerHTML = '<div class="translate-loading">Keine Seiten oder Beiträge gefunden.</div>';
+        return;
+      }
+
+      scroll.innerHTML = '';
+      translateItems.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'translate-item-row';
+        row.dataset.id = item.id;
+        row.dataset.type = item.type;
+        row.innerHTML = `
+          <input type="checkbox" checked data-id="${item.id}" data-type="${item.type}">
+          <span class="translate-item-label">${escapeHtml(item.title)}</span>
+          <span class="translate-item-type">${item.type === 'page' ? 'Seite' : 'Beitrag'}</span>
+        `;
+        row.addEventListener('click', (e) => {
+          if (e.target.tagName !== 'INPUT') {
+            const cb = row.querySelector('input[type="checkbox"]');
+            cb.checked = !cb.checked;
+          }
+          updateTranslateSelectAll();
+        });
+        scroll.appendChild(row);
+      });
+
+      countLabel.textContent = `${translateItems.length} Seiten/Beiträge`;
+      footer.style.display = 'flex';
+      updateTranslateSelectAll();
+    } catch (err) {
+      scroll.innerHTML = `<div class="translate-loading" style="color:#ef4444">Fehler: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function updateTranslateSelectAll() {
+    const checkboxes = document.querySelectorAll('#translate-scroll input[type="checkbox"]');
+    const checked = [...checkboxes].filter((cb) => cb.checked).length;
+    const btn = document.getElementById('translate-select-all-btn');
+    const startBtn = document.getElementById('translate-start-btn');
+    if (btn) btn.textContent = checked === checkboxes.length ? 'Alle abwählen' : 'Alle auswählen';
+    if (startBtn) {
+      startBtn.textContent = `Ausgewählte übersetzen (${checked})`;
+      startBtn.disabled = checked === 0 || translateRunning;
+    }
+  }
+
+  function translateToggleAll() {
+    const checkboxes = document.querySelectorAll('#translate-scroll input[type="checkbox"]');
+    const allChecked = [...checkboxes].every((cb) => cb.checked);
+    checkboxes.forEach((cb) => (cb.checked = !allChecked));
+    updateTranslateSelectAll();
+  }
+
+  async function startTranslation() {
+    if (translateRunning) return;
+    const selected = [...document.querySelectorAll('#translate-scroll input[type="checkbox"]:checked')]
+      .map((cb) => ({ id: cb.dataset.id, type: cb.dataset.type }));
+    if (selected.length === 0) return;
+
+    const targetLang = document.getElementById('translate-target-lang').value;
+    translateRunning = true;
+    translateResults = [];
+
+    const scroll = document.getElementById('translate-scroll');
+    const statusEl = document.getElementById('translate-status');
+    const startBtn = document.getElementById('translate-start-btn');
+    const applyAllBtn = document.getElementById('translate-apply-all-btn');
+    const footer = document.getElementById('translate-footer');
+
+    startBtn.disabled = true;
+    applyAllBtn.style.display = 'none';
+    scroll.innerHTML = '';
+
+    // Progress placeholder
+    const progressRow = document.createElement('div');
+    progressRow.className = 'translate-result-progress';
+    progressRow.innerHTML = '<div class="translate-spinner"></div><span id="translate-progress-text">Wird gestartet…</span>';
+    scroll.appendChild(progressRow);
+
+    try {
+      const resp = await fetch('/api/translate/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: selected, targetLang }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+        throw new Error(err.error || `HTTP ${resp.status}`);
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let evt;
+          try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+          if (evt.type === 'progress') {
+            const pt = document.getElementById('translate-progress-text');
+            if (pt) pt.textContent = evt.text;
+            statusEl.textContent = evt.text;
+          } else if (evt.type === 'result' && evt.data) {
+            progressRow.remove();
+            const card = buildTranslateResultCard(evt.data);
+            scroll.appendChild(card);
+            translateResults.push(evt.data);
+            // Re-add progress row at bottom
+            scroll.appendChild(progressRow);
+            scroll.scrollTop = scroll.scrollHeight;
+          } else if (evt.type === 'err') {
+            const errDiv = document.createElement('div');
+            errDiv.style.cssText = 'color:#ef4444;font-size:0.78rem;padding:0.3rem 0';
+            errDiv.textContent = evt.text;
+            scroll.insertBefore(errDiv, progressRow);
+          } else if (evt.type === 'done') {
+            progressRow.remove();
+          }
+        }
+      }
+
+      if (translateResults.length > 0) {
+        applyAllBtn.style.display = '';
+        applyAllBtn.textContent = `Alle in WP speichern (${translateResults.length})`;
+      }
+      statusEl.textContent = `${translateResults.length} übersetzt.`;
+    } catch (err) {
+      progressRow.remove();
+      const errDiv = document.createElement('div');
+      errDiv.className = 'translate-loading';
+      errDiv.style.color = '#ef4444';
+      errDiv.textContent = `Fehler: ${escapeHtml(err.message)}`;
+      scroll.appendChild(errDiv);
+      statusEl.textContent = 'Fehler';
+    } finally {
+      translateRunning = false;
+      startBtn.disabled = false;
+      updateTranslateSelectAll();
+    }
+  }
+
+  function buildTranslateResultCard(data) {
+    const card = document.createElement('div');
+    card.className = 'translate-result-card';
+    card.dataset.id = data.id;
+    card.dataset.type = data.type;
+
+    const snippet = (s) => escapeHtml((s || '').substring(0, 180) + ((s || '').length > 180 ? '…' : ''));
+
+    card.innerHTML = `
+      <div class="translate-result-header">
+        <div class="translate-result-titles">
+          <div class="translate-result-title-row">
+            <span class="translate-result-orig" title="${escapeHtml(data.title)}">${escapeHtml(data.title)}</span>
+            <span class="translate-result-arrow">→</span>
+            <span class="translate-result-translated" title="${escapeHtml(data.translatedTitle)}">${escapeHtml(data.translatedTitle)}</span>
+          </div>
+          <div style="font-size:0.7rem;color:#94a3b8;margin-top:0.15rem">${data.type === 'page' ? 'Seite' : 'Beitrag'} · ID ${data.id}</div>
+        </div>
+        <button class="translate-result-save-btn" onclick="saveSingleTranslation(this, ${data.id}, '${data.type}')">Speichern</button>
+      </div>
+      <div class="translate-result-diff">
+        <div class="translate-result-snippet"><strong>Original</strong>${snippet(data.contentSnippet)}</div>
+        <div class="translate-result-snippet"><strong>Übersetzt</strong>${snippet(data.translatedContentSnippet)}</div>
+      </div>
+    `;
+    return card;
+  }
+
+  async function saveSingleTranslation(btn, id, type) {
+    const result = translateResults.find((r) => r.id === id && r.type === type);
+    if (!result) return;
+    btn.disabled = true;
+    btn.textContent = 'Wird gespeichert…';
+
+    try {
+      const resp = await fetch('/api/translate/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [{
+            id: result.id,
+            type: result.type,
+            translatedTitle: result.translatedTitle,
+            translatedContent: result.translatedContent,
+            translatedExcerpt: result.translatedExcerpt,
+          }],
+        }),
+      });
+
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+      // Consume the SSE stream (simple drain)
+      const reader = resp.body.getReader();
+      while (true) {
+        const { done } = await reader.read();
+        if (done) break;
+      }
+
+      btn.textContent = '✔ Gespeichert';
+      btn.className = 'translate-result-save-btn saved';
+      const card = btn.closest('.translate-result-card');
+      if (card) card.classList.add('saved');
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Fehler – nochmal';
+    }
+  }
+
+  async function applyAllTranslations() {
+    const unsaved = translateResults.filter((r) => {
+      const card = document.querySelector(`.translate-result-card[data-id="${r.id}"][data-type="${r.type}"]`);
+      return card && !card.classList.contains('saved');
+    });
+    if (unsaved.length === 0) return;
+
+    const applyAllBtn = document.getElementById('translate-apply-all-btn');
+    const statusEl = document.getElementById('translate-status');
+    applyAllBtn.disabled = true;
+    statusEl.textContent = `Speichere ${unsaved.length} Einträge…`;
+
+    try {
+      const resp = await fetch('/api/translate/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: unsaved.map((r) => ({
+            id: r.id,
+            type: r.type,
+            translatedTitle: r.translatedTitle,
+            translatedContent: r.translatedContent,
+            translatedExcerpt: r.translatedExcerpt,
+          })),
+        }),
+      });
+
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let savedCount = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let evt;
+          try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+          if (evt.type === 'out' && evt.text.startsWith('✔')) {
+            const match = evt.text.match(/ID (\d+) \((\w+)\)/);
+            if (match) {
+              const card = document.querySelector(`.translate-result-card[data-id="${match[1]}"][data-type="${match[2]}"]`);
+              if (card) {
+                card.classList.add('saved');
+                const btn = card.querySelector('.translate-result-save-btn');
+                if (btn) { btn.textContent = '✔ Gespeichert'; btn.className = 'translate-result-save-btn saved'; btn.disabled = true; }
+              }
+              savedCount++;
+            }
+          }
+        }
+      }
+
+      statusEl.textContent = `${savedCount} gespeichert.`;
+      applyAllBtn.textContent = 'Alle gespeichert ✔';
+    } catch (err) {
+      statusEl.textContent = `Fehler: ${escapeHtml(err.message)}`;
+      applyAllBtn.disabled = false;
+    }
+  }
+
 </script>
 </body>
 </html>
