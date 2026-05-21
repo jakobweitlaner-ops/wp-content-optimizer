@@ -198,6 +198,68 @@ export async function deleteMedia(id) {
   return data;
 }
 
+export async function createPost(data) {
+  const response = await withRetry(() => client.post('/posts', data), 3, 1000);
+  return response.data;
+}
+
+export async function createPage(data) {
+  const response = await withRetry(() => client.post('/pages', data), 3, 1000);
+  return response.data;
+}
+
+// Fetch languages configured in Polylang.
+// Tries the Polylang REST endpoint first; falls back to scanning translations fields.
+export async function getPolylangLanguages() {
+  // Attempt 1: Polylang REST API (available in Polylang ≥ 2.6)
+  try {
+    const { data } = await axios.get(`${BASE_URL}/wp-json/pll/v1/languages`, {
+      httpsAgent: new https.Agent({ rejectUnauthorized: !INSECURE }),
+      timeout: 10000,
+      headers: { Authorization: getAuthHeader() },
+    });
+    if (Array.isArray(data) && data.length > 0) {
+      return data.map((l) => ({
+        code: l.code || l.slug || l.language_code,
+        name: l.name,
+        locale: l.locale || '',
+      })).filter((l) => l.code);
+    }
+  } catch {}
+
+  // Attempt 2: derive codes from the `translations` field of any post/page
+  const LANG_NAMES = {
+    de: 'Deutsch', en: 'English', fr: 'Français', es: 'Español', it: 'Italiano',
+    nl: 'Nederlands', pl: 'Polski', pt: 'Português', ru: 'Русский', ja: '日本語',
+    zh: '中文', ar: 'العربية', tr: 'Türkçe', sv: 'Svenska', da: 'Dansk',
+    fi: 'Suomi', nb: 'Norsk', cs: 'Čeština', sk: 'Slovenčina', hu: 'Magyar',
+    ro: 'Română', bg: 'Български', hr: 'Hrvatski', uk: 'Українська', ko: '한국어',
+    el: 'Ελληνικά', he: 'עברית', th: 'ภาษาไทย', vi: 'Tiếng Việt',
+  };
+  try {
+    const sample = await withRetry(
+      () => client.get('/posts', { params: { per_page: 10, status: 'publish', _fields: 'lang,translations' } }),
+      2, 500,
+    );
+    const codes = new Set();
+    for (const item of sample.data) {
+      if (item.lang) codes.add(item.lang);
+      if (item.translations && typeof item.translations === 'object') {
+        Object.keys(item.translations).forEach((k) => codes.add(k));
+      }
+    }
+    if (codes.size > 0) {
+      return [...codes].sort().map((code) => ({
+        code,
+        name: LANG_NAMES[code] || code.toUpperCase(),
+        locale: '',
+      }));
+    }
+  } catch {}
+
+  return [];
+}
+
 export async function uploadMedia(buffer, mimeType, filename, meta = {}) {
   const doPost = () => client.post('/media', buffer, {
     headers: {
