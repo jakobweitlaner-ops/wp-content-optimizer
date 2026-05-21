@@ -4203,16 +4203,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetLangCode: result.targetLangCode,
-          items: [{
-            id: result.id,
-            type: result.type,
-            sourceLang: result.sourceLang,
-            polylangTranslations: result.polylangTranslations,
-            existingTranslationId: result.existingTranslationId,
-            translatedTitle: result.translatedTitle,
-            translatedContent: result.translatedContent,
-            translatedExcerpt: result.translatedExcerpt,
-          }],
+          items: [result],
         }),
       });
 
@@ -4255,16 +4246,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetLangCode,
-          items: unsaved.map((r) => ({
-            id: r.id,
-            type: r.type,
-            sourceLang: r.sourceLang,
-            polylangTranslations: r.polylangTranslations,
-            existingTranslationId: r.existingTranslationId,
-            translatedTitle: r.translatedTitle,
-            translatedContent: r.translatedContent,
-            translatedExcerpt: r.translatedExcerpt,
-          })),
+          items: unsaved,
         }),
       });
 
