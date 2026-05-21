@@ -2,6 +2,34 @@
 
 <!-- AUTO-GENERATED SECTION: changelog -->
 
+## [1.0.0] — 2026-05-21
+
+### Added
+- feat: KI-Übersetzung von Seiten und Beiträgen mit HTML-Struktur-Beibehaltung
+
+### Fixed
+- fix: Bestehende Übersetzungen standardmäßig deaktiviert – Original nie überschrieben
+- fix: Polylang-Integration für HTML-Übersetzung – neue Drafts statt Überschreiben
+- fix: Retry-Logik für Bild-Management-Ladeprobleme verbessern
+- fix: Dateinamen statt Titel im Mediathek-Picker anzeigen
+- fix: Bild-URL nicht im Inhalt gefunden – contentSrc für Ersetzung verwenden
+- fix: Größenvarianten im Bild-Management deduplizieren
+- fix: mobile srcset-Varianten beim Bildaustausch korrekt erhalten
+- fix: SSE keep-alive heartbeat verhindert Proxy-Timeout im Bild-Management
+- fix: Größenvarianten-Mismatch bei Bildaustausch (Bild-URL nicht im Inhalt gefunden)
+- fix: Bildaustausch aktualisiert nur die aktuelle Seite, nicht alle anderen
+
+### Other
+- Merge pull request #125 from jakobweitlaner-ops/claude/translate-html-content-dKT8h
+- Merge pull request #123 from jakobweitlaner-ops/claude/fix-image-management-loading-1h7hF
+- Merge pull request #122 from jakobweitlaner-ops/claude/fix-image-management-loading-1h7hF
+- Merge pull request #121 from jakobweitlaner-ops/claude/fix-image-management-loading-1h7hF
+- Merge pull request #120 from jakobweitlaner-ops/claude/fix-image-management-loading-1h7hF
+- Merge pull request #119 from jakobweitlaner-ops/claude/fix-image-management-loading-1h7hF
+- Merge pull request #118 from jakobweitlaner-ops/claude/fix-image-management-loading-1h7hF
+- Merge pull request #117 from jakobweitlaner-ops/claude/fix-mobile-image-links-pOG1U
+- Merge pull request #116 from jakobweitlaner-ops/claude/fix-mobile-image-links-pOG1U
+
 ## [1.0.0] — 2026-05-20
 
 ### Added
