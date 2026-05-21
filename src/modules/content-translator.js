@@ -329,7 +329,7 @@ export async function applyTranslation({
   const newPayload = {
     ...payload,
     ...(slug ? { slug } : {}),
-    status: 'draft',
+    status: 'publish',
     lang: targetLangCode,
     // Include all known sibling IDs so Polylang connects the full translation set.
     translations: {
@@ -372,9 +372,13 @@ async function copyMenuPositions(sourceId, translatedId, objectType, targetLangC
       if (!sourceMenu) continue;
 
       const targetMenu = resolveTargetMenu(sourceMenu, targetLangCode, allMenus, LANG_CODES);
-      const targetMenuId = targetMenu?.id ?? sourceMenuId;
+      if (!targetMenu) {
+        console.log(`[menu] no clear target menu found for source menu "${sourceMenu.slug}", skipping`);
+        continue;
+      }
+      const targetMenuId = targetMenu.id;
 
-      console.log(`[menu] source menu: ${sourceMenu.slug} (${sourceMenuId}) → target menu: ${targetMenu?.slug} (${targetMenuId})`);
+      console.log(`[menu] source menu: ${sourceMenu.slug} (${sourceMenuId}) → target menu: ${targetMenu.slug} (${targetMenuId})`);
 
       const existing = await getMenuItems(targetMenuId);
 
@@ -402,15 +406,11 @@ async function copyMenuPositions(sourceId, translatedId, objectType, targetLangC
 }
 
 // Find the menu for targetLangCode that corresponds to sourceMenu.
+// Returns null if no confident match is found (caller skips menu item creation).
 // Matching order:
-//   1. Polylang lang field on menu object (future-proof)
-//   2. Slug: replace source lang code suffix with target lang code  (e.g. primary-menu-de → primary-menu-it)
-//   3. Name: same replacement case-insensitively
-//   4. Fall back to sourceMenu itself
+//   1. Slug: replace source lang code suffix with target lang code  (e.g. primary-menu-de → primary-menu-it)
+//   2. Name: same replacement case-insensitively
 function resolveTargetMenu(sourceMenu, targetLangCode, allMenus, langCodes) {
-  // 1. Polylang lang field
-  const byLangField = allMenus.find((m) => m.lang === targetLangCode && m.id !== sourceMenu.id);
-
   const slug  = sourceMenu.slug  || '';
   const name  = (sourceMenu.name || '').toLowerCase();
   const tc    = targetLangCode.toLowerCase();
@@ -420,7 +420,9 @@ function resolveTargetMenu(sourceMenu, targetLangCode, allMenus, langCodes) {
     slug.endsWith(`-${lc}`) || name.endsWith(` ${lc}`) || name.endsWith(`-${lc}`),
   );
 
-  if (!sourceLang) return byLangField ?? sourceMenu;
+  // No lang code found in slug/name — can't reliably map to a target menu.
+  // Return null so the caller skips menu item creation rather than guessing.
+  if (!sourceLang) return null;
 
   // 2. Slug swap: "primary-menu-de" → "primary-menu-it"
   const targetSlug = slug.endsWith(`-${sourceLang}`)
@@ -437,5 +439,7 @@ function resolveTargetMenu(sourceMenu, targetLangCode, allMenus, langCodes) {
   });
   if (targetMenu) return targetMenu;
 
-  return byLangField ?? sourceMenu;
+  // Could not confidently identify the corresponding target-language menu.
+  // Return null so the caller skips rather than creating items in the wrong menu.
+  return null;
 }
