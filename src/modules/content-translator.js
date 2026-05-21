@@ -3,6 +3,7 @@ import {
   getPosts, getPages, getPost, getPage,
   updatePost, updatePage, createPost, createPage,
   getMenuItemsByObjectId, getMenus, getMenuItems, createMenuItem, updateMenuItem,
+  getPolylangLanguages,
 } from '../utils/wp-api.js';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -145,20 +146,31 @@ export async function listTranslatableItems() {
     const urlLang = (p.link || '').match(/\/([a-z]{2})\//)?.[1] || null;
     const translationsLang = Object.keys(translations).find((k) => Number(translations[k]) === Number(p.id)) || null;
     const lang = p.lang || urlLang || translationsLang || null;
-    return {
-      id: p.id,
-      type,
-      title: p.title?.rendered || '(no title)',
-      url: p.link,
-      lang,
-      translations,
-    };
+    return { id: p.id, type, title: p.title?.rendered || '(no title)', url: p.link, lang, translations };
   };
 
-  return [
+  const allItems = [
     ...pages.map((p) => mapItem(p, 'page')),
     ...posts.map((p) => mapItem(p, 'post')),
   ];
+
+  // Polylang's default language has no URL prefix — those items get lang:null above.
+  // Detect the default language: whichever known lang code never appears as a URL segment.
+  const urlLangs = new Set(allItems.map((i) => i.lang).filter(Boolean));
+  if (urlLangs.size > 0) {
+    // Fetch known language codes from Polylang to find which one is missing from URLs.
+    try {
+      const knownLangs = await getPolylangLanguages();
+      const defaultLang = knownLangs.find((l) => !urlLangs.has(l.code));
+      if (defaultLang) {
+        for (const item of allItems) {
+          if (!item.lang) item.lang = defaultLang.code;
+        }
+      }
+    } catch {}
+  }
+
+  return allItems;
 }
 
 // Translate a single post/page and return all data needed to save it.
