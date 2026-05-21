@@ -201,6 +201,7 @@ export async function translateItem(id, type, targetLangCode, targetLangName, on
     id,
     type,
     sourceLang,
+    sourceMeta: item.meta || {},
     polylangTranslations,
     existingTranslationId,
     title: originalTitle,
@@ -222,6 +223,7 @@ export async function applyTranslation({
   existingTranslationId,
   polylangTranslations,
   sourceLang,
+  sourceMeta,
   translatedTitle,
   translatedContent,
   translatedExcerpt,
@@ -230,6 +232,10 @@ export async function applyTranslation({
   if (translatedTitle)   payload.title   = translatedTitle;
   if (translatedContent) payload.content = translatedContent;
   if (translatedExcerpt) payload.excerpt = translatedExcerpt;
+  // Copy display/layout meta from source (e.g. hide_title, theme page templates).
+  if (sourceMeta && typeof sourceMeta === 'object' && Object.keys(sourceMeta).length > 0) {
+    payload.meta = sourceMeta;
+  }
 
   if (existingTranslationId > 0) {
     // Translation already exists in Polylang — just update its content.
