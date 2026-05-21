@@ -14,7 +14,7 @@ Opens at **http://localhost:3000** (configure port via `UI_PORT` env var).
 
 ## Web UI Features
 
-The browser UI (`src/public/index.html`) provides a dashboard with four tabs:
+The browser UI (`src/public/index.html`) provides a dashboard with six tabs:
 
 | Tab | Description |
 |---|---|
@@ -22,6 +22,8 @@ The browser UI (`src/public/index.html`) provides a dashboard with four tabs:
 | **SEO Optimizer** | Review all posts with low SEO scores, generate AI fixes per field, apply in bulk |
 | **Media Optimizer** | See images with missing alt text, generate AI alt texts, apply in bulk |
 | **H1 Overview** | Review and fix H1 headings and keyphrases across all content |
+| **Bild Management** | Rename image filenames via AI, compress oversized images, upload replacements from PC |
+| **Bildaustausch** | Seasonal/thematic image replacement — swap images across posts from the media library |
 
 All fix workflows follow a **Preview → Select → Apply** pattern — no changes are written without explicit confirmation.
 
@@ -219,3 +221,151 @@ Content-Type: application/json
 ```
 
 Streams SSE progress while writing alt texts to WordPress.
+
+---
+
+### AI Filename Audit (streaming)
+
+```
+GET /preview/audit-filenames
+```
+
+Streams SSE events with AI-generated filename proposals for images that have poor, generic, or non-descriptive filenames.
+Requires `ANTHROPIC_API_KEY`.
+
+**SSE events:** `progress`, `out` (single proposal line), `err`, `proposals` (final array), `done`
+
+**Proposals payload:**
+```json
+[{
+  "id": 123,
+  "currentFilename": "img_4567",
+  "proposedFilename": "summer-terrace-sunset",
+  "reason": "Generic camera filename, no semantic meaning",
+  "quality": "poor"
+}]
+```
+
+---
+
+### Apply Filename Renames (streaming)
+
+```
+POST /apply/audit-filenames
+Content-Type: application/json
+
+{ "changes": [{ "id": 123, "newFilename": "summer-terrace-sunset" }] }
+```
+
+Re-uploads each selected image under the new filename, updates all post/page content references and `featured_media` IDs, then deletes the original file.
+Streams SSE progress events.
+
+---
+
+### Rename Single Image
+
+```
+POST /api/rename-image
+Content-Type: application/json
+
+{ "id": 123, "newFilename": "summer-terrace-sunset" }
+```
+
+Renames one media item synchronously.
+
+**Response:** `{ originalId, originalUrl, originalFilename, newId, newUrl, newFilename, urlMappings, refsUpdated, featuredUpdated }`
+
+---
+
+### Detect Oversized Images
+
+```
+GET /api/compress-images/detect?threshold=<bytes>
+```
+
+Returns images whose file size exceeds `threshold` (default: 204800 = 200 KB) and that are in a compressible format (JPEG, PNG, WebP).
+
+**Response:** array of `{ id, filename, url, sizeKb, width, height, mimeType, altText }`
+
+---
+
+### Compress Images (streaming)
+
+```
+POST /api/compress-images/apply
+Content-Type: application/json
+
+{
+  "ids": [123, 456],
+  "targetSizeKb": 150,
+  "quality": 82,
+  "maxWidth": 2560,
+  "maxHeight": 2560,
+  "threshold": 204800
+}
+```
+
+Compresses the selected images (or all oversized ones if `ids` is omitted). Streams SSE progress. Updates all post references after each compression.
+
+---
+
+### Repair Post References (streaming)
+
+```
+POST /api/repair-references
+```
+
+Scans all posts/pages (all Polylang language variants) and corrects broken image URLs by matching filename slugs against the current media library. Streams SSE progress.
+
+---
+
+### Upload Image from PC (streaming)
+
+```
+POST /api/upload-from-pc?postId=<n>&postType=post|page&mode=featured|content&oldMediaId=<n>&oldSrc=<url>&filename=<name>
+Content-Type: <mime-type>
+Body: <raw binary image data>
+```
+
+Uploads a local file as a new WordPress media item, then replaces the old image in the specified post. Streams SSE progress.
+
+---
+
+### Seasonal Image Replacement
+
+```
+GET /api/seasonal/config
+```
+Returns `{ wpBase: "https://your-site.com" }` — the WP base URL the frontend uses to detect which image URLs need to be proxied.
+
+```
+GET /api/seasonal/proxy-image?url=<encoded-url>
+```
+Server-side image proxy that forwards WP media URLs to avoid browser SSL or CORS issues.
+
+```
+GET /api/seasonal/posts
+```
+Streams SSE events (`post`, `done`, `error`) for all published posts and pages that contain at least one image. Each `post` event payload includes: `id`, `type`, `title`, `url`, `images` (array of `{ src, mediaId }`), `featuredImageId`, `featuredImageUrl`, `translations` (Polylang language variants).
+
+```
+GET /api/seasonal/media?page=<n>&search=<term>
+```
+Returns page `n` (30 items per page) of the media library, optionally filtered by `search`. Used for the replacement image picker.
+
+```
+POST /api/seasonal/replace
+Content-Type: application/json
+
+{
+  "postId": 42,
+  "postType": "post",
+  "mode": "featured" | "content",
+  "oldSrc": "https://...",
+  "oldMediaId": 10,
+  "newMediaId": 99,
+  "newSrc": "https://...",
+  "postUrl": "https://..."
+}
+```
+Replaces the specified image in the post content or featured image, updates all size-variant URLs and `featured_media` ID, then optionally purges server-side caches via a HEAD/PURGE request to `postUrl`.
