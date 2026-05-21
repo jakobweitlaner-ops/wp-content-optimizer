@@ -3964,7 +3964,7 @@
     const footer = document.getElementById('translate-footer');
     const targetLangCode = document.getElementById('translate-target-lang').value;
 
-    // Only show items NOT already in the target language.
+    // Only show items NOT already in the target language (those ARE the source pages).
     const eligible = translateItems.filter((item) => item.lang !== targetLangCode);
 
     if (eligible.length === 0) {
@@ -3973,35 +3973,58 @@
       return;
     }
 
-    scroll.innerHTML = '';
+    // Hint bar at the top
+    scroll.innerHTML = `<div style="font-size:0.74rem;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:0.5rem 0.75rem;margin-bottom:0.25rem">
+      Das Original wird <strong>niemals verändert</strong>. Neue Übersetzungen werden als Entwurf angelegt.
+      Seiten mit bestehender Übersetzung sind abgehakt — nur gezielt anhaken um sie neu zu übersetzen.
+    </div>`;
+
+    let newCount = 0, existingCount = 0;
     eligible.forEach((item) => {
       const existingId = item.translations?.[targetLangCode] || 0;
-      const action = existingId > 0 ? 'aktualisieren' : 'neu anlegen';
-      const actionColor = existingId > 0 ? '#f59e0b' : '#16a34a';
-      const sourceLangBadge = item.lang ? `<span style="font-size:0.68rem;background:#e2e8f0;color:#475569;border-radius:4px;padding:0.05rem 0.3rem;flex-shrink:0">${item.lang.toUpperCase()}</span>` : '';
+      // Items without a translation are checked by default; existing translations are unchecked.
+      const isNew = existingId === 0;
+      if (isNew) newCount++; else existingCount++;
+
+      const actionLabel = isNew ? 'neu anlegen' : 'Entwurf aktualisieren';
+      const actionColor = isNew ? '#16a34a' : '#94a3b8';
+      const rowOpacity  = isNew ? '' : 'opacity:0.6';
+      const sourceLangBadge = item.lang
+        ? `<span style="font-size:0.68rem;background:#e2e8f0;color:#475569;border-radius:4px;padding:0.05rem 0.3rem;flex-shrink:0">${item.lang.toUpperCase()}</span>`
+        : '';
 
       const row = document.createElement('div');
       row.className = 'translate-item-row';
       row.dataset.id = item.id;
       row.dataset.type = item.type;
+      row.style.cssText = rowOpacity;
       row.innerHTML = `
-        <input type="checkbox" checked data-id="${item.id}" data-type="${item.type}">
+        <input type="checkbox" ${isNew ? 'checked' : ''} data-id="${item.id}" data-type="${item.type}">
         ${sourceLangBadge}
         <span class="translate-item-label">${escapeHtml(item.title)}</span>
         <span class="translate-item-type">${item.type === 'page' ? 'Seite' : 'Beitrag'}</span>
-        <span style="font-size:0.68rem;color:${actionColor};flex-shrink:0;white-space:nowrap">${action}</span>
+        <span style="font-size:0.68rem;color:${actionColor};flex-shrink:0;white-space:nowrap">${actionLabel}</span>
       `;
       row.addEventListener('click', (e) => {
         if (e.target.tagName !== 'INPUT') {
           const cb = row.querySelector('input[type="checkbox"]');
           cb.checked = !cb.checked;
+          row.style.opacity = cb.checked ? '' : '0.6';
         }
+        updateTranslateSelectAll();
+      });
+      // Keep opacity in sync when checkbox is toggled directly
+      row.querySelector('input').addEventListener('change', (e) => {
+        row.style.opacity = e.target.checked ? '' : '0.6';
         updateTranslateSelectAll();
       });
       scroll.appendChild(row);
     });
 
-    countLabel.textContent = `${eligible.length} von ${translateItems.length} angezeigt`;
+    const parts = [];
+    if (newCount)      parts.push(`${newCount} ohne Übersetzung`);
+    if (existingCount) parts.push(`${existingCount} bereits übersetzt`);
+    countLabel.textContent = parts.join(' · ');
     footer.style.display = 'flex';
     updateTranslateSelectAll();
   }
@@ -4053,7 +4076,11 @@
   function translateToggleAll() {
     const checkboxes = document.querySelectorAll('#translate-scroll input[type="checkbox"]');
     const allChecked = [...checkboxes].every((cb) => cb.checked);
-    checkboxes.forEach((cb) => (cb.checked = !allChecked));
+    checkboxes.forEach((cb) => {
+      cb.checked = !allChecked;
+      const row = cb.closest('.translate-item-row');
+      if (row) row.style.opacity = cb.checked ? '' : '0.6';
+    });
     updateTranslateSelectAll();
   }
 
