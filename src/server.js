@@ -617,6 +617,10 @@ app.get('/api/translate/langs', async (req, res) => {
 app.get('/api/translate/items', async (req, res) => {
   try {
     const items = await listTranslatableItems();
+    // Debug: log first 5 items to diagnose lang detection
+    console.log('[translate/items] sample:', items.slice(0, 5).map((i) => ({
+      id: i.id, type: i.type, lang: i.lang, url: i.url, translations: i.translations,
+    })));
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
