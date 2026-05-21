@@ -625,7 +625,7 @@ app.get('/api/translate/items', async (req, res) => {
 
 // Plain JSON endpoint: translates all selected items and returns results at once.
 // Simpler and more reliable than SSE-over-POST which has browser/proxy issues.
-app.post('/api/translate/preview', express.json(), async (req, res) => {
+app.post('/api/translate/preview', express.json({ limit: '10mb' }), async (req, res) => {
   const { items, targetLangCode, targetLangName } = req.body || {};
   if (!Array.isArray(items) || items.length === 0 || !targetLangCode || !targetLangName) {
     return res.status(400).json({ error: 'items, targetLangCode and targetLangName required' });
@@ -650,7 +650,7 @@ app.post('/api/translate/preview', express.json(), async (req, res) => {
 
 // SSE stream: save translated items to WordPress via Polylang-aware logic.
 // Creates a new linked draft when no translation exists; updates existing otherwise.
-app.post('/api/translate/apply', express.json(), (req, res) => {
+app.post('/api/translate/apply', express.json({ limit: '10mb' }), (req, res) => {
   const { items, targetLangCode } = req.body || {};
   if (!Array.isArray(items) || items.length === 0 || !targetLangCode) {
     return res.status(400).json({ error: 'items and targetLangCode required' });
