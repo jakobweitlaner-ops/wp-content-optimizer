@@ -159,6 +159,7 @@ export async function listTranslatableItems() {
 // targetLangName: display name used in the Claude prompt (e.g. "English")
 // onProgress(message): optional callback emitted before each Claude API call
 export async function translateItem(id, type, targetLangCode, targetLangName, onProgress) {
+  if (onProgress) onProgress('Lade Seite aus WordPress…');
   const item = type === 'page'
     ? await getPage(id, { context: 'edit' })
     : await getPost(id, { context: 'edit' });

@@ -643,17 +643,31 @@ app.post('/api/translate/preview', express.json(), (req, res) => {
   const send = (type, text, data) =>
     res.write(`data: ${JSON.stringify({ type, text, ...(data ? { data } : {}) })}\n\n`);
 
+  // Hard timeout per item so a hanging API call surfaces as an error instead of
+  // spinning silently. 120 s covers WP API + multiple Claude batches for large pages.
+  const withTimeout = (promise, ms, label) => Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout (${ms / 1000}s) bei: ${label}`)), ms),
+    ),
+  ]);
+
   (async () => {
     for (let i = 0; i < items.length; i++) {
       const { id, type } = items[i];
       send('progress', `Übersetze ${i + 1}/${items.length}…`);
       try {
-        const result = await translateItem(
-          parseInt(id, 10), type, targetLangCode, targetLangName,
-          (msg) => send('progress', `${i + 1}/${items.length}: ${msg}`),
+        const result = await withTimeout(
+          translateItem(
+            parseInt(id, 10), type, targetLangCode, targetLangName,
+            (msg) => send('progress', `${i + 1}/${items.length}: ${msg}`),
+          ),
+          120_000,
+          `ID ${id}`,
         );
         send('result', `✔ ${result.title}`, result);
       } catch (err) {
+        console.error(`[translate] ID ${id} Fehler:`, err.message);
         send('err', `Fehler bei ID ${id}: ${err.message}`);
       }
     }
