@@ -211,9 +211,13 @@ export async function translateItem(id, type, targetLangCode, targetLangName, on
   ];
 
   const sourceMeta = item.meta || {};
+  console.log(`[yoast] meta keys available:`, Object.keys(sourceMeta));
+
   const yoastTranslateable = YOAST_TRANSLATE_KEYS
     .map((key) => ({ key, value: sourceMeta[key] }))
     .filter(({ value }) => typeof value === 'string' && value.trim().length > 0);
+
+  console.log(`[yoast] translatable fields:`, yoastTranslateable.map((f) => `${f.key}="${f.value.substring(0, 60)}"`));
 
   let translatedYoastMeta = {};
   if (yoastTranslateable.length > 0) {
@@ -223,6 +227,7 @@ export async function translateItem(id, type, targetLangCode, targetLangName, on
       const tr = result[String(idx)];
       if (typeof tr === 'string') translatedYoastMeta[key] = tr;
     });
+    console.log(`[yoast] translated:`, translatedYoastMeta);
   }
 
   const stripTags = (s) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -265,11 +270,38 @@ export async function applyTranslation({
   if (translatedContent) payload.content = translatedContent;
   if (translatedExcerpt) payload.excerpt = translatedExcerpt;
 
-  // Merge: source meta (display/layout settings) overridden by translated Yoast fields.
-  const mergedMeta = { ...(sourceMeta || {}), ...(translatedYoastMeta || {}) };
-  if (Object.keys(mergedMeta).length > 0) {
-    payload.meta = mergedMeta;
+  // Merge: display/layout meta from source + translated Yoast fields.
+  // We only write fields that are explicitly known to be registered with show_in_rest,
+  // to avoid WordPress rejecting the meta update due to unregistered keys.
+  const YOAST_ALL_KEYS = new Set([
+    '_yoast_wpseo_title', '_yoast_wpseo_metadesc', '_yoast_wpseo_focuskw',
+    '_yoast_wpseo_bctitle', '_yoast_wpseo_canonical',
+    '_yoast_wpseo_meta-robots-noindex', '_yoast_wpseo_meta-robots-nofollow',
+    '_yoast_wpseo_meta-robots-adv',
+    '_yoast_wpseo_opengraph-title', '_yoast_wpseo_opengraph-description',
+    '_yoast_wpseo_opengraph-image', '_yoast_wpseo_opengraph-image-id',
+    '_yoast_wpseo_twitter-title', '_yoast_wpseo_twitter-description',
+    '_yoast_wpseo_twitter-image', '_yoast_wpseo_twitter-image-id',
+  ]);
+
+  // Non-Yoast display keys that are safe to copy (registered by themes via register_post_meta).
+  const DISPLAY_KEYS = ['_hide_title', 'hide_title', '_wp_page_template'];
+
+  const metaToWrite = {};
+  // Copy safe display keys from source
+  for (const key of DISPLAY_KEYS) {
+    if (sourceMeta?.[key] !== undefined) metaToWrite[key] = sourceMeta[key];
   }
+  // Copy non-translatable Yoast fields (robots, canonical, images) from source
+  for (const [key, val] of Object.entries(sourceMeta || {})) {
+    if (YOAST_ALL_KEYS.has(key) && translatedYoastMeta?.[key] === undefined) {
+      metaToWrite[key] = val;
+    }
+  }
+  // Overlay translated Yoast fields
+  Object.assign(metaToWrite, translatedYoastMeta || {});
+
+  if (Object.keys(metaToWrite).length > 0) payload.meta = metaToWrite;
 
   if (existingTranslationId > 0) {
     // Translation already exists in Polylang — just update its content.
@@ -317,31 +349,37 @@ async function copyMenuPositions(sourceId, translatedId, objectType, targetLangC
       getMenuItemsByObjectId(sourceId),
       getMenus(),
     ]);
+
+    console.log(`[menu] source items for ID ${sourceId}:`, sourceItems.length,
+      sourceItems.map((i) => ({ id: i.id, menus: i.menus, object_id: i.object_id })));
+    console.log(`[menu] all menus:`, allMenus.map((m) => ({ id: m.id, slug: m.slug, name: m.name })));
+
     if (sourceItems.length === 0) return;
 
     const menuMap = Object.fromEntries(allMenus.map((m) => [m.id, m]));
-
-    // Known language codes — used to detect and swap the lang suffix in slugs/names.
     const LANG_CODES = ['de', 'en', 'fr', 'it', 'es', 'nl', 'pl', 'pt', 'ru', 'tr', 'sv', 'da', 'nb', 'fi', 'cs', 'sk', 'hu', 'ro', 'bg', 'hr', 'uk', 'el', 'he', 'ar', 'ja', 'zh', 'ko', 'th', 'vi'];
 
     for (const item of sourceItems) {
-      const sourceMenuId = item.menus?.[0] ?? item.menu_id ?? null;
+      // WP REST API returns menus as an integer (nav_menu taxonomy term ID), not an array.
+      const sourceMenuId = Array.isArray(item.menus) ? item.menus[0] : (item.menus ?? null);
       if (!sourceMenuId) continue;
 
       const sourceMenu = menuMap[sourceMenuId];
       if (!sourceMenu) continue;
 
-      // Derive the target menu slug by swapping the lang code suffix.
-      // e.g. "primary-menu-de" → "primary-menu-it"
       const targetMenu = resolveTargetMenu(sourceMenu, targetLangCode, allMenus, LANG_CODES);
       const targetMenuId = targetMenu?.id ?? sourceMenuId;
 
-      // Skip if translated page is already in the target menu.
-      const existing = await getMenuItems(targetMenuId);
-      if (existing.some((mi) => mi.object_id === translatedId)) continue;
+      console.log(`[menu] source menu: ${sourceMenu.slug} (${sourceMenuId}) → target menu: ${targetMenu?.slug} (${targetMenuId})`);
 
-      await createMenuItem({
-        menus:      [targetMenuId],
+      const existing = await getMenuItems(targetMenuId);
+      if (existing.some((mi) => mi.object_id === translatedId)) {
+        console.log(`[menu] translated page ${translatedId} already in menu ${targetMenuId}, skipping`);
+        continue;
+      }
+
+      const created = await createMenuItem({
+        menus:      targetMenuId,   // integer — WP REST API expects a single term ID
         object_id:  translatedId,
         object:     objectType,
         type:       'post_type',
@@ -350,9 +388,10 @@ async function copyMenuPositions(sourceId, translatedId, objectType, targetLangC
         menu_order: item.menu_order ?? 0,
         title:      translatedTitle || item.title?.rendered || '',
       });
+      console.log(`[menu] created menu item ${created.id} in menu ${targetMenuId} for page ${translatedId}`);
     }
   } catch (err) {
-    console.warn('[translate] Menüzuordnung fehlgeschlagen:', err.message);
+    console.warn('[translate] Menüzuordnung fehlgeschlagen:', err.message, err.response?.data);
   }
 }
 
