@@ -192,17 +192,16 @@ export async function auditSeoItems() {
     const currentIntro = firstParaMatch2 ? firstParaMatch2[1].replace(/<[^>]+>/g, '').trim().substring(0, 150) : '';
     const headingFormat = detectHeadingFormat(renderedContent);
     const plainText = stripHtml(renderedContent);
-    // Prefer Polylang's authoritative lang field; fall back to heuristic detection.
-    const ogLocale = (yoast.og_locale || '').toLowerCase().substring(0, 2);
+    // Priority: Polylang post.lang → Yoast og_locale → heuristic detectLanguage.
+    // og_locale (e.g. "it_IT", "de_DE") is always set by Yoast and more reliable
+    // than text heuristics on multilingual content with mixed proper nouns.
     const KNOWN_LANGS = new Set(['de', 'fr', 'es', 'it', 'en', 'nl', 'pl', 'pt', 'ru', 'tr', 'sv', 'da', 'nb', 'fi', 'cs', 'sk', 'hu', 'ro']);
-    const lang = post.lang && KNOWN_LANGS.has(post.lang)
+    const ogLocale = (yoast.og_locale || '').toLowerCase().substring(0, 2);
+    const lang = (post.lang && KNOWN_LANGS.has(post.lang))
       ? post.lang
-      : (() => {
-          const detected = detectLanguage((post.title?.rendered || '') + ' ' + plainText);
-          return (detected !== 'en' || !ogLocale)
-            ? detected
-            : (KNOWN_LANGS.has(ogLocale) ? ogLocale : 'en');
-        })();
+      : (ogLocale && KNOWN_LANGS.has(ogLocale))
+        ? ogLocale
+        : detectLanguage((post.title?.rendered || '') + ' ' + plainText);
     return {
       id: post.id,
       type: post._type,
