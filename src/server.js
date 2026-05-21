@@ -638,6 +638,7 @@ app.post('/api/translate/preview', express.json(), (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders(); // send headers immediately so the browser opens the stream
 
   const send = (type, text, data) =>
     res.write(`data: ${JSON.stringify({ type, text, ...(data ? { data } : {}) })}\n\n`);
@@ -647,7 +648,10 @@ app.post('/api/translate/preview', express.json(), (req, res) => {
       const { id, type } = items[i];
       send('progress', `Übersetze ${i + 1}/${items.length}…`);
       try {
-        const result = await translateItem(parseInt(id, 10), type, targetLangCode, targetLangName);
+        const result = await translateItem(
+          parseInt(id, 10), type, targetLangCode, targetLangName,
+          (msg) => send('progress', `${i + 1}/${items.length}: ${msg}`),
+        );
         send('result', `✔ ${result.title}`, result);
       } catch (err) {
         send('err', `Fehler bei ID ${id}: ${err.message}`);
