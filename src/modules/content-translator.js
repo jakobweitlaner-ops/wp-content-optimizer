@@ -141,8 +141,10 @@ export async function listTranslatableItems() {
 
   const mapItem = (p, type) => {
     const translations = p.translations || {};
-    // Fallback: if lang is missing, find the key in translations whose value equals this item's id.
-    const lang = p.lang || Object.keys(translations).find((k) => Number(translations[k]) === Number(p.id)) || null;
+    // Priority: post.lang (Polylang REST) → URL segment (/de/, /it/) → translations map key.
+    const urlLang = (p.link || '').match(/\/([a-z]{2})\//)?.[1] || null;
+    const translationsLang = Object.keys(translations).find((k) => Number(translations[k]) === Number(p.id)) || null;
+    const lang = p.lang || urlLang || translationsLang || null;
     return {
       id: p.id,
       type,
