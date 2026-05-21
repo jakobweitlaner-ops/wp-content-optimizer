@@ -194,12 +194,9 @@ export async function auditSeoItems() {
     const currentIntro = firstParaMatch2 ? firstParaMatch2[1].replace(/<[^>]+>/g, '').trim().substring(0, 150) : '';
     const headingFormat = detectHeadingFormat(renderedContent);
     const plainText = stripHtml(renderedContent);
-    // Polylang exposes post.lang with context:'edit' (authenticated).
-    // og_locale from Yoast reflects the WordPress site locale, not the per-page language — useless as fallback.
-    const KNOWN_LANGS = new Set(['de', 'fr', 'es', 'it', 'en', 'nl', 'pl', 'pt', 'ru', 'tr', 'sv', 'da', 'nb', 'fi', 'cs', 'sk', 'hu', 'ro']);
-    const lang = (post.lang && KNOWN_LANGS.has(post.lang))
-      ? post.lang
-      : detectLanguage((post.title?.rendered || '') + ' ' + plainText);
+    // Use post.lang from Polylang directly — the code can be anything the user configured
+    // (e.g. "gb" for English). Only fall back to heuristic detection when Polylang has no value.
+    const lang = post.lang || detectLanguage((post.title?.rendered || '') + ' ' + plainText);
     return {
       id: post.id,
       type: post._type,
