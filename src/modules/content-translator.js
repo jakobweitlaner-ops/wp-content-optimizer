@@ -132,28 +132,30 @@ async function translateHtml(html, targetLangName, onProgress) {
 // Fetch all published posts and pages together with their Polylang metadata.
 // Returns: { id, type, title, url, lang, translations }
 export async function listTranslatableItems() {
-  const fields = 'id,title,status,link,lang,translations';
+  // context:edit is required for Polylang to expose the `lang` field via REST API.
+  const params = { _fields: 'id,title,status,link,lang,translations', context: 'edit' };
   const [posts, pages] = await Promise.all([
-    getPosts({ _fields: fields }).catch(() => []),
-    getPages({ _fields: fields }).catch(() => []),
+    getPosts(params).catch(() => []),
+    getPages(params).catch(() => []),
   ]);
+
+  const mapItem = (p, type) => {
+    const translations = p.translations || {};
+    // Fallback: if lang is missing, find the key in translations whose value equals this item's id.
+    const lang = p.lang || Object.keys(translations).find((k) => Number(translations[k]) === Number(p.id)) || null;
+    return {
+      id: p.id,
+      type,
+      title: p.title?.rendered || '(no title)',
+      url: p.link,
+      lang,
+      translations,
+    };
+  };
+
   return [
-    ...pages.map((p) => ({
-      id: p.id,
-      type: 'page',
-      title: p.title?.rendered || '(no title)',
-      url: p.link,
-      lang: p.lang || null,
-      translations: p.translations || {},
-    })),
-    ...posts.map((p) => ({
-      id: p.id,
-      type: 'post',
-      title: p.title?.rendered || '(no title)',
-      url: p.link,
-      lang: p.lang || null,
-      translations: p.translations || {},
-    })),
+    ...pages.map((p) => mapItem(p, 'page')),
+    ...posts.map((p) => mapItem(p, 'post')),
   ];
 }
 
