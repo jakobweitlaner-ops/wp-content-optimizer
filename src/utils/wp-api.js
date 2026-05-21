@@ -301,3 +301,45 @@ export async function uploadMedia(buffer, mimeType, filename, meta = {}) {
   }
   return uploadResponse.data;
 }
+
+// Return all nav_menu_item records whose object_id matches the given post/page ID.
+export async function getMenuItemsByObjectId(objectId) {
+  try {
+    const { data } = await withRetry(
+      () => client.get('/menu-items', { params: { object_id: objectId, per_page: 100 } }),
+      3, 1000,
+    );
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+// Return all registered nav menus (WordPress 5.9+ REST endpoint).
+export async function getMenus() {
+  try {
+    const { data } = await withRetry(() => client.get('/menus', { params: { per_page: 100 } }), 3, 1000);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+// Create a nav menu item.
+export async function createMenuItem(data) {
+  const response = await withRetry(() => client.post('/menu-items', data), 3, 1000);
+  return response.data;
+}
+
+// Return all menu items that belong to a specific menu.
+export async function getMenuItems(menuId) {
+  try {
+    const { data } = await withRetry(
+      () => client.get('/menu-items', { params: { menus: menuId, per_page: 100 } }),
+      3, 1000,
+    );
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}

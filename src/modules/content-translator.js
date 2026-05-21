@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import {
   getPosts, getPages, getPost, getPage,
   updatePost, updatePage, createPost, createPage,
+  getMenuItemsByObjectId, getMenus, getMenuItems, createMenuItem,
 } from '../utils/wp-api.js';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -302,6 +303,59 @@ export async function applyTranslation({
     },
   };
 
-  if (type === 'page') return createPage(newPayload);
-  return createPost(newPayload);
+  const saved = type === 'page' ? await createPage(newPayload) : await createPost(newPayload);
+  await copyMenuPositions(id, saved.id, type, targetLangCode, translatedTitle);
+  return saved;
+}
+
+// Copy nav menu positions from the source post/page to the newly created translation.
+// Polylang uses separate menus per language; we find the target-language menu by
+// matching the `lang` field that Polylang adds to menus via REST, or fall back to
+// the same menu when no language-specific menu exists.
+async function copyMenuPositions(sourceId, translatedId, objectType, targetLangCode, translatedTitle) {
+  try {
+    const [sourceItems, allMenus] = await Promise.all([
+      getMenuItemsByObjectId(sourceId),
+      getMenus(),
+    ]);
+    if (sourceItems.length === 0) return;
+
+    // Build a map: menuId → menu object (with optional lang field from Polylang)
+    const menuMap = Object.fromEntries(allMenus.map((m) => [m.id, m]));
+
+    for (const item of sourceItems) {
+      const sourceMenuId = item.menus?.[0] ?? item.menu_id ?? null;
+      if (!sourceMenuId) continue;
+
+      // Resolve target menu: prefer a menu whose lang matches targetLangCode,
+      // whose locations overlap with the source menu, or fall back to source menu.
+      const sourceMenu = menuMap[sourceMenuId];
+      const sourceLocations = new Set(sourceMenu?.locations ?? []);
+
+      const targetMenu = allMenus.find((m) =>
+        m.lang === targetLangCode && m.locations?.some((l) => sourceLocations.has(l)),
+      ) ?? allMenus.find((m) => m.lang === targetLangCode)
+        ?? sourceMenu;
+
+      const targetMenuId = targetMenu?.id ?? sourceMenuId;
+
+      // Skip if translated page is already in the target menu.
+      const existing = await getMenuItems(targetMenuId);
+      if (existing.some((mi) => mi.object_id === translatedId)) continue;
+
+      await createMenuItem({
+        menus:       [targetMenuId],
+        object_id:   translatedId,
+        object:      objectType,   // 'page' or 'post'
+        type:        'post_type',
+        status:      'publish',
+        parent:      item.parent ?? 0,
+        menu_order:  item.menu_order ?? 0,
+        title:       translatedTitle || item.title?.rendered || '',
+      });
+    }
+  } catch (err) {
+    // Menu copy is best-effort — never fail the translation because of it.
+    console.warn('[translate] Menüzuordnung fehlgeschlagen:', err.message);
+  }
 }
