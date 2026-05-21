@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import {
   getPosts, getPages, getPost, getPage,
   updatePost, updatePage, createPost, createPage,
+  getMenuItemsByObjectId, getMenus, getMenuItems, createMenuItem,
 } from '../utils/wp-api.js';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -65,6 +66,7 @@ Strict rules — violations will break the website:
 - Preserve every image filename (*.jpg, *.png, *.webp, *.svg, *.gif, *.pdf, *.mp4) exactly
 - Preserve email addresses exactly
 - Preserve WordPress shortcodes ([contact-form-7 …]) exactly
+- Preserve Yoast SEO template variables (%%title%%, %%sep%%, %%sitename%%, %%page%%, etc.) exactly
 - Preserve phone numbers, postal codes, and numeric codes exactly
 - Keep proper nouns and brand names appropriate for the target language
 
@@ -195,12 +197,42 @@ export async function translateItem(id, type, targetLangCode, targetLangName, on
       .then((r) => r['0'] || originalExcerpt);
   }
 
+  // ── Yoast SEO fields ────────────────────────────────────────────
+  // These live in item.meta under _yoast_wpseo_* keys (exposed by Yoast REST API).
+  // Text fields are translated; non-text fields (robots, canonical, etc.) are copied as-is.
+  const YOAST_TRANSLATE_KEYS = [
+    '_yoast_wpseo_focuskw',
+    '_yoast_wpseo_title',
+    '_yoast_wpseo_metadesc',
+    '_yoast_wpseo_opengraph-title',
+    '_yoast_wpseo_opengraph-description',
+    '_yoast_wpseo_twitter-title',
+    '_yoast_wpseo_twitter-description',
+  ];
+
+  const sourceMeta = item.meta || {};
+  const yoastTranslateable = YOAST_TRANSLATE_KEYS
+    .map((key) => ({ key, value: sourceMeta[key] }))
+    .filter(({ value }) => typeof value === 'string' && value.trim().length > 0);
+
+  let translatedYoastMeta = {};
+  if (yoastTranslateable.length > 0) {
+    if (onProgress) onProgress('Übersetze Yoast SEO…');
+    const result = await translateBatch(yoastTranslateable.map((f) => f.value), targetLangName);
+    yoastTranslateable.forEach(({ key }, idx) => {
+      const tr = result[String(idx)];
+      if (typeof tr === 'string') translatedYoastMeta[key] = tr;
+    });
+  }
+
   const stripTags = (s) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
   return {
     id,
     type,
     sourceLang,
+    sourceMeta,
+    translatedYoastMeta,
     polylangTranslations,
     existingTranslationId,
     title: originalTitle,
@@ -222,6 +254,8 @@ export async function applyTranslation({
   existingTranslationId,
   polylangTranslations,
   sourceLang,
+  sourceMeta,
+  translatedYoastMeta,
   translatedTitle,
   translatedContent,
   translatedExcerpt,
@@ -231,6 +265,12 @@ export async function applyTranslation({
   if (translatedContent) payload.content = translatedContent;
   if (translatedExcerpt) payload.excerpt = translatedExcerpt;
 
+  // Merge: source meta (display/layout settings) overridden by translated Yoast fields.
+  const mergedMeta = { ...(sourceMeta || {}), ...(translatedYoastMeta || {}) };
+  if (Object.keys(mergedMeta).length > 0) {
+    payload.meta = mergedMeta;
+  }
+
   if (existingTranslationId > 0) {
     // Translation already exists in Polylang — just update its content.
     if (type === 'page') return updatePage(existingTranslationId, payload);
@@ -238,8 +278,21 @@ export async function applyTranslation({
   }
 
   // No linked translation yet — create a new draft and tell Polylang to link it.
+  // Derive slug from translated title so the URL matches the target language.
+  const slug = translatedTitle
+    ? translatedTitle
+        .toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .substring(0, 80)
+    : undefined;
+
   const newPayload = {
     ...payload,
+    ...(slug ? { slug } : {}),
     status: 'draft',
     lang: targetLangCode,
     // Include all known sibling IDs so Polylang connects the full translation set.
@@ -250,6 +303,94 @@ export async function applyTranslation({
     },
   };
 
-  if (type === 'page') return createPage(newPayload);
-  return createPost(newPayload);
+  const saved = type === 'page' ? await createPage(newPayload) : await createPost(newPayload);
+  await copyMenuPositions(id, saved.id, type, targetLangCode, translatedTitle);
+  return saved;
+}
+
+// Copy nav menu positions from the source post/page to the newly created translation.
+// Polylang creates separate menus per language named like "Primary Menu DE" / "Primary Menu IT".
+// We find the target menu by replacing the source language code with the target code in the slug.
+async function copyMenuPositions(sourceId, translatedId, objectType, targetLangCode, translatedTitle) {
+  try {
+    const [sourceItems, allMenus] = await Promise.all([
+      getMenuItemsByObjectId(sourceId),
+      getMenus(),
+    ]);
+    if (sourceItems.length === 0) return;
+
+    const menuMap = Object.fromEntries(allMenus.map((m) => [m.id, m]));
+
+    // Known language codes — used to detect and swap the lang suffix in slugs/names.
+    const LANG_CODES = ['de', 'en', 'fr', 'it', 'es', 'nl', 'pl', 'pt', 'ru', 'tr', 'sv', 'da', 'nb', 'fi', 'cs', 'sk', 'hu', 'ro', 'bg', 'hr', 'uk', 'el', 'he', 'ar', 'ja', 'zh', 'ko', 'th', 'vi'];
+
+    for (const item of sourceItems) {
+      const sourceMenuId = item.menus?.[0] ?? item.menu_id ?? null;
+      if (!sourceMenuId) continue;
+
+      const sourceMenu = menuMap[sourceMenuId];
+      if (!sourceMenu) continue;
+
+      // Derive the target menu slug by swapping the lang code suffix.
+      // e.g. "primary-menu-de" → "primary-menu-it"
+      const targetMenu = resolveTargetMenu(sourceMenu, targetLangCode, allMenus, LANG_CODES);
+      const targetMenuId = targetMenu?.id ?? sourceMenuId;
+
+      // Skip if translated page is already in the target menu.
+      const existing = await getMenuItems(targetMenuId);
+      if (existing.some((mi) => mi.object_id === translatedId)) continue;
+
+      await createMenuItem({
+        menus:      [targetMenuId],
+        object_id:  translatedId,
+        object:     objectType,
+        type:       'post_type',
+        status:     'publish',
+        parent:     item.parent ?? 0,
+        menu_order: item.menu_order ?? 0,
+        title:      translatedTitle || item.title?.rendered || '',
+      });
+    }
+  } catch (err) {
+    console.warn('[translate] Menüzuordnung fehlgeschlagen:', err.message);
+  }
+}
+
+// Find the menu for targetLangCode that corresponds to sourceMenu.
+// Matching order:
+//   1. Polylang lang field on menu object (future-proof)
+//   2. Slug: replace source lang code suffix with target lang code  (e.g. primary-menu-de → primary-menu-it)
+//   3. Name: same replacement case-insensitively
+//   4. Fall back to sourceMenu itself
+function resolveTargetMenu(sourceMenu, targetLangCode, allMenus, langCodes) {
+  // 1. Polylang lang field
+  const byLangField = allMenus.find((m) => m.lang === targetLangCode && m.id !== sourceMenu.id);
+
+  const slug  = sourceMenu.slug  || '';
+  const name  = (sourceMenu.name || '').toLowerCase();
+  const tc    = targetLangCode.toLowerCase();
+
+  // Detect the source lang code embedded at the end of slug/name (e.g. "-de", " de")
+  const sourceLang = langCodes.find((lc) =>
+    slug.endsWith(`-${lc}`) || name.endsWith(` ${lc}`) || name.endsWith(`-${lc}`),
+  );
+
+  if (!sourceLang) return byLangField ?? sourceMenu;
+
+  // 2. Slug swap: "primary-menu-de" → "primary-menu-it"
+  const targetSlug = slug.endsWith(`-${sourceLang}`)
+    ? slug.slice(0, -sourceLang.length) + tc
+    : null;
+  const bySlug = targetSlug ? allMenus.find((m) => m.slug === targetSlug) : null;
+  if (bySlug) return bySlug;
+
+  // 3. Name swap (case-insensitive suffix)
+  const targetMenu = allMenus.find((m) => {
+    const mn = (m.slug || '').toLowerCase();
+    return mn !== slug && (mn.endsWith(`-${tc}`) || mn.endsWith(` ${tc}`)) &&
+      mn.replace(new RegExp(`[-\\s]${tc}$`), '') === slug.replace(new RegExp(`[-\\s]${sourceLang}$`), '');
+  });
+  if (targetMenu) return targetMenu;
+
+  return byLangField ?? sourceMenu;
 }
