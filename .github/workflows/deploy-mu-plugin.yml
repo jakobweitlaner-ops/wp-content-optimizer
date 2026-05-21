@@ -34,8 +34,8 @@ jobs:
             set ssl:verify-certificate false
             open ftp://$FTP_HOST
             user $FTP_USER $FTP_PASS
-            mkdir -p html/wp-content/mu-plugins
-            put -O html/wp-content/mu-plugins wp-optimizer-yoast-rest.php
+       
+            put -O wp-content/mu-plugins wp-optimizer-yoast-rest.php
             bye
           "
 
